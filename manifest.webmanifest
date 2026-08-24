@@ -1,0 +1,9 @@
+{
+  "name": "Mobile Mechanic AI",
+  "short_name": "Mechanic AI",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0b0c",
+  "theme_color": "#d11f2f",
+  "icons": []
+}
