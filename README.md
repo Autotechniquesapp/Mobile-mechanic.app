@@ -1,17 +1,30 @@
-# Mobile Mechanic AI — standalone prototype
+# Mobile Mechanic AI — Working Front-End Build
 
-This is a self-contained, mobile-first PWA-style prototype built outside Hercules.
+This update replaces the dead-button prototype with a functional browser-based front-end.
 
-## Run locally
-Open `index.html` directly, or serve the folder with any local static server.
+## Working in this build
+- Customer intake fields persist locally
+- VIN decoding through the public NHTSA vPIC API
+- Browser geolocation capture
+- Browser speech-to-text when supported
+- Photo/video/document file selection and attachment listing
+- Immediate local diagnostic pre-workup
+- Repair-video YouTube search
+- Editable parts and labor
+- Add/remove parts and labor lines
+- Estimate recalculation
+- Customer approval with timestamp
+- Shareable approval/intake links
+- Payment method selection and payment recording
+- Receipt/job-summary sharing
+- Print / Save PDF through the browser
+- Business settings saved in localStorage
+- Repair, Maintenance, PPI, Roadside, and Fleet/Diesel intake modes
 
-Example:
-```bash
-python3 -m http.server 8080
-```
-Then open http://localhost:8080
+## Still requires real external service credentials
+- Production AI model/API
+- Square/payment processing
+- CARFAX or another authorized service-history reporting provider
+- Cloud database/authentication
 
-## Included core flow
-Business settings → Customer Intake → Dashboard → AI Pre-Workup → Technician Findings → Quote → Customer Approval → Invoice → Payment/Receipt → Completed Job/Vehicle History.
-
-Fleet/Diesel and Roadside are intentionally parked for later.
+These cannot be made genuinely live from front-end files alone without the corresponding accounts, API credentials, and backend.
