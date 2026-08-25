@@ -1,30 +1,35 @@
-# Mobile Mechanic AI — Working Front-End Build
+# Mobile Mechanic AI
 
-This update replaces the dead-button prototype with a functional browser-based front-end.
+GitHub-ready mobile web app matching the approved red-and-black workflow.
 
-## Working in this build
-- Customer intake fields persist locally
-- VIN decoding through the public NHTSA vPIC API
-- Browser geolocation capture
-- Browser speech-to-text when supported
-- Photo/video/document file selection and attachment listing
-- Immediate local diagnostic pre-workup
-- Repair-video YouTube search
-- Editable parts and labor
-- Add/remove parts and labor lines
-- Estimate recalculation
-- Customer approval with timestamp
-- Shareable approval/intake links
-- Payment method selection and payment recording
-- Receipt/job-summary sharing
-- Print / Save PDF through the browser
-- Business settings saved in localStorage
-- Repair, Maintenance, PPI, Roadside, and Fleet/Diesel intake modes
+## Included working prototype flows
 
-## Still requires real external service credentials
-- Production AI model/API
-- Square/payment processing
-- CARFAX or another authorized service-history reporting provider
-- Cloud database/authentication
+- Mechanic protections and agreements
+- Customer intake with VIN decoding, 1930+ year selection, vehicle dropdowns and manual fallbacks
+- Voice complaint and technician findings where the browser supports speech recognition
+- Current-location capture and address lookup
+- AI-style local diagnostic pre-workup with technician disclaimer
+- Nearby parts search and repair-video search
+- Technician findings, editable parts/labor estimate, approval and in-person signature
+- Invoice, payment selection, printable receipt and completed-job summary
+- Pre-purchase inspection checklist with photos and quote creation
+- Roadside/tow intake with nearby tow-truck search
+- Fleet/semi-diesel intake with company, unit, USDOT and equipment fields
+- Customer alerts, vehicle history and CARFAX-ready pending report
+- Browser storage so test data survives refreshes
 
-These cannot be made genuinely live from front-end files alone without the corresponding accounts, API credentials, and backend.
+## Test locally
+
+```bash
+python3 -m http.server 8080
+```
+
+Open `http://localhost:8080`.
+
+## Deploy with GitHub Pages
+
+Push these files to the repository's default branch. The included Pages workflow publishes the site automatically. In GitHub, set **Settings → Pages → Source** to **GitHub Actions** if needed.
+
+## Production connections still required
+
+Real AI, payment processing, SMS/email, customer accounts/cloud storage and CARFAX reporting require private provider credentials and a secure backend. The static build labels these connections honestly and does not expose API keys in browser code.
