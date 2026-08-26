@@ -1,35 +1,51 @@
-# Mobile Mechanic AI
+# Mobile Mechanic AI — GitHub / Netlify Ready Prototype
 
-GitHub-ready mobile web app matching the approved red-and-black workflow.
+This is the current Netlify-ready prototype built around the approved black/red mechanic UI and white/red shop-linked customer intake.
 
-## Included working prototype flows
+## Upload to GitHub
 
-- Mechanic protections and agreements
-- Customer intake with VIN decoding, 1930+ year selection, vehicle dropdowns and manual fallbacks
-- Voice complaint and technician findings where the browser supports speech recognition
-- Current-location capture and address lookup
-- AI-style local diagnostic pre-workup with technician disclaimer
-- Nearby parts search and repair-video search
-- Technician findings, editable parts/labor estimate, approval and in-person signature
-- Invoice, payment selection, printable receipt and completed-job summary
-- Pre-purchase inspection checklist with photos and quote creation
-- Roadside/tow intake with nearby tow-truck search
-- Fleet/semi-diesel intake with company, unit, USDOT and equipment fields
-- Customer alerts, vehicle history and CARFAX-ready pending report
-- Browser storage so test data survives refreshes
+Use the GitHub account **Autotechniquesapp**. Upload the **contents of this folder** to the correct Mobile Mechanic AI repository, with `index.html` at the repository root. Use `main` as the production branch.
 
-## Test locally
+Then connect the existing Netlify project that serves **mobile-mechanic.app** to that repository. Netlify reads `netlify.toml` and publishes the project root.
 
-```bash
-python3 -m http.server 8080
-```
+## Demo logins
 
-Open `http://localhost:8080`.
+- Platform Owner: `master@mobile-mechanic.app` / `MasterDemo2026!`
+- Billing Admin: `billing-admin@mobile-mechanic.app` / `BillingDemo2026!`
+- Support Admin: `support-admin@mobile-mechanic.app` / `SupportDemo2026!`
+- Demo Shop Owner: `demo@mobile-mechanic.app` / `DemoShop2026!`
+- Demo Technician: `tech@mobile-mechanic.app` / `TechDemo2026!`
 
-## Deploy with GitHub Pages
+These credentials are **prototype-only browser demo credentials**. Replace them with secure backend authentication before commercial use.
 
-Push these files to the repository's default branch. The included Pages workflow publishes the site automatically. In GitHub, set **Settings → Pages → Source** to **GitHub Actions** if needed.
+## Included prototype flows
 
-## Production connections still required
+- Platform Owner and delegated platform admin roles (Billing, Support, Operations, Technical, Read-Only)
+- Admin activity log and role-limited shop actions
+- Multi-shop browser prototype with immutable `shop_id` model
+- 60-day trial and Solo $29.99 / Shop $69.99 / Pro-Fleet $129.99 plan UI
+- Shop owner + technician/service-writer/manager accounts and seat limits
+- Shop-specific branded intake URL and app identity
+- Customer intake, current location, VIN decode using free NHTSA vPIC where available, voice Customer States
+- AI pre-workup UI, diagnostic checklist, AI Second Opinion, Before You Replace It
+- Technician findings, photos, diagnostic history surfaces
+- Good / Better / Best estimates, secure-link style customer selection/approval, single-estimate option
+- Vehicle/job-specific YouTube repair search links
+- Quick quote, markup, labor, tax, travel, deposit settings
+- Pre-purchase inspection, warranty/comeback, parts/warranty/core, fleet/roadside, training/templates
+- CARFAX-ready service record preparation without falsely claiming submission
+- Shop data export
 
-Real AI, payment processing, SMS/email, customer accounts/cloud storage and CARFAX reporting require private provider credentials and a secure backend. The static build labels these connections honestly and does not expose API keys in browser code.
+## Production services still required
+
+For real shops/customers, connect secure production services:
+
+1. Supabase Auth/Postgres/Storage (or equivalent) with tenant/RLS protection by `shop_id`.
+2. Stripe subscriptions and webhooks through server-side functions.
+3. AI provider through Netlify Functions.
+4. Authorized CARFAX connection before any record can be marked Submitted.
+5. Optional paid VIN/plate, parts inventory, SMS/email, maps/service-data APIs only when justified.
+
+## Security
+
+Never commit Stripe secrets, AI keys, CARFAX credentials, Supabase service-role keys, or other private credentials to GitHub. Store them in Netlify Environment Variables and access them only from server-side functions.

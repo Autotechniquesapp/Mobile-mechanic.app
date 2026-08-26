@@ -1,649 +1,540 @@
+(() => {
+'use strict';
 
-const DEFAULT_STATE = {
-  screen:'setup',
-  intakeStep:1,
-  setupAccepted:false,
-  business:{name:"Mobile Mechanic AI",labor:75,tax:8.4,diag:75,service:0,shop:10.95,accent:"#d61f2c"},
-  job:{
-    customer:"",phone:"",email:"",address:"",latitude:null,longitude:null,
-    year:"",make:"",model:"",trim:"",engine:"",drivetrain:"",transmission:"",mileage:"",vin:"",plate:"",
-    serviceType:"Repair / Diagnosis",states:"",finding:"",
-    fleetName:"",unitNumber:"",dotNumber:"",trailerType:"",towNeeded:false,towDestination:"",roadsideSafety:"",
-    mediaCount:0,assessment:null,parts:[],labor:[],status:"New Intake",
-    inspection:null,inspectionPhotos:0,
-    approvalMethod:"",approved:false,paymentMethod:"",paid:false,documents:[]
-  }
+const ROOT = document.getElementById('app');
+const DBKEY = 'mobile_mechanic_ai_approved_v7';
+const TERMS_VERSION = '2026-08-v1';
+const plans = {
+  solo: {name:'Solo', price:29.99, seats:1, label:'Independent mechanic'},
+  shop: {name:'Shop', price:69.99, seats:5, label:'Small repair shop'},
+  pro:  {name:'Pro / Fleet', price:129.99, seats:15, label:'Larger shop / fleet'}
 };
-let state = loadState();
-let deepLinkHandled=false;
-const $ = (s)=>document.querySelector(s);
-const $$ = (s)=>[...document.querySelectorAll(s)];
-const app = $("#app");
 
-const vehicleCatalog={"Ford":{"F-150":{"trims":["XL","XLT","Lariat","King Ranch","Platinum","Tremor","Raptor"],"engines":["2.7L EcoBoost V6","3.3L V6","3.5L EcoBoost V6","3.5L PowerBoost Hybrid V6","5.0L V8"]},"F-250":{"trims":["XL","XLT","Lariat","King Ranch","Platinum","Limited"],"engines":["6.2L V8","6.7L Power Stroke Diesel V8","7.3L V8"]},"F-350":{"trims":["XL","XLT","Lariat","King Ranch","Platinum","Limited"],"engines":["6.2L V8","6.7L Power Stroke Diesel V8","7.3L V8"]},"Ranger":{"trims":["XL","XLT","Lariat","Raptor"],"engines":["2.3L EcoBoost I4","2.7L EcoBoost V6","3.0L EcoBoost V6"]},"Explorer":{"trims":["Base","XLT","Limited","ST-Line","ST","Platinum"],"engines":["2.3L EcoBoost I4","3.0L EcoBoost V6"]},"Escape":{"trims":["S","SE","SEL","Titanium","Active","ST-Line","Platinum"],"engines":["1.5L EcoBoost I3","2.0L EcoBoost I4","2.5L Hybrid I4","2.5L Plug-in Hybrid I4"]},"Bronco":{"trims":["Base","Big Bend","Black Diamond","Outer Banks","Badlands","Wildtrak","Raptor"],"engines":["2.3L EcoBoost I4","2.7L EcoBoost V6","3.0L EcoBoost V6"]},"Transit":{"trims":["Cargo Van","Passenger Van","Crew Van"],"engines":["3.5L V6","3.5L EcoBoost V6"]}},"Chevrolet":{"Silverado 1500":{"trims":["WT","Custom","LT","RST","LTZ","High Country","ZR2"],"engines":["2.7L TurboMax I4","5.3L EcoTec3 V8","6.2L EcoTec3 V8","3.0L Duramax Diesel I6"]},"Silverado 2500HD":{"trims":["WT","Custom","LT","LTZ","High Country","ZR2"],"engines":["6.6L Gas V8","6.6L Duramax Diesel V8"]},"Colorado":{"trims":["WT","LT","Trail Boss","Z71","ZR2"],"engines":["2.5L I4","3.6L V6","2.8L Duramax Diesel I4","2.7L Turbo I4"]},"Tahoe":{"trims":["LS","LT","RST","Z71","Premier","High Country"],"engines":["5.3L V8","6.2L V8","3.0L Duramax Diesel I6"]},"Suburban":{"trims":["LS","LT","RST","Z71","Premier","High Country"],"engines":["5.3L V8","6.2L V8","3.0L Duramax Diesel I6"]},"Equinox":{"trims":["LS","LT","RS","Premier"],"engines":["1.5L Turbo I4","2.0L Turbo I4"]},"Traverse":{"trims":["LS","LT","RS","Premier","High Country","Z71"],"engines":["2.5L Turbo I4","3.6L V6"]}},"GMC":{"Sierra 1500":{"trims":["Pro","SLE","Elevation","SLT","AT4","Denali","AT4X","Denali Ultimate"],"engines":["2.7L TurboMax I4","5.3L V8","6.2L V8","3.0L Duramax Diesel I6"]},"Sierra 2500HD":{"trims":["Pro","SLE","SLT","AT4","Denali"],"engines":["6.6L Gas V8","6.6L Duramax Diesel V8"]},"Canyon":{"trims":["Elevation","AT4","Denali","AT4X"],"engines":["2.7L Turbo I4"]},"Yukon":{"trims":["SLE","SLT","AT4","Denali","Denali Ultimate"],"engines":["5.3L V8","6.2L V8","3.0L Duramax Diesel I6"]},"Terrain":{"trims":["SLE","SLT","AT4","Denali"],"engines":["1.5L Turbo I4","2.0L Turbo I4"]}},"Toyota":{"Tacoma":{"trims":["SR","SR5","TRD Sport","TRD Off Road","Limited","Trailhunter","TRD Pro"],"engines":["2.4L Turbo I4","2.4L i-FORCE MAX Hybrid I4","2.7L I4","3.5L V6","4.0L V6"]},"Tundra":{"trims":["SR","SR5","Limited","Platinum","1794 Edition","TRD Pro","Capstone"],"engines":["3.4L Twin-Turbo V6","3.4L i-FORCE MAX Hybrid V6","4.6L V8","5.7L V8"]},"4Runner":{"trims":["SR5","TRD Sport","TRD Off Road","Limited","Trailhunter","TRD Pro"],"engines":["2.4L Turbo I4","2.4L Hybrid I4","4.0L V6"]},"RAV4":{"trims":["LE","XLE","XLE Premium","Adventure","TRD Off Road","Limited","Hybrid","Prime"],"engines":["2.5L I4","2.5L Hybrid I4","2.5L Plug-in Hybrid I4"]},"Camry":{"trims":["LE","SE","XLE","XSE"],"engines":["2.5L I4","2.5L Hybrid I4","3.5L V6"]},"Corolla":{"trims":["L","LE","SE","XLE","XSE","Hybrid"],"engines":["1.8L I4","2.0L I4","1.8L Hybrid I4"]},"Highlander":{"trims":["L","LE","XLE","XSE","Limited","Platinum","Hybrid"],"engines":["2.4L Turbo I4","3.5L V6","2.5L Hybrid I4"]}},"Honda":{"Civic":{"trims":["LX","Sport","EX","Touring","Si","Type R"],"engines":["1.5L Turbo I4","2.0L I4","2.0L Turbo I4"]},"Accord":{"trims":["LX","Sport","EX","EX-L","Touring","Hybrid"],"engines":["1.5L Turbo I4","2.0L Turbo I4","2.0L Hybrid I4"]},"CR-V":{"trims":["LX","EX","EX-L","Sport","Sport-L","Sport Touring"],"engines":["1.5L Turbo I4","2.0L Hybrid I4"]},"Pilot":{"trims":["Sport","EX-L","TrailSport","Touring","Elite","Black Edition"],"engines":["3.5L V6"]},"Ridgeline":{"trims":["Sport","RTL","TrailSport","Black Edition"],"engines":["3.5L V6"]}},"Nissan":{"Frontier":{"trims":["S","SV","PRO-X","PRO-4X","SL"],"engines":["3.8L V6","4.0L V6"]},"Titan":{"trims":["S","SV","PRO-4X","Platinum Reserve"],"engines":["5.6L V8"]},"Altima":{"trims":["S","SV","SR","SL"],"engines":["2.5L I4","2.0L VC-Turbo I4"]},"Rogue":{"trims":["S","SV","SL","Platinum"],"engines":["1.5L VC-Turbo I3","2.5L I4"]},"Pathfinder":{"trims":["S","SV","SL","Rock Creek","Platinum"],"engines":["3.5L V6"]}},"Ram":{"1500":{"trims":["Tradesman","Big Horn","Laramie","Rebel","Limited Longhorn","Limited","TRX"],"engines":["3.6L Pentastar V6","3.0L Hurricane I6","5.7L HEMI V8","6.2L Supercharged V8"]},"2500":{"trims":["Tradesman","Big Horn","Laramie","Power Wagon","Limited Longhorn","Limited"],"engines":["6.4L HEMI V8","6.7L Cummins Diesel I6"]},"3500":{"trims":["Tradesman","Big Horn","Laramie","Limited Longhorn","Limited"],"engines":["6.4L HEMI V8","6.7L Cummins Diesel I6"]},"ProMaster":{"trims":["Cargo Van","Window Van"],"engines":["3.6L Pentastar V6"]}},"Jeep":{"Wrangler":{"trims":["Sport","Sport S","Willys","Sahara","Rubicon","High Altitude","Rubicon 392"],"engines":["2.0L Turbo I4","3.6L V6","3.0L EcoDiesel V6","6.4L V8","2.0L 4xe Plug-in Hybrid"]},"Grand Cherokee":{"trims":["Laredo","Altitude","Limited","Overland","Summit","Summit Reserve","Trailhawk"],"engines":["2.0L Turbo I4","3.6L V6","5.7L V8","2.0L 4xe Plug-in Hybrid"]},"Gladiator":{"trims":["Sport","Sport S","Willys","Mojave","Rubicon"],"engines":["3.6L V6","3.0L EcoDiesel V6"]},"Cherokee":{"trims":["Latitude","Latitude Plus","Limited","Trailhawk"],"engines":["2.0L Turbo I4","2.4L I4","3.2L V6"]}},"Hyundai":{"Elantra":{"trims":["SE","SEL","Limited","N Line","N"],"engines":["2.0L I4","1.6L Turbo I4","2.0L Turbo I4","1.6L Hybrid I4"]},"Sonata":{"trims":["SE","SEL","N Line","Limited"],"engines":["2.5L I4","2.5L Turbo I4","2.0L Hybrid I4"]},"Tucson":{"trims":["SE","SEL","XRT","Limited","Hybrid","Plug-in Hybrid"],"engines":["2.5L I4","1.6L Turbo Hybrid I4","1.6L Turbo Plug-in Hybrid I4"]},"Santa Fe":{"trims":["SE","SEL","XRT","Limited","Calligraphy","Hybrid"],"engines":["2.5L Turbo I4","1.6L Turbo Hybrid I4"]}},"Kia":{"Forte":{"trims":["LX","LXS","GT-Line","GT"],"engines":["2.0L I4","1.6L Turbo I4"]},"K5":{"trims":["LXS","GT-Line","EX","GT"],"engines":["1.6L Turbo I4","2.5L Turbo I4"]},"Sportage":{"trims":["LX","EX","SX","SX Prestige","X-Line","X-Pro","Hybrid","Plug-in Hybrid"],"engines":["2.5L I4","1.6L Turbo Hybrid I4","1.6L Turbo Plug-in Hybrid I4"]},"Sorento":{"trims":["LX","S","EX","SX","SX Prestige","X-Line","X-Pro","Hybrid","Plug-in Hybrid"],"engines":["2.5L I4","2.5L Turbo I4","1.6L Turbo Hybrid I4","1.6L Turbo Plug-in Hybrid I4"]},"Telluride":{"trims":["LX","S","EX","SX","SX Prestige","X-Line","X-Pro"],"engines":["3.8L V6"]}}};
+const defaultDB = () => ({
+  platformOwner: {id:'adm_owner',name:'Platform Owner', email:'master@mobile-mechanic.app', password:'MasterDemo2026!', role:'platform_owner', active:true},
+  platformAdmins: [
+    {id:'adm_billing',name:'Demo Billing Admin',email:'billing-admin@mobile-mechanic.app',password:'BillingDemo2026!',role:'billing_admin',active:true},
+    {id:'adm_support',name:'Demo Support Admin',email:'support-admin@mobile-mechanic.app',password:'SupportDemo2026!',role:'support_admin',active:true}
+  ],
+  adminActivity: [],
+  session: null,
+  shops: {},
+  publicApprovals: []
+});
 
-const makes = ['Acura','Audi','BMW','Buick','Cadillac','Chevrolet','Chrysler','Dodge','Ford','GMC','Honda','Hyundai','Infiniti','Jeep','Kia','Lexus','Lincoln','Mazda','Mercedes-Benz','Mitsubishi','Nissan','Ram','Subaru','Tesla','Toyota','Volkswagen','Volvo','Other / Not Listed'];
+let db;
+try { db = JSON.parse(localStorage.getItem(DBKEY)) || defaultDB(); }
+catch { db = defaultDB(); }
 
-function clone(x){return JSON.parse(JSON.stringify(x))}
-function loadState(){
-  try{
-    const s=JSON.parse(localStorage.getItem("mma_state")||"null");
-    if(!s)return clone(DEFAULT_STATE);
-    const merged=Object.assign(clone(DEFAULT_STATE),s,{business:Object.assign({},DEFAULT_STATE.business,s.business||{}),job:Object.assign({},DEFAULT_STATE.job,s.job||{})});
-    if(!merged.setupAccepted)merged.screen="setup";
-    return merged;
-  }catch(e){return clone(DEFAULT_STATE)}
+function nowISO(){ return new Date().toISOString(); }
+function uid(prefix='id'){ return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`; }
+function slugify(v){ return String(v||'shop').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,42) || 'shop'; }
+function esc(v=''){ return String(v).replace(/[&<>'"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m])); }
+function money(n){ return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0)); }
+function save(){ localStorage.setItem(DBKEY, JSON.stringify(db)); }
+function trialDays(s){ return Math.max(0, Math.ceil((new Date(s.trialEnds).getTime()-Date.now())/86400000)); }
+function subscriptionOK(s){ return !!s && (s.subscriptionStatus==='active' || s.comped || new Date(s.trialEnds)>new Date()); }
+function currentShop(){ return db.session?.shopId ? db.shops[db.session.shopId] : null; }
+function currentUser(){ const s=currentShop(); return s?.users?.find(u=>u.id===db.session?.userId) || null; }
+function intakeUrl(s){ return `${location.origin}${location.pathname}?intake=${encodeURIComponent(s.slug)}`; }
+function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON.stringify({shop:s.id,slug:s.slug,job:j.id})))); return `${location.origin}${location.pathname}?estimate=${encodeURIComponent(payload)}`; }
+function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
+function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
+function toast(msg,type=''){ document.querySelector('.toast')?.remove(); const d=document.createElement('div'); d.className=`toast ${type}`; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2700); }
+function go(name, params={}){ location.hash = '#'+name; render(name,params); }
+function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
+function roleCan(...roles){ return roles.includes(currentUser()?.role) || db.session?.role==='platform_owner'; }
+const platformRoleLabels={platform_owner:'Platform Owner',billing_admin:'Billing Admin',support_admin:'Support Admin',operations_admin:'Operations Admin',technical_admin:'Technical Admin',read_only_admin:'Read-Only Admin'};
+const platformPerms={
+  platform_owner:new Set(['shops_view','shops_open','trial_extend','comp','suspend','admins_manage','activity_view','billing_view','tech_view']),
+  billing_admin:new Set(['shops_view','comp','billing_view','activity_view']),
+  support_admin:new Set(['shops_view','shops_open','activity_view']),
+  operations_admin:new Set(['shops_view','shops_open','trial_extend','suspend','activity_view']),
+  technical_admin:new Set(['shops_view','shops_open','tech_view','activity_view']),
+  read_only_admin:new Set(['shops_view','billing_view','activity_view'])
+};
+function platformUser(){ if(db.session?.role==='platform_owner')return db.platformOwner; return db.platformAdmins?.find(a=>a.id===db.session?.adminId)||null; }
+function platformCan(p){ const u=platformUser(); return !!u && (platformPerms[u.role]||new Set()).has(p); }
+function logAdmin(action,shopId=null,detail=''){ const u=platformUser(); if(!u)return; db.adminActivity=db.adminActivity||[]; db.adminActivity.unshift({id:uid('log'),adminId:u.id,adminName:u.name,role:u.role,action,shopId,detail,at:nowISO()}); db.adminActivity=db.adminActivity.slice(0,150); save(); }
+
+function seedDemo(){
+  if(Object.keys(db.shops).length) return;
+  const sid='shop_demo_anderson';
+  const trialEnd = new Date(Date.now()+60*86400000).toISOString();
+  db.shops[sid] = {
+    id:sid, slug:'anderson-mobile-mechanic', name:'Anderson Mobile Mechanic', ownerName:'Chris Anderson', phone:'928-555-0147', email:'demo@mobile-mechanic.app',
+    plan:'pro', trialStarted:nowISO(), trialEnds:trialEnd, subscriptionStatus:'trialing', comped:false, setupComplete:true,
+    logo:null, theme:{accent:'#ef2a31',background:'dark',style:'vibrant'},
+    settings:{laborRate:75,taxRate:8.4,partsMarkup:25,travelFee:35,freeRadius:10,depositPercent:60},
+    terms:{version:TERMS_VERSION,acceptedAt:nowISO()},
+    users:[
+      {id:'usr_demo_owner',name:'Chris Anderson',email:'demo@mobile-mechanic.app',password:'DemoShop2026!',role:'owner',active:true},
+      {id:'usr_demo_tech',name:'Mike Technician',email:'tech@mobile-mechanic.app',password:'TechDemo2026!',role:'technician',active:true}
+    ],
+    customers:[
+      {id:'cus_jane',name:'Jane Cooper',phone:'928-555-0192',email:'jane@example.com',address:'Yuma, AZ',vehicles:[{id:'veh_1',year:'2016',make:'Chevrolet',model:'Sonic',trim:'LT',engine:'1.8L',drive:'FWD',vin:'',plate:'',mileage:'124860'}]},
+      {id:'cus_lee',name:'Robert Lee',phone:'928-555-0161',email:'',address:'Foothills, AZ',vehicles:[{id:'veh_2',year:'2011',make:'Mazda',model:'3',trim:'s Sport',engine:'2.5L',drive:'FWD',vin:'',plate:'',mileage:'158200'}]}
+    ],
+    jobs:[
+      {id:'job_1',customerId:'cus_jane',customerName:'Jane Cooper',phone:'928-555-0192',email:'jane@example.com',vehicle:{year:'2016',make:'Chevrolet',model:'Sonic',trim:'LT',engine:'1.8L',drive:'FWD',vin:'',plate:'',mileage:'124860'},complaint:'Coolant leak near thermostat housing and engine runs hotter than normal.',location:'Yuma, AZ',createdAt:nowISO(),status:'AI Pre-Workup',assignedTo:'usr_demo_tech',findings:'',codes:'',photos:[],estimate:null,approval:null,carfax:{status:'Not connected'}},
+      {id:'job_2',customerId:'cus_lee',customerName:'Robert Lee',phone:'928-555-0161',email:'',vehicle:{year:'2011',make:'Mazda',model:'3',trim:'s Sport',engine:'2.5L',drive:'FWD',vin:'',plate:'',mileage:'158200'},complaint:'U0101. Customer has pre-programmed replacement TCM and wants it relocated away from heat.',location:'Yuma, AZ',createdAt:new Date(Date.now()-86400000).toISOString(),status:'Scheduled',assignedTo:'usr_demo_owner',findings:'',codes:'U0101',photos:[],estimate:null,approval:null,carfax:{status:'Ready'}}
+    ],
+    inspections:[], warranties:[], declined:[], receipts:[], fleet:[]
+  };
+  save();
 }
-function saveState(){try{localStorage.setItem("mma_state",JSON.stringify(state))}catch(e){}}
-function money(n){return "$"+Number(n||0).toFixed(2)}
-function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function notify(msg){const n=$("#notice");if(n){n.textContent=msg;n.classList.add("show");setTimeout(()=>n.classList.remove("show"),2600)}else alert(msg)}
-function calc(){
-  const parts=(state.job.parts||[]).reduce((a,x)=>a+(Number(x.q)||0)*(Number(x.p)||0),0);
-  const labor=(state.job.labor||[]).reduce((a,x)=>a+(Number(x.h)||0)*(Number(x.r)||0),0);
-  const fee=Number(state.business.service)||0, sub=parts+labor+fee, tax=sub*((Number(state.business.tax)||0)/100);
-  return {parts,labor,fee,sub,tax,total:sub+tax};
+seedDemo();
+
+function logo(s, cls=''){ return `<img class="${cls}" src="${esc(s?.logo || 'assets/mobile-mechanic-ai-logo.png')}" alt="Mobile Mechanic AI">`; }
+
+function topbar(s,active='dashboard'){
+  const u=currentUser();
+  return `<header class="topbar">
+    <button class="top-btn" data-action="toggle-menu" aria-label="Menu">${ic('more')}</button>
+    <div class="brand" data-route="dashboard">${logo(s)}<div class="brand-copy"><div class="brand-title">Mobile <span class="red">Mechanic</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
+    <div class="top-spacer"></div>
+    ${db.session?.supportMode?`<button class="btn btn-soft" data-action="return-admin">Return to Admin</button>`:''}
+    <div class="shop-pill">${ic('shield')}<span>${esc(s?.name||'Shop')}</span></div>
+    <button class="top-btn" data-route="settings" aria-label="Settings">${ic('settings')}</button>
+  </header>`;
 }
-function vehicleLabel(){
-  return [state.job.year,state.job.make,state.job.model,state.job.trim].filter(Boolean).join(" ") || "Vehicle not entered";
+function rail(s,active){
+  const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']];
+  return `<aside class="side-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
 }
-function nav(){
-  const items=[["dashboard","⌂","Home"],["jobs","🧰","Jobs"],["new","＋","New"],["history","🚗","History"],["settings","☰","More"]];
-  return `<nav class="nav">${items.map(([k,i,l])=>`<button type="button" data-nav="${k}" class="${state.screen===k?"active":""} ${k==="new"?"plus":""}">${k==="new"?`<span>${i}</span>`:i}<div>${l}</div></button>`).join("")}</nav>`;
+function bottomNav(active){
+  const links=[['dashboard','home','Home'],['customers','users','Customers'],['calendar','calendar','Schedule'],['jobs','jobs','Jobs'],['more','more','More']];
+  return `<nav class="bottom-nav">${links.map(([r,i,t])=>`<button class="${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</nav>`;
 }
-function progress(active){
-  const names=["Intake","AI Workup","Findings","Quote","Approval","Invoice","Payment","Complete"];
-  return `<div class="workflow">${names.map((x,i)=>`<span class="${i<active?"done":i===active?"current":""}">${i<active?"✓":i+1}<small>${x}</small></span>`).join("")}</div>`;
+function shopShell(content, active='dashboard'){
+  const s=currentShop();
+  if(!s) return login();
+  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
+  bind();
 }
-function shell(content,{title="Mobile Mechanic AI",customer=false,progressStep=null,hideNav=false}={}){
-  document.body.classList.toggle("customer-mode",customer);
-  app.innerHTML=`<div class="app ${customer?"customer-app":""}">
-    <header class="topbar"><div class="brand"><div class="logo">🔧</div><div><b>${esc(title)}</b><small>${customer?"Service Request":"Mechanic Workspace"}</small></div></div><button type="button" class="iconbtn" id="homeTop" aria-label="Home">⌂</button></header>
-    ${progressStep!==null?progress(progressStep):""}
-    <main class="screen">${content}</main>
-    ${hideNav?"":nav()}
-    <div id="notice" class="notice" aria-live="polite"></div>
-  </div>`;
-  $("#homeTop").onclick=()=>go("dashboard");
-  $$("[data-nav]").forEach(b=>b.onclick=()=>go(b.dataset.nav));
-  $$("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
+function pageTitle(title,sub='',back='dashboard'){
+  return `<div class="page-title"><button class="back-btn" data-route="${back}">‹</button><div><h2>${esc(title)}</h2>${sub?`<p>${esc(sub)}</p>`:''}</div></div>`;
 }
-function go(screen){state.screen=screen;saveState();render();window.scrollTo({top:0,behavior:"smooth"})}
+
+function login(){
+  db.session=null; save();
+  ROOT.innerHTML = `<section class="auth-screen"><div class="auth-card"><div class="auth-logo">${logo(null)}<h1>Mobile <span class="red">Mechanic</span> AI</h1><p>Multi-shop automotive workflow platform</p></div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div>
+    <button class="btn btn-primary btn-wide" data-action="login">Log In</button>
+    <div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button>
+    <div class="divider"></div><div class="demo-box"><b>Demo logins for this prototype</b><br>Shop Owner: demo@mobile-mechanic.app / DemoShop2026!<br>Technician: tech@mobile-mechanic.app / TechDemo2026!<br>Platform Owner: master@mobile-mechanic.app / MasterDemo2026!<br>Billing Admin: billing-admin@mobile-mechanic.app / BillingDemo2026!<br>Support Admin: support-admin@mobile-mechanic.app / SupportDemo2026!</div>
+    <p class="small muted" style="margin:12px 0 0;text-align:center">Production login will be moved to secure backend authentication before accepting real shops.</p>
+  </div></section>`;
+  bind();
+}
+
+function signup(){
+  ROOT.innerHTML = `<section class="auth-screen"><form class="auth-card" id="signupForm"><div class="page-title"><button type="button" class="back-btn" data-route="login">‹</button><div><h2>Create Shop Account</h2><p>Start the 60-day free trial. No charge today.</p></div></div>
+  <div class="field"><label>Business / Shop Name</label><input name="shopName" required placeholder="Your shop name"></div>
+  <div class="row2"><div class="field"><label>Owner Name</label><input name="ownerName" required></div><div class="field"><label>Phone</label><input name="phone" type="tel"></div></div>
+  <div class="field"><label>Owner Login Email</label><input name="email" type="email" required autocomplete="username"></div>
+  <div class="field"><label>Password</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div>
+  <div class="eyebrow">Choose plan after trial</div><div class="plan-cards">${Object.entries(plans).map(([k,p],idx)=>`<label class="plan-card"><input type="radio" name="plan" value="${k}" ${idx===1?'checked':''}><b>${p.name}</b><strong>${money(p.price)}<small>/mo</small></strong><span>${p.label}<br>Up to ${p.seats} user${p.seats>1?'s':''}</span></label>`).join('')}</div>
+  <label class="list-item" style="align-items:center"><input name="terms" type="checkbox" required><div class="list-main"><b>Subscription & platform terms</b><p>I understand billing is recurring after the trial when activated, payments are generally non-refundable except where required by law, and AI is an assistive tool only.</p></div></label>
+  <button class="btn btn-primary btn-wide" type="submit" style="margin-top:12px">Create Shop & Start Trial</button></form></section>`;
+  bind();
+}
 
 function setup(){
-  state.screen="setup";
-  shell(`<section class="setup-brand"><div class="ai-mark">AI</div><div><h1>MOBILE<br><span>MECHANIC</span> AI</h1><p>POWERED BY AI. PROTECTED BY YOU.</p></div></section>
-  <div class="card"><h2>Mechanic Protections</h2><p class="sub">Review and accept these protections before using the workflow.</p>
-  ${["I understand AI is a tool and I do not rely solely on it for diagnosis or repair.","I understand all labor hours are estimates and final discretion is mine.","I understand customer approval is required before work begins.","I agree to protect customer data in accordance with the Privacy Policy.","I agree to the Terms of Service and will use this app responsibly."].map(x=>`<label class="protection"><input type="checkbox" class="setup-check" ${state.setupAccepted?"checked":""}><span><b>✓</b>${x}</span></label>`).join("")}
-  <button class="btn primary row" id="acceptSetup">I AGREE & CONTINUE</button></div>
-  <div class="legal-links"><button>Terms of Service</button><button>Privacy Policy</button><button>Copyright</button></div>`,{title:"Setup & Agreements",hideNav:true});
-  $("#acceptSetup").onclick=()=>{if($$(".setup-check").some(x=>!x.checked))return notify("Check every protection before continuing.");state.setupAccepted=true;state.screen="dashboard";saveState();render()};
+  const s=currentShop(); if(!s) return login();
+  const agreements=[
+    ['AI tools provide suggestions, not answers.','AI tools in this app provide suggestions and information only. They are not a substitute for professional training, experience, or service information.','brain'],
+    ['Use your own professional judgment.','I will use my own professional judgment to verify diagnoses, procedures, parts compatibility, labor times, specifications, and pricing before performing any work.','user'],
+    ['I am responsible for safety & compliance.','I am solely responsible for the safety of my work, my customers, and others. I will follow applicable laws, manufacturer procedures, and safety standards.','shield'],
+    ['Not liable for damages or claims.','Mobile Mechanic AI and its owners are not liable for damages, injury, loss, or claims resulting from my use of this app or my decisions, to the extent permitted by law.','alert'],
+    ['Confirm charges before work.','Labor hours, pricing, and estimates are my responsibility. I will confirm all final charges and obtain customer approval before performing work.','money'],
+    ["Don’t rely on critical or safety-sensitive info.",'I will not rely solely on this app for critical or safety-sensitive information. When in doubt, I will consult official service information and other reliable sources.','book']
+  ];
+  ROOT.innerHTML = `<div class="shell"><div class="layout" style="display:block;max-width:940px;margin:auto"><main class="content">
+    <div class="setup-header"><div class="setup-brand">${logo(s)}<div><h1>Mobile<br><span>Mechanic</span> AI</h1><p>Work Smarter. Fix Faster. Get Paid.</p></div></div><div class="theme-compact">🎨 <span>Theme<br><b>Customize</b></span> ›</div></div>
+    <div class="setup-grid"><div class="setup-main">
+      <section class="card identity-card"><div class="identity-top"><div><div class="card-title">MAKE IT YOURS</div><div class="section-note">Add your business identity that will appear on estimates, invoices, and reports.</div></div><div class="logo-upload"><label class="upload-box">${ic('camera')}<input id="logoFile" type="file" accept="image/png,image/jpeg" hidden></label><div class="logo-upload-text"><b>Add Your Logo</b><p>PNG or JPG<br>Recommended 512×512</p><button class="btn btn-danger" type="button" data-action="trigger-logo">Upload Logo</button></div></div></div><div class="row2" style="margin-top:12px"><div class="field"><input id="setupShopName" value="${esc(s.name)}" placeholder="Business / Shop Name"></div><div class="field"><input id="setupTechName" value="${esc(currentUser()?.name||'')}" placeholder="Your Name (Technician)"></div><div class="field"><input id="setupPhone" value="${esc(s.phone||'')}" placeholder="Phone Number"></div><div class="field"><input id="setupEmail" value="${esc(s.email||'')}" placeholder="Email Address"></div></div></section>
+      <section class="card agreements"><div class="card-title">${ic('shield')} PROFESSIONAL RESPONSIBILITY AGREEMENTS</div><div class="section-note red">You are the professional. You are in control.</div><div class="divider"></div>${agreements.map((a,i)=>`<label class="agreement-row"><input class="check-square agreement-check" type="checkbox" value="professional-${i}"><div><b>${a[0]}</b><p>${a[1]}</p></div><div class="agreement-art">${ic(a[2])}</div></label>`).join('')}</section>
+      <section class="card agreements"><div class="card-title">${ic('report')} LEGAL & COPYRIGHT AGREEMENTS</div><div class="section-note red">Please review and acknowledge the following.</div><div class="divider"></div>
+        ${[['I have read and agree to the','Terms of Service'],['I have read and agree to the','Privacy Policy'],['I agree to the','Data Collection & Use Policy'],['I agree that all content, features, and materials in this app, including AI outputs, are the property of Mobile Mechanic AI and are protected by applicable intellectual-property laws.',''],['I agree not to copy, reproduce, modify, distribute, sell, or reverse engineer any part of this app.','']].map((a,i)=>`<label class="legal-row"><input class="check-square agreement-check" type="checkbox" value="legal-${i}"><span>${a[0]} ${a[1]?`<span class="red">${a[1]}</span>`:''}</span><span class="chev">›</span></label>`).join('')}
+        <div class="terms-meta"><div><b>Terms Version</b><span>${TERMS_VERSION}</span></div><div><b>Account</b><span>${esc(currentUser()?.email||'')}</span></div><div><b>Effective Date</b><span>Aug 2026</span></div></div>
+      </section>
+      <button class="agree-bar" data-action="accept-all">${ic('shield')}<span>I AGREE TO ALL OF THE ABOVE<small>You must agree to continue</small></span></button><div class="locked-note">${ic('lock')} Your agreement is securely recorded when production authentication is connected.</div>
+    </div>
+    <aside class="setup-side"><section class="card theme-card"><h3>CUSTOMIZE THEME</h3><p>Make the app your style.</p><div class="tiny">Color Theme</div><div class="swatches" style="margin-top:7px">${['#ef2a31','#ec7c12','#4d9c23','#7240b5','#2e70d4','#38a5a8','#c1377a','#edb62b','#a8aaad'].map((c,i)=>`<button class="swatch ${i===0?'active':''}" data-color="${c}" style="background:${c}"></button>`).join('')}</div><div class="divider"></div><div class="tiny">Background Style</div><div class="bg-options" style="margin-top:7px"><button class="bg-opt active" title="Dark"></button><button class="bg-opt" style="background:#131820" title="Charcoal"></button><button class="bg-opt" style="background:#101827" title="Midnight"></button></div><div class="divider"></div><div class="tiny">Accent Style</div><div class="accent-options" style="margin-top:7px"><button class="active">Vibrant</button><button>Muted</button></div></section>
+      <section class="card mini-nav"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div>${[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']].map(([r,i,t])=>`<button class="rail-link">${ic(i)} ${t}</button>`).join('')}</section></aside>
+    </div>
+  </main></div></div>`;
+  bind();
 }
 
 function dashboard(){
-  state.screen="dashboard";
-  const hasIntake=!!state.job.states;
-  shell(`<section class="hero dark"><p class="eyebrow">Mobile Mechanic AI</p><h1>Run the job, not the paperwork.</h1><p>Customer intake, AI pre-workup, findings, estimate, approval, payment and history in one test workflow.</p></section>
-  <div class="kpis"><div class="kpi"><b>${hasIntake?1:0}</b><div class="sub">Active request</div></div><div class="kpi"><b>${state.job.status}</b><div class="sub">Current stage</div></div><div class="kpi"><b>${state.job.paid?money(calc().total):"—"}</b><div class="sub">Paid</div></div></div>
-  <div class="card"><h3>Quick actions</h3><div class="grid two">
-    <button class="btn primary" type="button" id="shareIntake">Send Intake Link</button>
-    <button class="btn secondary" type="button" data-go="intake">Open Customer Intake</button>
-    <button class="btn secondary" type="button" data-go="workup" ${!hasIntake?"disabled":""}>Open AI Workup</button>
-    <button class="btn secondary" type="button" data-go="findings" ${!hasIntake?"disabled":""}>Technician Findings</button>
-    <button class="btn secondary" type="button" data-go="quote" ${!hasIntake?"disabled":""}>Quote / Estimate</button>
-  </div>${!hasIntake?`<p class="sub">Complete an intake first to unlock the job workflow.</p>`:""}</div>
-  <div class="card"><h3>Current Job</h3>${hasIntake?`<div class="job"><div><b>${esc(vehicleLabel())}</b><div class="sub">${esc(state.job.customer||"Customer")} • ${esc(state.job.engine||"Engine not entered")}</div></div><span class="pill status">${esc(state.job.status)}</span></div><button class="btn secondary row" data-go="workup">Continue Job</button>`:`<div class="mutedbox">No submitted customer intake yet.</div>`}</div>`);
-  $("#shareIntake").onclick=shareIntakeLink;
-}
-async function shareIntakeLink(){
-  const url=location.href.split(/[?#]/)[0]+"#intake";
-  const data={title:"Mobile Mechanic AI Service Request",text:"Please fill out this vehicle service request.",url};
-  try{if(navigator.share)await navigator.share(data);else window.prompt("Copy this customer intake link:",url)}catch(e){}
-}
-
-function intake(){
-  state.screen="intake";
-  state.intakeStep=Math.min(4,Math.max(1,Number(state.intakeStep)||1));
-  const steps=["Vehicle","Issue","Details","Contact"];
-  const stepper=`<div class="intake-steps">${steps.map((s,i)=>`<button type="button" class="${state.intakeStep===i+1?"active":state.intakeStep>i+1?"done":""}" data-intake-step="${i+1}"><span>${state.intakeStep>i+1?"✓":i+1}</span>${s}</button>`).join("")}</div>`;
-  let body="";
-  if(state.intakeStep===1) body=intakeVehicle();
-  if(state.intakeStep===2) body=intakeIssue();
-  if(state.intakeStep===3) body=intakeDetails();
-  if(state.intakeStep===4) body=intakeContact();
-  shell(`${stepper}${body}`,{title:"Customer Intake",customer:true,hideNav:true});
-  bindIntakeCommon();
-  if(state.intakeStep===1) bindVehicle();
-  if(state.intakeStep===2) bindIssue();
-  if(state.intakeStep===3) bindDetails();
-  if(state.intakeStep===4) bindContact();
-}
-function intakeVehicle(){
-  const years=[];for(let y=new Date().getFullYear()+1;y>=1930;y--)years.push(y);
-  const models=state.job.make && vehicleCatalog[state.job.make]?Object.keys(vehicleCatalog[state.job.make]):[];
-  const data=state.job.make&&state.job.model&&vehicleCatalog[state.job.make]?.[state.job.model];
-  const trims=data?.trims||[], engines=data?.engines||[];
-  return `<div class="customer-card"><div class="section-title"><span>🚘</span><div><h2>Vehicle & Service</h2><p>Choose the service and tell us exactly what vehicle this is.</p></div></div>
-  <div class="field"><label>Service Type *</label><select id="serviceType">
-    ${["Repair / Diagnosis","Maintenance","Pre-Purchase Inspection","Roadside / Tow","Fleet / Diesel"].map(x=>`<option ${x===state.job.serviceType?"selected":""}>${x}</option>`).join("")}
-  </select></div>
-  <div class="field"><label>VIN (optional but recommended)</label><div class="input-action"><input id="vin" maxlength="17" value="${esc(state.job.vin)}" placeholder="17-character VIN"><button id="scanVin" type="button">▣ Scan</button></div><input id="vinCamera" type="file" accept="image/*" capture="environment" hidden><small id="scanStatus">Scan the VIN or type all 17 characters. The app will decode it and auto-fill available vehicle information.</small></div>
-  <div class="field"><label>License Plate</label><input id="plate" value="${esc(state.job.plate)}" placeholder="Plate number"></div>
-  <div class="grid two">
-    <div class="field"><label>Year *</label><select id="year"><option value="">Select Year</option>${years.map(y=>`<option ${String(y)===String(state.job.year)?"selected":""}>${y}</option>`).join("")}</select></div>
-    <div class="field"><label>Make *</label><select id="make"><option value="">Select Make</option>${makes.map(x=>`<option ${x===state.job.make?"selected":""}>${x}</option>`).join("")}</select><input id="makeOther" class="other-input" style="display:${state.job.make==="Other / Not Listed"?"block":"none"}" placeholder="Enter manufacturer"></div>
-    <div class="field"><label>Model *</label><select id="model"><option value="">Select Model</option>${models.map(x=>`<option ${x===state.job.model?"selected":""}>${x}</option>`).join("")}<option value="__other__">Other / Not Listed</option></select><input id="modelOther" class="other-input" style="display:none" placeholder="Enter model"></div>
-    <div class="field"><label>Submodel / Trim</label><select id="trim"><option value="">Select Trim</option>${trims.map(x=>`<option ${x===state.job.trim?"selected":""}>${x}</option>`).join("")}<option value="__other__">Other / Not Listed</option></select><input id="trimOther" class="other-input" style="display:none" placeholder="Enter trim / submodel"></div>
-    <div class="field"><label>Engine *</label><select id="engine"><option value="">Select Engine</option>${engines.map(x=>`<option ${x===state.job.engine?"selected":""}>${x}</option>`).join("")}<option value="__other__">Other / Not Listed</option></select><input id="engineOther" class="other-input" style="display:none" placeholder="e.g. 3.5L V6"></div>
-    <div class="field"><label>Drivetrain</label><select id="drivetrain"><option value="">Select</option>${["2WD","FWD","RWD","AWD","4WD"].map(x=>`<option ${x===state.job.drivetrain?"selected":""}>${x}</option>`).join("")}</select></div>
-    <div class="field"><label>Transmission</label><select id="transmission"><option value="">Select</option>${["Automatic","Manual","CVT","Other / Unknown"].map(x=>`<option ${x===state.job.transmission?"selected":""}>${x}</option>`).join("")}</select></div>
-    <div class="field"><label>Mileage *</label><input id="mileage" type="number" inputmode="numeric" value="${esc(state.job.mileage)}" placeholder="Approx. mileage"></div>
-  </div>
-  <button class="btn primary row" id="vehicleNext">Continue</button><p class="fine">Step 1 of 4</p></div>`;
-}
-function intakeIssue(){
-  const isPPI=/pre-purchase/i.test(state.job.serviceType||"");
-  return `<div class="customer-card"><div class="section-title"><span>${isPPI?"🔍":"🗣️"}</span><div><h2>${isPPI?"What should we pay special attention to?":"What is the vehicle doing?"}</h2><p>${isPPI?"Tell us anything the buyer noticed, seller disclosed, or wants specifically checked.":"Describe the issue in as much detail as possible."}</p></div></div>
-    <div class="segmented"><button id="typeMode" class="active" type="button">⌨ Type</button><button id="voiceMode" type="button">🎙 Voice</button></div>
-    <div id="voicePanel" class="voice-panel" style="display:none"><button id="voiceRecord" class="mic" type="button">🎙</button><b>Tap to dictate</b><span id="voiceStatus">Your words will be added to the text box.</span></div>
-    <div class="field"><label>${isPPI?"Buyer Notes / Concerns":"Customer States"} *</label><textarea id="complaint" rows="8" placeholder="${isPPI?"Example: Seller says no issues. Please check frame rust, oil leaks, brakes, tires, suspension, warning lights and signs of prior collision repair.":"Example: Truck hesitates and jerks when accelerating from a stop. Check engine light came on yesterday."}">${esc(state.job.states)}</textarea></div>
-    <button class="btn primary row" id="issueNext">Continue</button><button class="textbtn" id="issueBack" type="button">Back</button><p class="fine">Step 2 of 4</p></div>`;
-}
-function intakeDetails(){
-  const roadside=/roadside|tow/i.test(state.job.serviceType||"");
-  const fleet=/fleet|diesel/i.test(state.job.serviceType||"");
-  const special=roadside?`<div class="card mode-card"><h3>Roadside / Tow Details</h3><label class="check"><input id="towNeeded" type="checkbox" ${state.job.towNeeded?"checked":""}><span>The vehicle may need towing or freeway removal</span></label><div class="field"><label>Safe Location / Safety Concern</label><input id="roadsideSafety" value="${esc(state.job.roadsideSafety)}" placeholder="Shoulder, parking lot, traffic hazard, etc."></div><div class="field"><label>Preferred Tow Destination</label><input id="towDestination" value="${esc(state.job.towDestination)}" placeholder="Shop, home, or address if known"></div><button class="btn secondary row" id="findTow" type="button">Find Nearby Tow Trucks</button></div>`:fleet?`<div class="card mode-card"><h3>Fleet / Semi-Diesel Details</h3><div class="grid two"><div class="field"><label>Fleet / Company Name *</label><input id="fleetName" value="${esc(state.job.fleetName)}"></div><div class="field"><label>Unit Number *</label><input id="unitNumber" value="${esc(state.job.unitNumber)}"></div><div class="field"><label>USDOT Number</label><input id="dotNumber" value="${esc(state.job.dotNumber)}"></div><div class="field"><label>Trailer / Equipment Type</label><input id="trailerType" value="${esc(state.job.trailerType)}" placeholder="Tractor, reefer, flatbed, equipment"></div></div></div>`:"";
-  return `<div class="customer-card"><div class="section-title"><span>📍</span><div><h2>Location & Details</h2><p>Where is the vehicle and when should we come?</p></div></div>
-    <div class="field"><label>Service Location *</label><input id="address" value="${esc(state.job.address)}" placeholder="Use current location or enter address"></div>
-    <button class="btn primary row" type="button" id="useLocation">📍 Use My Current Location</button><small id="locationStatus">Your phone will ask for permission.</small>
-    ${special}
-    <div class="field"><label>Photos / Video</label><input id="mediaFiles" type="file" accept="image/*,video/*" capture="environment" multiple><small id="mediaStatus">${state.job.mediaCount?state.job.mediaCount+" file(s) selected for this session.":"Add warning lights, leaks, damage, noises, etc."}</small></div>
-    <div class="grid two"><div class="field"><label>Preferred Date</label><input id="serviceDate" type="date" value="${esc(state.job.serviceDate||"")}"></div><div class="field"><label>Best Time</label><select id="serviceTime"><option value="">Select</option>${["Morning","Afternoon","Evening","ASAP"].map(x=>`<option ${x===state.job.serviceTime?"selected":""}>${x}</option>`).join("")}</select></div></div>
-    <button class="btn primary row" id="detailsNext">Continue</button><button class="textbtn" id="detailsBack" type="button">Back</button><p class="fine">Step 3 of 4</p></div>`;
-}
-function intakeContact(){
-  return `<div class="customer-card"><div class="section-title"><span>👤</span><div><h2>Contact & Review</h2><p>One last step, then the mechanic gets the ${/pre-purchase/i.test(state.job.serviceType||"")?"pre-purchase inspection request":"AI pre-workup"}.</p></div></div>
-    <div class="grid two"><div class="field"><label>First Name *</label><input id="firstName" value="${esc(state.job.firstName||"")}"></div><div class="field"><label>Last Name *</label><input id="lastName" value="${esc(state.job.lastName||"")}"></div></div>
-    <div class="field"><label>Phone *</label><input id="phone" type="tel" value="${esc(state.job.phone)}"></div><div class="field"><label>Email</label><input id="email" type="email" value="${esc(state.job.email)}"></div>
-    <div class="review"><b>${esc(vehicleLabel())}</b><span>${esc(state.job.engine||"Engine not entered")} • ${esc(state.job.mileage||"—")} mi</span><p>${esc(state.job.states||"No complaint entered")}</p><span>📍 ${esc(state.job.address||"Location not entered")}</span></div>
-    <button class="btn primary row" id="submitIntake">Submit Service Request</button><button class="textbtn" id="contactBack" type="button">Back</button><p class="fine">Step 4 of 4</p></div>`;
-}
-function bindIntakeCommon(){
-  $$("[data-intake-step]").forEach(b=>b.onclick=()=>{state.intakeStep=Number(b.dataset.intakeStep);saveState();intake()});
+  const s=currentShop(); if(!s)return login();
+  if(!s.setupComplete) return setup();
+  if(!subscriptionOK(s)) return billing(true);
+  const today=s.jobs.filter(j=>['Scheduled','In Progress','AI Pre-Workup'].includes(j.status)).slice(0,4);
+  const content=`<div class="dash-head">${logo(s,'dash-logo')}<div class="dash-head-main"><div class="eyebrow">${esc(s.name)}</div><h1>${esc(s.name)} <span>Mechanic AI</span></h1><p>${currentUser()?.role==='owner'?'Shop Owner':esc(currentUser()?.role||'Technician')} • ${plans[s.plan].name}</p></div><div class="circle-avatar">${esc((currentUser()?.name||'U').split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div></div>
+    <div class="dash-status"><div class="status-box"><small>Subscription</small><b class="green">${s.subscriptionStatus==='active'?'ACTIVE':`${trialDays(s)} DAYS TRIAL`}</b></div><div class="status-box"><small>Today's Jobs</small><b>${today.length}</b></div><div class="status-box"><small>Pending Approval</small><b class="orange">${s.jobs.filter(j=>j.status==='Awaiting Approval').length}</b></div><div class="status-box"><small>Technicians</small><b>${s.users.filter(u=>u.active).length}/${plans[s.plan].seats}</b></div></div>
+    ${trialDays(s)<=10 && s.subscriptionStatus!=='active'?`<div class="priority-strip">${ic('alert')}<b>Your free trial ends in ${trialDays(s)} days</b><span data-route="billing">Manage Plan ›</span></div>`:''}
+    <div class="dashboard-grid">
+      <button class="dash-action" data-route="new-intake">${ic('user')}<div><b>NEW CUSTOMER</b><span>Intake + AI Workup</span></div></button>
+      <button class="dash-action" data-route="send-intake">${ic('send')}<div><b>SEND INTAKE</b><span>Shop-linked form</span></div></button>
+      <button class="dash-action" data-route="jobs">${ic('wrench')}<div><b>ACTIVE JOBS</b><span>Findings + quote</span></div></button>
+      <button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>
+      <button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>
+      <button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>
+      <button class="dash-action" data-route="fleet">${ic('truck')}<div><b>FLEET</b><span>Units + service</span></div></button>
+      <button class="dash-action" data-route="roadside">${ic('tow')}<div><b>ROADSIDE</b><span>Tow handoff</span></div></button>
+    </div>
+    <div class="priority-strip">${ic('brain')}<b>AI Assistant</b><span data-route="jobs">Open a vehicle and ask about its complete history ›</span></div>
+    <div class="dashboard-panels"><section class="card card-pad"><div class="card-title">TODAY'S WORK</div><div class="section-note">Jobs, approvals, and follow-ups</div><div class="divider"></div><div class="timeline">${today.length?today.map(j=>`<button class="timeline-row" style="border:0;background:transparent;color:inherit;text-align:left" data-job="${j.id}"><span class="timeline-dot"></span><div><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><time>${esc(j.status)}</time></button>`).join(''):`<div class="muted small">No active jobs yet.</div>`}</div></section>
+    <section class="card card-pad"><div class="card-title">SHOP SNAPSHOT</div><div class="section-note">Current workspace</div><div class="divider"></div><div class="metric-grid" style="grid-template-columns:1fr 1fr"><div class="metric red"><b>${s.customers.length}</b><span>Customers</span></div><div class="metric orange"><b>${s.jobs.length}</b><span>Jobs</span></div><div class="metric green"><b>${s.jobs.filter(j=>j.approval?.status==='approved').length}</b><span>Approved</span></div><div class="metric blue"><b>${s.receipts?.length||0}</b><span>Receipts</span></div></div></section></div>
+    <div class="quick-row"><button class="quick-tool" data-route="quote">${ic('money')}Quick Quote</button><button class="quick-tool" data-route="team">${ic('users')}Team</button><button class="quick-tool" data-route="templates">${ic('clipboard')}Templates</button><button class="quick-tool" data-route="carfax">${ic('report')}CARFAX</button><button class="quick-tool" data-route="settings">${ic('settings')}Settings</button></div>`;
+  shopShell(content,'dashboard');
 }
 
-async function decodeVIN(vin){
-  const clean=String(vin||"").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,"");
-  if(clean.length!==17) throw new Error("VIN must be 17 characters.");
-  const status=$("#scanStatus");
-  if(status) status.textContent="Decoding VIN and loading vehicle information…";
-  const url=`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(clean)}?format=json`;
-  const r=await fetch(url,{headers:{Accept:"application/json"}});
-  if(!r.ok) throw new Error("VIN service did not respond.");
-  const data=await r.json();
-  const v=data?.Results?.[0];
-  if(!v) throw new Error("No vehicle information was returned for that VIN.");
-  const errorCode=String(v.ErrorCode||"").split(",").filter(Boolean);
-  if(errorCode.length && !String(v.Make||"").trim() && !String(v.Model||"").trim()) {
-    throw new Error(v.ErrorText||"VIN could not be decoded.");
-  }
+function vehicleText(v={}){ return [v.year,v.make,v.model,v.trim].filter(Boolean).join(' '); }
+function shopIntake(s, publicMode=false){
+  const vehMakes=['Chevrolet','Ford','GMC','Toyota','Honda','Nissan','Dodge','Ram','Jeep','Mazda','Hyundai','Kia','Subaru','BMW','Mercedes-Benz','Volkswagen','Other'];
+  ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><header class="customer-top">${logo(s)}<div><h1>Mobile <span>Mechanic</span> AI</h1><p>Customer Intake</p></div><div class="customer-shop"><b>${esc(s.name)}</b><span>${esc(s.phone||'')}</span></div></header><div class="customer-body"><div class="customer-stepbar"><span class="customer-step active"></span><span class="customer-step active"></span><span class="customer-step"></span><span class="customer-step"></span></div>
+  <div class="customer-alert">${ic('shield')}<div><b>Your request is connected to ${esc(s.name)}.</b><br>Only this shop's workspace receives this intake in the production multi-shop database.</div></div>
+  <form id="intakeForm" data-shop="${s.id}" data-public="${publicMode}">
+    <section class="customer-card"><h3>1 • Customer Information</h3><div class="row2"><div class="field"><label>Name</label><input name="customerName" required placeholder="Full name"></div><div class="field"><label>Phone</label><input name="phone" type="tel" required placeholder="Phone"></div></div><div class="row2"><div class="field"><label>Email</label><input name="email" type="email" placeholder="Email"></div><div class="field"><label>Availability</label><input name="availability" placeholder="Date / time window"></div></div><div class="field"><label>Service Location</label><div class="field-inline"><input id="serviceLocation" name="location" placeholder="Address or current location"><button type="button" class="btn btn-soft" data-action="location">${ic('location')} Use Current</button></div></div></section>
+    <section class="customer-card"><h3>2 • Vehicle</h3><div class="row3"><div class="field"><label>Year</label><select name="year" required><option value="">Year</option>${yearOptions()}</select></div><div class="field"><label>Make</label><select name="make" required><option value="">Make</option>${vehMakes.map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>Model</label><input name="model" required placeholder="Model / Other"></div></div><div class="row3"><div class="field"><label>Submodel / Trim</label><input name="trim" placeholder="LT, XLE, Sport..."></div><div class="field"><label>Engine</label><input name="engine" placeholder="1.8L / 3.5L..."></div><div class="field"><label>Drive</label><select name="drive"><option>2WD</option><option>FWD</option><option>RWD</option><option>4WD</option><option>AWD</option><option>Other</option></select></div></div><div class="row2"><div class="field"><label>VIN</label><div class="field-inline"><input id="vinInput" name="vin" maxlength="17" placeholder="17-digit VIN"><button type="button" class="btn btn-soft" data-action="vin-decode">Decode</button></div></div><div class="field"><label>License Plate</label><input name="plate" placeholder="Plate (lookup API later)"></div></div><div class="row2"><div class="field"><label>Mileage</label><input name="mileage" type="number" placeholder="Current mileage"></div><div class="field"><label>VIN / Plate Scan</label><button type="button" class="btn btn-soft btn-wide" data-action="scan-placeholder">${ic('camera')} Camera Scan</button></div></div><div id="vinResult" class="small muted"></div></section>
+    <section class="customer-card"><h3>3 • Customer States</h3><div class="field"><label>What's going on with the vehicle?</label><textarea id="complaintInput" name="complaint" required placeholder="Describe the problem, symptoms, noises, warning lights, when it happens, etc."></textarea></div><div class="btn-row"><button type="button" class="btn btn-soft" data-action="voice-customer">${ic('mic')} Speak Complaint</button><span class="badge">Voice transcription when supported by device</span></div></section>
+    <section class="customer-card"><h3>4 • Request Type</h3><div class="row2"><label class="list-item"><input type="radio" name="requestType" value="Repair / Diagnostic" checked><div class="list-main"><b>Repair / Diagnostic</b><p>Send complaint for mechanic review and AI pre-workup.</p></div></label><label class="list-item"><input type="radio" name="requestType" value="Pre-Purchase Inspection"><div class="list-main"><b>Pre-Purchase Inspection</b><p>Vehicle inspection before purchase.</p></div></label></div></section>
+  </form></div><div class="customer-footer"><button class="customer-submit" type="submit" form="intakeForm">SEND TO ${esc(s.name).toUpperCase()}</button><p class="tiny muted" style="text-align:center;margin:7px 0 0">AI suggestions do not replace professional diagnosis or official service information.</p></div></div></section>`;
+  bind();
+}
+function newIntake(){ shopIntake(currentShop(),false); }
+function publicIntake(s){ shopIntake(s,true); }
 
-  const year=String(v.ModelYear||"").trim();
-  const make=String(v.Make||"").trim();
-  const model=String(v.Model||"").trim();
-  const trim=String(v.Trim||v.Series||v.Series2||"").trim();
-
-  let engine="";
-  const disp=String(v.DisplacementL||"").trim();
-  const cyl=String(v.EngineCylinders||"").trim();
-  const config=String(v.EngineConfiguration||"").trim();
-  const engModel=String(v.EngineModel||"").trim();
-  if(disp) engine+=`${disp}L`;
-  if(cyl) engine+=(engine?" ":"")+`${cyl}-cyl`;
-  else if(config) engine+=(engine?" ":"")+config;
-  if(!engine && engModel) engine=engModel;
-
-  let drive=String(v.DriveType||"").trim();
-  if(/four wheel|4x4|4wd/i.test(drive)) drive="4WD";
-  else if(/all wheel|awd/i.test(drive)) drive="AWD";
-  else if(/front wheel|fwd/i.test(drive)) drive="FWD";
-  else if(/rear wheel|rwd/i.test(drive)) drive="RWD";
-
-  let trans=String(v.TransmissionStyle||"").trim();
-  if(!trans){
-    const speeds=String(v.TransmissionSpeeds||"").trim();
-    if(speeds) trans=`${speeds}-speed`;
-  }
-
-  const makeSelect=$("#make"), modelSelect=$("#model"), trimSelect=$("#trim"), engineSelect=$("#engine");
-  if(year && $("#year")) $("#year").value=year;
-
-  if(make && makeSelect){
-    const makeOption=[...makeSelect.options].find(o=>o.value.toLowerCase()===make.toLowerCase());
-    if(makeOption){
-      makeSelect.value=makeOption.value;
-      makeSelect.dispatchEvent(new Event("change"));
-    }else{
-      makeSelect.value="Other / Not Listed";
-      makeSelect.dispatchEvent(new Event("change"));
-      if($("#makeOther")){$("#makeOther").style.display="block";$("#makeOther").value=make;}
-    }
-  }
-
-  if(model && modelSelect){
-    await new Promise(res=>setTimeout(res,0));
-    const modelOption=[...modelSelect.options].find(o=>o.value.toLowerCase()===model.toLowerCase());
-    if(modelOption){
-      modelSelect.value=modelOption.value;
-      modelSelect.dispatchEvent(new Event("change"));
-    }else{
-      modelSelect.value="__other__";
-      modelSelect.dispatchEvent(new Event("change"));
-      if($("#modelOther")){$("#modelOther").style.display="block";$("#modelOther").value=model;}
-    }
-  }
-
-  if(trim && trimSelect){
-    await new Promise(res=>setTimeout(res,0));
-    const trimOption=[...trimSelect.options].find(o=>o.value.toLowerCase()===trim.toLowerCase());
-    if(trimOption){
-      trimSelect.value=trimOption.value;
-    }else{
-      trimSelect.value="__other__";
-      trimSelect.dispatchEvent(new Event("change"));
-      if($("#trimOther")){$("#trimOther").style.display="block";$("#trimOther").value=trim;}
-    }
-  }
-
-  if(engine && engineSelect){
-    await new Promise(res=>setTimeout(res,0));
-    let engOption=[...engineSelect.options].find(o=>o.value.toLowerCase()===engine.toLowerCase());
-    if(!engOption && disp) engOption=[...engineSelect.options].find(o=>o.value.toLowerCase().startsWith(`${disp.toLowerCase()}l`));
-    if(engOption){
-      engineSelect.value=engOption.value;
-    }else{
-      engineSelect.value="__other__";
-      engineSelect.dispatchEvent(new Event("change"));
-      if($("#engineOther")){$("#engineOther").style.display="block";$("#engineOther").value=engine;}
-    }
-  }
-
-  if(drive && $("#drivetrain")){
-    const driveOption=[...$("#drivetrain").options].find(o=>o.value===drive);
-    if(driveOption) $("#drivetrain").value=drive;
-  }
-  if(trans && $("#transmission")){
-    const t=trans.toLowerCase();
-    let normalized="";
-    if(t.includes("cvt")) normalized="CVT";
-    else if(t.includes("manual")) normalized="Manual";
-    else if(t.includes("automatic")) normalized="Automatic";
-    if(normalized && [...$("#transmission").options].some(o=>o.value===normalized)) $("#transmission").value=normalized;
-  }
-
-  state.job.vin=clean;
-  if(status){
-    const filled=[year&&"year",make&&"make",model&&"model",engine&&"engine",trim&&"trim",drive&&"drivetrain",trans&&"transmission"].filter(Boolean);
-    status.textContent=filled.length?`VIN decoded. Auto-filled ${filled.join(", ")}. Review the details before continuing.`:"VIN decoded, but this vehicle returned limited specification data. Enter the remaining details manually.";
-  }
-  return v;
+function sendIntake(){
+  const s=currentShop();
+  const url=intakeUrl(s);
+  const content=`${pageTitle('Customer Intake Link','Every submission is tied to this shop only.')}
+  <section class="card card-pad"><div class="card-title">${ic('link')} ${esc(s.name)} Intake</div><div class="section-note">Send this URL by text, email, QR code, or social message.</div><div class="divider"></div><div class="field"><label>Unique Shop Intake URL</label><input id="intakeLink" value="${esc(url)}" readonly></div><div class="btn-row"><button class="btn btn-primary" data-action="share-intake">${ic('send')} Share Intake</button><button class="btn btn-soft" data-action="copy-intake">${ic('link')} Copy Link</button><button class="btn btn-soft" data-action="preview-intake">Preview Form</button></div></section>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">SHOP IDENTITY CONNECTION</div><div class="section-note">The URL uses the shop slug for routing, while production records use immutable shop ID <b>${esc(s.id)}</b>.</div><div class="divider"></div><div class="list-item"><div class="list-icon">${ic('shield')}</div><div class="list-main"><b>Customer sees ${esc(s.name)}</b><p>Shop name, logo, phone, and customer intake are connected automatically.</p></div></div><div class="list-item"><div class="list-icon">${ic('users')}</div><div class="list-main"><b>Submission stays inside this shop</b><p>Production tenant security will enforce shop_id on every customer, vehicle, job, invoice, and file.</p></div></div></section>`;
+  shopShell(content,'customers');
 }
 
-function bindVehicle(){
-  const fill=(id,items,placeholder)=>{$(id).innerHTML=`<option value="">${placeholder}</option>`+items.map(x=>`<option>${esc(x)}</option>`).join("")+`<option value="__other__">Other / Not Listed</option>`};
-  $("#make").onchange=()=>{
-    state.job.make=$("#make").value;state.job.model="";state.job.trim="";state.job.engine="";
-    $("#makeOther").style.display=state.job.make==="Other / Not Listed"?"block":"none";
-    fill("#model",Object.keys(vehicleCatalog[state.job.make]||{}),"Select Model");fill("#trim",[],"Select Model First");fill("#engine",[],"Select Model First");
-  };
-  $("#model").onchange=()=>{
-    const v=$("#model").value;$("#modelOther").style.display=v==="__other__"?"block":"none";
-    const d=vehicleCatalog[$("#make").value]?.[v];fill("#trim",d?.trims||[],"Select Trim");fill("#engine",d?.engines||[],"Select Engine");
-  };
-  $("#trim").onchange=()=>$("#trimOther").style.display=$("#trim").value==="__other__"?"block":"none";
-  $("#engine").onchange=()=>$("#engineOther").style.display=$("#engine").value==="__other__"?"block":"none";
-  $("#scanVin").onclick=()=>$("#vinCamera").click();
-  $("#vinCamera").onchange=async e=>{
-    const f=e.target.files?.[0];if(!f)return;$("#scanStatus").textContent="Photo captured. Checking for a VIN barcode…";
-    try{
-      if("BarcodeDetector" in window){
-        const det=new BarcodeDetector({formats:["code_39","code_128","data_matrix","qr_code"]});
-        const bm=await createImageBitmap(f);
-        const codes=await det.detect(bm);
-        const raw=(codes[0]?.rawValue||"").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,"");
-        if(raw.length===17){
-          $("#vin").value=raw;
-          await decodeVIN(raw);
-          return;
-        }
-      }
-    }catch(err){
-      $("#scanStatus").textContent=err.message||"VIN scan was captured but decode failed. Enter the VIN manually.";
-      return;
-    }
-    $("#scanStatus").textContent="Photo captured. Automatic VIN barcode reading was unavailable. Enter the 17-character VIN and it will decode automatically.";
-  };
-  let vinTimer=null;
-  $("#vin").addEventListener("input",()=>{
-    clearTimeout(vinTimer);
-    const clean=$("#vin").value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,"");
-    $("#vin").value=clean.slice(0,17);
-    if(clean.length===17){
-      vinTimer=setTimeout(async()=>{
-        try{await decodeVIN(clean)}catch(err){$("#scanStatus").textContent=err.message||"VIN lookup failed. You can still enter vehicle details manually."}
-      },350);
-    }
-  });
-  $("#vin").addEventListener("blur",async()=>{
-    const clean=$("#vin").value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,"");
-    if(clean.length===17){
-      try{await decodeVIN(clean)}catch(err){$("#scanStatus").textContent=err.message||"VIN lookup failed. You can still enter vehicle details manually."}
-    }
-  });
-  $("#vehicleNext").onclick=()=>{
-    const make=$("#make").value, modelSel=$("#model").value, engineSel=$("#engine").value;
-    const model=modelSel==="__other__"?$("#modelOther").value.trim():modelSel;
-    const trim=$("#trim").value==="__other__"?$("#trimOther").value.trim():$("#trim").value;
-    const engine=engineSel==="__other__"?$("#engineOther").value.trim():engineSel;
-    const vals={serviceType:$("#serviceType").value,year:$("#year").value,make:make==="Other / Not Listed"?($("#makeOther").value.trim()||"Other"):make,model,trim,engine,drivetrain:$("#drivetrain").value,transmission:$("#transmission").value,mileage:$("#mileage").value,vin:$("#vin").value.trim().toUpperCase(),plate:$("#plate").value.trim().toUpperCase()};
-    if(!vals.year||!vals.make||!vals.model||!vals.engine||!vals.mileage)return notify("Please enter Year, Make, Model, Engine and Mileage.");
-    Object.assign(state.job,vals);state.intakeStep=2;saveState();intake();
-  };
-}
-function bindIssue(){
-  $("#voiceMode").onclick=()=>{$("#voicePanel").style.display="flex";$("#voiceMode").classList.add("active");$("#typeMode").classList.remove("active")};
-  $("#typeMode").onclick=()=>{$("#voicePanel").style.display="none";$("#typeMode").classList.add("active");$("#voiceMode").classList.remove("active")};
-  $("#voiceRecord").onclick=()=>{
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return notify("Voice recognition is not supported here. Use your keyboard microphone or type the complaint.");
-    const r=new SR();r.lang="en-US";r.interimResults=false;$("#voiceStatus").textContent="Listening…";r.onresult=e=>{$("#complaint").value+=($("#complaint").value?" ":"")+e.results[0][0].transcript;$("#voiceStatus").textContent="Added to transcription."};r.onerror=()=>$("#voiceStatus").textContent="Voice input stopped. Try again or type.";r.start();
-  };
-  $("#issueBack").onclick=()=>{state.intakeStep=1;intake()};
-  $("#issueNext").onclick=()=>{const v=$("#complaint").value.trim();if(v.length<5)return notify("Please describe the vehicle problem.");state.job.states=v;state.intakeStep=3;saveState();intake()};
-}
-function bindDetails(){
-  $("#mediaFiles").onchange=e=>{state.job.mediaCount=e.target.files?.length||0;$("#mediaStatus").textContent=`${state.job.mediaCount} file(s) selected for this session.`};
-  $("#useLocation").onclick=()=>{
-    const s=$("#locationStatus");if(!navigator.geolocation){s.textContent="Location is not supported. Enter the address manually.";return}
-    s.textContent="Getting your current location…";
-    navigator.geolocation.getCurrentPosition(async pos=>{
-      const lat=pos.coords.latitude,lon=pos.coords.longitude;state.job.latitude=lat;state.job.longitude=lon;$("#address").value=`${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-      s.textContent="Location captured. Looking up street address…";
-      try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);if(r.ok){const d=await r.json();if(d.display_name){$("#address").value=d.display_name;s.textContent="Current location found.";return}}}catch(e){}
-      s.textContent="GPS location captured; street address lookup was unavailable.";
-    },()=>s.textContent="Could not get location. Allow location permission or enter the address manually.",{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
-  };
-  $("#detailsBack").onclick=()=>{state.intakeStep=2;intake()};
-  if($("#findTow"))$("#findTow").onclick=()=>{const where=$("#address").value.trim()||"current location";window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`tow truck near ${where}`)}`,"_blank","noopener")};
-  $("#detailsNext").onclick=()=>{const a=$("#address").value.trim();if(!a)return notify("Please enter or use the current service location.");
-    if($("#fleetName")&&(!$("#fleetName").value.trim()||!$("#unitNumber").value.trim()))return notify("Enter the fleet/company name and unit number.");
-    Object.assign(state.job,{address:a,serviceDate:$("#serviceDate").value,serviceTime:$("#serviceTime").value,towNeeded:!!$("#towNeeded")?.checked,towDestination:$("#towDestination")?.value.trim()||"",roadsideSafety:$("#roadsideSafety")?.value.trim()||"",fleetName:$("#fleetName")?.value.trim()||state.job.fleetName,unitNumber:$("#unitNumber")?.value.trim()||state.job.unitNumber,dotNumber:$("#dotNumber")?.value.trim()||state.job.dotNumber,trailerType:$("#trailerType")?.value.trim()||state.job.trailerType});state.intakeStep=4;saveState();intake()};
-}
-function bindContact(){
-  $("#contactBack").onclick=()=>{state.intakeStep=3;intake()};
-  $("#submitIntake").onclick=()=>{
-    const f=$("#firstName").value.trim(),l=$("#lastName").value.trim(),p=$("#phone").value.trim();
-    if(!f||!l||!p)return notify("Please enter the customer's first name, last name and phone.");
-    Object.assign(state.job,{firstName:f,lastName:l,customer:`${f} ${l}`,phone:p,email:$("#email").value.trim(),status:"AI Workup Ready"});
-    state.job.assessment=generateAssessment(state.job.states);
-    state.job.parts=clone(state.job.assessment.parts);
-    state.job.labor=clone(state.job.assessment.labor);
-    state.screen=/pre-purchase inspection/i.test(state.job.serviceType||"")?"inspection":"workup";saveState();render();
-  };
+function customers(){
+  const s=currentShop();
+  const content=`${pageTitle('Customers',`${s.customers.length} customer records`)}<section class="card card-pad"><div class="btn-row"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Customer</button><button class="btn btn-soft" data-route="send-intake">${ic('send')} Send Intake</button></div><div class="divider"></div><div class="list">${s.customers.map(c=>`<div class="list-item"><div class="list-icon">${ic('user')}</div><div class="list-main"><b>${esc(c.name)}</b><p>${esc(c.phone||'')} • ${esc(c.email||'No email')}<br>${(c.vehicles||[]).map(vehicleText).map(esc).join(' • ')||'No vehicles'}</p><div class="list-actions"><button class="btn btn-soft" data-action="add-vehicle" data-customer="${c.id}">Add Vehicle</button><button class="btn btn-soft" data-action="customer-history" data-customer="${c.id}">Vehicle Timeline</button></div></div></div>`).join('')||'<div class="muted">No customers yet.</div>'}</div></section>`;
+  shopShell(content,'customers');
 }
 
-function generateAssessment(text){
-  const t=(text||"").toLowerCase();
-  let a={summary:"Start with a basic diagnostic inspection and scan for trouble codes.",causes:[["General diagnostic issue","Medium"],["Electrical / sensor issue","Medium"],["Mechanical condition","Low"]],steps:["Scan for DTCs and record freeze-frame data","Perform visual inspection","Verify the complaint under safe conditions","Use test results to isolate the failed system"],parts:[],labor:[{d:"Diagnostic inspection",h:1,r:state.business.labor}]};
-  if(/misfire|shak|rough idle|p030/.test(t)) a={summary:"Symptoms are consistent with a misfire. Ignition, fuel and air/vacuum faults should be checked before replacing parts.",causes:[["Ignition coil / spark plug issue","High"],["Fuel injector / fuel delivery","Medium"],["Vacuum / unmetered air leak","Medium"],["Mechanical compression issue","Low"]],steps:["Scan codes and misfire counters","Inspect spark plugs and coils","Swap-test suspect ignition coil","Check fuel trims / vacuum leaks","Verify injector operation and compression if needed"],parts:[{d:"Spark Plug(s) — verify application",q:1,p:14.99},{d:"Ignition Coil — only if confirmed failed",q:1,p:89.99}],labor:[{d:"Misfire diagnosis",h:1,r:state.business.labor}]};
-  else if(/no start|won't start|wont start|crank/.test(t)) a={summary:"No-start symptoms require separating battery/starting, fuel, ignition and mechanical causes.",causes:[["Weak battery / connection","High"],["Starter / starting circuit","Medium"],["Fuel delivery","Medium"],["Crank/cam signal or ignition","Medium"]],steps:["Battery load test and terminal inspection","Verify cranking RPM","Check fuel pressure","Check spark / injector pulse","Scan for immobilizer and crank/cam codes"],parts:[],labor:[{d:"No-start diagnostic",h:1.2,r:state.business.labor}]};
-  else if(/overheat|hot|coolant|temperature/.test(t)) a={summary:"Overheating can damage the engine. Verify coolant level and cooling-system operation before extended running.",causes:[["Low coolant / leak","High"],["Thermostat fault","Medium"],["Cooling fan fault","Medium"],["Water pump / circulation issue","Medium"]],steps:["Check coolant level cold and inspect for leaks","Pressure-test cooling system","Verify fan operation","Monitor thermostat opening and temperature data","Check coolant circulation / pump"],parts:[],labor:[{d:"Cooling-system diagnosis",h:1,r:state.business.labor}]};
-  else if(/brake|grind|squeal/.test(t)) a={summary:"Brake complaints are safety-sensitive. Inspect the complete brake system before driving or quoting parts.",causes:[["Worn pads / rotors","High"],["Caliper or slide issue","Medium"],["Hydraulic issue","Medium"]],steps:["Inspect pad and rotor condition","Measure rotor thickness/runout as needed","Inspect calipers, hoses and leaks","Road test only if safe"],parts:[],labor:[{d:"Brake inspection / diagnosis",h:0.8,r:state.business.labor}]};
-  else if(/ac |a\/c|air condition|not cold/.test(t)) a={summary:"A/C performance should be diagnosed with pressure/temperature checks before adding refrigerant or replacing parts.",causes:[["Low refrigerant from leak","High"],["Compressor / control issue","Medium"],["Condenser airflow issue","Medium"],["Blend-door / HVAC control issue","Low"]],steps:["Verify vent temperature and compressor command","Check static/running pressures","Leak inspect with approved method","Verify condenser fan/airflow","Check HVAC blend door if pressures are normal"],parts:[],labor:[{d:"A/C performance diagnosis",h:1,r:state.business.labor}]};
-  if(/roadside|tow/i.test(state.job.serviceType||"")){
-    a.summary=`Roadside safety comes first. ${a.summary}`;
-    a.steps=["Confirm the vehicle and customer are in a safe location","Determine whether on-site diagnosis is safe and practical",...a.steps,"Arrange towing/freeway removal when the vehicle cannot be safely serviced on-site"];
-  }
-  if(/fleet|diesel/i.test(state.job.serviceType||"")){
-    a.summary=`Fleet unit ${state.job.unitNumber||"(unit not entered)"}: ${a.summary}`;
-    a.steps=["Record unit number, mileage/hours and driver complaint","Check fleet maintenance history and out-of-service safety concerns",...a.steps];
-  }
-  return a;
-}
-function workup(){
-  if(!state.job.states){state.intakeStep=1;return go("intake")}
-  state.screen="workup";if(!state.job.assessment)state.job.assessment=generateAssessment(state.job.states);
-  const a=state.job.assessment;saveState();
-  shell(`<div class="card ai-card"><div class="ai-head"><span>✦</span><div><p class="eyebrow">AI PRE-WORKUP</p><h2>Preliminary Assessment</h2></div></div><p>${esc(a.summary)}</p><div class="warning">Technician must verify diagnosis, parts, labor, pricing and safety procedures before performing work.</div></div>
-  <div class="card"><h3>Customer Issue</h3><blockquote>${esc(state.job.states)}</blockquote></div>
-  <div class="card"><h3>Top Likely Causes</h3>${a.causes.map((x,i)=>`<div class="cause"><b>${i+1}. ${esc(x[0])}</b><span class="risk ${x[1].toLowerCase()}">${x[1]}</span></div>`).join("")}</div>
-  <div class="card"><h3>Recommended Diagnostic Path</h3><ol class="plan">${a.steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol></div>
-  <div class="card"><h3>AI Quote Starter</h3><p class="sub">Suggested items are a starting point only. You control what gets quoted.</p>${a.parts.length?a.parts.map(x=>`<div class="job"><span>${esc(x.d)}</span><b>${money(x.p)}</b></div>`).join(""):`<div class="mutedbox">No parts recommended until diagnosis confirms the failed component.</div>`}<div class="job"><span>Suggested diagnostic labor</span><b>${a.labor[0]?.h||1} hr</b></div></div>
-  <div class="grid two"><button class="btn secondary" type="button" id="regenAI">Re-run Assessment</button><button class="btn secondary" type="button" id="findParts">Find Nearby Parts</button><button class="btn secondary" type="button" id="repairVideos">Repair Videos</button><button class="btn primary" type="button" id="useWorkup">Use This Workup</button></div>`,{progressStep:1});
-  $("#regenAI").onclick=()=>{state.job.assessment=generateAssessment(state.job.states);state.job.parts=clone(state.job.assessment.parts);state.job.labor=clone(state.job.assessment.labor);saveState();workup();notify("Assessment refreshed.")};
-  $("#findParts").onclick=()=>window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`auto parts near ${state.job.address||"me"}`)}`,"_blank","noopener");
-  $("#repairVideos").onclick=()=>window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(`${vehicleLabel()} ${state.job.engine} ${state.job.states} repair diagnosis`)}`,"_blank","noopener");
-  $("#useWorkup").onclick=()=>{state.job.parts=clone(a.parts);state.job.labor=clone(a.labor);state.job.status="Technician Findings";saveState();go("findings")};
+function jobs(){
+  const s=currentShop();
+  const content=`${pageTitle('Jobs','Intake → diagnosis → estimate → approval → invoice')}
+  <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Intake</button><button class="btn btn-soft" data-route="quote">${ic('money')} Quick Quote</button></div>
+  <div class="list">${s.jobs.map(j=>`<button class="list-item" style="width:100%;color:inherit;text-align:left" data-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}</div></div><div class="list-meta">${new Date(j.createdAt).toLocaleDateString()}</div></button>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
+  shopShell(content,'jobs');
 }
 
-const inspectionSections = [
-  ["Exterior / Body",["Body damage / dents / rust","Windshield / glass","Mirrors","Doors / hood / tailgate","Wipers / washers"]],
-  ["Tires / Wheels",["Front tire condition","Rear tire condition","Tread depth / uneven wear","Wheel damage","Spare tire / jack"]],
-  ["Brakes",["Front pads / rotors","Rear pads / rotors","Brake fluid","Parking brake","Brake warning / ABS"]],
-  ["Steering / Suspension",["Ball joints / tie rods","Control arms / bushings","Shocks / struts","Wheel bearings","Steering operation"]],
-  ["Engine Bay",["Engine oil level / condition","Coolant level / condition","Leaks","Belts / tensioners","Hoses","Battery / terminals","Air filter"]],
-  ["Transmission / Drivetrain",["Transmission operation","Transmission fluid / leaks","CV axles / U-joints","Differential / transfer case","Driveshaft / mounts"]],
-  ["Lights / Electrical",["Headlights","Brake / tail lights","Turn signals","Interior lights","Horn","Power windows / locks","Charging system"]],
-  ["Interior / HVAC",["A/C operation","Heater / defrost","Dashboard warning lights","Seat belts","Seats / controls","Infotainment / camera"]],
-  ["Road Test",["Engine performance","Transmission shifting","Brake performance","Steering tracking","Suspension noise","Vibration / wheel balance","Cruise / driver assists"]]
-];
-
-function ensureInspection(){
-  if(state.job.inspection) return;
-  const items={};
-  inspectionSections.forEach(([section,list])=>list.forEach(item=>items[item]={status:"Not Checked",note:""}));
-  state.job.inspection={type:"Pre-Purchase Inspection",items,overall:"Pending",summary:"",recommendations:[]};
+function jobById(id){ const s=currentShop(); return s?.jobs.find(j=>j.id===id) || null; }
+function exactVideoQuery(j,suffix='repair'){ return `${j.vehicle.year||''} ${j.vehicle.make||''} ${j.vehicle.model||''} ${j.vehicle.engine||''} ${j.codes||''} ${suffix} ${j.complaint||''}`.trim(); }
+function youtubeLink(q){ return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`; }
+function genericWorkup(j){
+  const c=(j.complaint||'').toLowerCase();
+  let causes=[['Confirm complaint and scan all modules',86],['Inspect power, grounds, connectors, and obvious mechanical faults',78],['Use service information to test the affected system before replacing parts',72]];
+  if(c.includes('coolant')||c.includes('overheat')) causes=[['External coolant leak / housing / hose / seal',82],['Cooling system pressure or cap issue',66],['Thermostat / circulation problem',58],['Cooling fan or airflow concern',42]];
+  if(c.includes('no start')||c.includes('crank')) causes=[['Battery / voltage drop / starting circuit',78],['Fuel or spark / injection enable concern',68],['Crank/cam synchronization or sensor input',56],['Security / module communication issue',40]];
+  if(c.includes('brake')) causes=[['Friction material / rotor condition',80],['Caliper / slide / hydraulic condition',64],['Wheel bearing / suspension contributing symptom',38]];
+  if(c.includes('ac')||c.includes('a/c')) causes=[['Refrigerant charge / leak concern',76],['Compressor command / clutch / variable displacement issue',63],['Condenser airflow / fan performance',48],['Pressure sensor / electrical control',37]];
+  return causes;
 }
-function inspection(){
-  if(!state.job.states && !state.job.customer){state.intakeStep=1;return go("intake")}
-  state.screen="inspection";ensureInspection();
-  const insp=state.job.inspection;
-  const sectionHtml=inspectionSections.map(([section,list])=>`<div class="card inspection-section"><h3>${section}</h3>${list.map(item=>{
-    const it=insp.items[item]||{status:"Not Checked",note:""};
-    return `<div class="inspection-row">
-      <div class="inspection-label">${item}</div>
-      <select class="inspection-status" data-item="${esc(item)}">
-        ${["Not Checked","Pass","Needs Attention","Fail"].map(s=>`<option ${s===it.status?"selected":""}>${s}</option>`).join("")}
-      </select>
-      <input class="inspection-note" data-note="${esc(item)}" value="${esc(it.note||"")}" placeholder="Optional note">
-    </div>`;
-  }).join("")}</div>`).join("");
-
-  shell(`<div class="card"><div class="section-title"><span>🔍</span><div><h2>Pre-Purchase Inspection</h2><p>${esc(vehicleLabel())} • ${esc(state.job.engine||"")}</p></div></div>
-    <p class="sub">Customer requested a pre-purchase inspection. Review the buyer's notes, inspect each system, document photos/findings, and generate the inspection report.</p>
-    ${state.job.states?`<div class="mutedbox"><b>Buyer notes:</b><br>${esc(state.job.states)}</div>`:""}</div>
-    ${sectionHtml}
-    <div class="card"><h3>Inspection Photos</h3><input id="inspectionFiles" type="file" accept="image/*,video/*" capture="environment" multiple><p class="sub" id="inspectionPhotoStatus">${state.job.inspectionPhotos||0} photo/video file(s) selected in this test session.</p></div>
-    <div class="card"><h3>Overall Condition</h3><select id="inspectionOverall">
-      ${["Pending","Pass","Pass With Recommendations","Needs Repair","Unsafe / Do Not Drive"].map(s=>`<option ${s===insp.overall?"selected":""}>${s}</option>`).join("")}
-    </select></div>
-    <button class="btn ai-button row" id="generateInspectionSummary" type="button">✦ Generate AI Inspection Summary</button>
-    <div class="card" id="inspectionSummary">${insp.summary?`<h3>Inspection Summary</h3><p>${esc(insp.summary)}</p>${insp.recommendations.length?`<h4>Recommended Repairs / Follow-Up</h4><ul>${insp.recommendations.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}`:`<div class="mutedbox">Complete the checklist, then generate the inspection summary.</div>`}</div>
-    <div class="grid two"><button class="btn secondary" id="saveInspection" type="button">Save Inspection</button><button class="btn primary" id="inspectionToQuote" type="button">Create Quote From Findings</button></div>`,{progressStep:2});
-
-  $$(".inspection-status").forEach(el=>el.onchange=()=>{ensureInspection();state.job.inspection.items[el.dataset.item].status=el.value;saveState()});
-  $$(".inspection-note").forEach(el=>el.oninput=()=>{ensureInspection();state.job.inspection.items[el.dataset.note].note=el.value;saveState()});
-  $("#inspectionFiles").onchange=e=>{state.job.inspectionPhotos=e.target.files?.length||0;$("#inspectionPhotoStatus").textContent=`${state.job.inspectionPhotos} photo/video file(s) selected in this test session.`;saveState()};
-  $("#inspectionOverall").onchange=()=>{state.job.inspection.overall=$("#inspectionOverall").value;saveState()};
-  $("#generateInspectionSummary").onclick=()=>{syncInspection();generateInspectionSummary();saveState();inspection()};
-  $("#saveInspection").onclick=()=>{syncInspection();generateInspectionSummary();state.job.status="Inspection Complete";saveState();notify("Inspection saved.")};
-  $("#inspectionToQuote").onclick=()=>{syncInspection();generateInspectionSummary();buildQuoteFromInspection();state.job.status="Quote Draft";saveState();go("quote")};
+function estimateFromJob(j,s){
+  if(j.estimate) return j.estimate;
+  const rate=s.settings.laborRate||75;
+  const baseParts=85, hours=1.5;
+  const calc=(parts,h,mult=1)=>{ const marked=parts*(1+(s.settings.partsMarkup||0)/100); const sub=marked+h*rate+(s.settings.travelFee||0); const tax=sub*(s.settings.taxRate||0)/100; return Math.round((sub+tax)*mult*100)/100; };
+  return {good:{title:'Good',price:calc(baseParts,hours,.9),summary:'Minimum appropriate repair based on confirmed findings.'},better:{title:'Better',price:calc(baseParts*1.45,hours+.4,1),summary:'Recommended repair with related service items.'},best:{title:'Best',price:calc(baseParts*2.0,hours+.8,1.02),summary:'Complete repair / preventive package where appropriate.'}};
 }
-function syncInspection(){
-  ensureInspection();
-  $$(".inspection-status").forEach(el=>state.job.inspection.items[el.dataset.item].status=el.value);
-  $$(".inspection-note").forEach(el=>state.job.inspection.items[el.dataset.note].note=el.value);
-  if($("#inspectionOverall"))state.job.inspection.overall=$("#inspectionOverall").value;
-}
-function generateInspectionSummary(){
-  ensureInspection();
-  const failed=[], attention=[], passed=[];
-  Object.entries(state.job.inspection.items).forEach(([item,v])=>{
-    const label=v.note?`${item} — ${v.note}`:item;
-    if(v.status==="Fail")failed.push(label);
-    else if(v.status==="Needs Attention")attention.push(label);
-    else if(v.status==="Pass")passed.push(label);
-  });
-  let summary=`Inspection completed for ${vehicleLabel()}. `;
-  if(failed.length)summary+=`${failed.length} item(s) failed inspection. `;
-  if(attention.length)summary+=`${attention.length} item(s) need attention. `;
-  if(!failed.length&&!attention.length&&passed.length)summary+="No major concerns were marked during the completed checks. ";
-  summary+=`Overall condition: ${state.job.inspection.overall}. Technician should verify all safety-sensitive findings and measurements before making repair decisions.`;
-  state.job.inspection.summary=summary;
-  state.job.inspection.recommendations=[...failed.map(x=>`Repair / replace: ${x}`),...attention.map(x=>`Inspect / service soon: ${x}`)];
-  state.job.finding=[state.job.finding,state.job.inspection.summary,...state.job.inspection.recommendations].filter(Boolean).join("\n");
-}
-function buildQuoteFromInspection(){
-  ensureInspection();
-  const items=state.job.inspection.items;
-  const addPart=(desc,price=0)=>{if(!state.job.parts.some(x=>x.d===desc))state.job.parts.push({d:desc,q:1,p:price})};
-  const addLabor=(desc,h=.5)=>{if(!state.job.labor.some(x=>x.d===desc))state.job.labor.push({d:desc,h,r:state.business.labor})};
-  Object.entries(items).forEach(([item,v])=>{
-    if(!["Fail","Needs Attention"].includes(v.status))return;
-    const i=item.toLowerCase();
-    if(i.includes("front pads")||i.includes("rear pads")){addPart("Brake pads — verify application",0);addLabor("Brake service — verify scope",1.5)}
-    else if(i.includes("battery")){addPart("Battery — verify group size/specification",0);addLabor("Battery replacement / charging-system verification",.5)}
-    else if(i.includes("air filter")){addPart("Engine air filter — verify application",0);addLabor("Air filter replacement",.3)}
-    else if(i.includes("wiper")){addPart("Wiper blades — verify sizes",0);addLabor("Wiper blade replacement",.2)}
-    else if(i.includes("tire")){addLabor("Tire / wheel service — verify required repair",.7)}
-    else if(i.includes("oil")){addPart("Engine oil / filter — verify specification",0);addLabor("Oil service / leak inspection",.7)}
-    else {addLabor(`${item} — inspect / repair as confirmed`,.5)}
-  });
+function workup(jobId){
+  const s=currentShop(), j=jobById(jobId); if(!j)return jobs();
+  db.session.activeJobId=j.id; save();
+  const causes=genericWorkup(j), est=estimateFromJob(j,s);
+  const content=`${pageTitle('AI Pre-Workup','AI assists the technician; final diagnosis remains with the professional.','jobs')}
+  <div class="job-banner"><div class="avatar">${esc(j.customerName.split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div><div class="job-banner-main"><b>${esc(j.customerName)} • ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><span class="badge red">${esc(j.status)}</span></div>
+  <section class="work-white"><div class="work-grid"><div class="work-card"><h3>Vehicle / Complaint</h3><p><b>${esc(vehicleText(j.vehicle))}</b><br>${esc(j.vehicle.engine||'Engine not entered')} • ${esc(j.vehicle.mileage||'—')} mi<br><br>${esc(j.complaint)}</p></div><div class="work-card"><h3>AI Status</h3><p><b>Structured demo workup</b><br>Production AI API is not connected yet. This screen is ready for secure server-side AI responses.</p></div></div>
+  <div class="work-grid" style="margin-top:8px"><div class="work-card"><h3>Likely Areas to Check</h3><div class="cause-list">${causes.map(([t,p])=>`<div class="cause"><div><b>${esc(t)}</b><div class="confidence"><i style="width:${p}%"></i></div></div><strong>${p}%</strong></div>`).join('')}</div></div><div class="work-card"><h3>Diagnostic Path</h3>${['Confirm customer symptom and conditions','Scan all relevant modules and save codes/freeze-frame','Perform visual inspection and basic power/ground checks','Test the suspected system before replacing parts','Document measurements and compare to authoritative service data'].map(x=>`<label class="diag-check"><input type="checkbox">${esc(x)}</label>`).join('')}</div></div>
+  <div class="work-card" style="margin-top:8px"><h3>Good / Better / Best — Technician Reviews Before Sending</h3><div class="estimate-options">${Object.entries(est).map(([k,o])=>`<div class="estimate-card ${k}"><b>${esc(o.title)}</b><strong>${money(o.price)}</strong><p>${esc(o.summary)}</p></div>`).join('')}</div><div class="btn-row" style="margin-top:9px"><button class="btn btn-primary" data-action="save-estimate" data-job="${j.id}">${ic('money')} Save Estimate Options</button><button class="btn btn-soft" data-action="send-estimate" data-job="${j.id}">${ic('send')} Send to Customer</button><button class="btn btn-soft" data-action="single-estimate" data-job="${j.id}">Send One Option Instead</button></div></div>
+  <div class="work-card" style="margin-top:8px"><h3>Repair Videos — Exact Vehicle Context</h3><p class="muted" style="margin:0 0 8px">YouTube is a visual aid only. Verify procedures, torque specifications, safety information, and service data independently.</p><div class="video-list">${[['Exact vehicle + complaint',exactVideoQuery(j,'diagnosis repair')],['Repair procedure',exactVideoQuery(j,'repair procedure how to')],['Diagnostic code / testing',exactVideoQuery(j,`${j.codes||''} diagnosis testing`)]].slice(0,2).map(([t,q])=>`<button class="video-card" data-external="${esc(youtubeLink(q))}" style="text-align:left;color:inherit"><div class="video-thumb">${ic('play')}</div><div><b>${esc(t)}</b><span>${esc(q.slice(0,88))}</span></div></button>`).join('')}</div><div class="btn-row" style="margin-top:8px"><button class="btn btn-soft" data-external="${esc(youtubeLink(exactVideoQuery(j,'repair diagnosis')))}">${ic('play')} Find More YouTube Videos</button></div></div>
+  </section>
+  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
+  shopShell(content,'jobs');
 }
 
 function findings(){
-  state.screen="findings";
-  shell(`<div class="card"><h3>Customer States</h3><p>${esc(state.job.states)}</p></div>
-  <div class="card"><h3>Technician Findings</h3><textarea id="finding" rows="7" placeholder="Enter what you actually found…">${esc(state.job.finding)}</textarea><div class="grid two"><button class="btn secondary" id="dictateFinding" type="button">🎙 Dictate Findings</button><button class="btn secondary" id="evidenceBtn" type="button">📷 Add Evidence</button></div><input id="evidenceFiles" type="file" accept="image/*,video/*,.pdf" multiple hidden><small id="evidenceStatus"></small></div>
-  <div class="card"><h3>Diagnostics Performed</h3>${["Scan codes / freeze-frame","Visual inspection","Component test / verification","Road test (if safe)"].map(x=>`<label class="check"><input type="checkbox"><span>${x}</span></label>`).join("")}</div>
-  <button class="btn primary row" id="saveFinding">Update Draft Quote</button>`,{progressStep:2});
-  $("#dictateFinding").onclick=()=>dictateInto("#finding");
-  $("#evidenceBtn").onclick=()=>$("#evidenceFiles").click();
-  $("#evidenceFiles").onchange=e=>$("#evidenceStatus").textContent=`${e.target.files?.length||0} evidence file(s) selected for this session.`;
-  $("#saveFinding").onclick=()=>{const v=$("#finding").value.trim();if(!v)return notify("Enter technician findings before building the final quote.");state.job.finding=v;state.job.status="Quote Draft";saveState();go("quote")};
+  const s=currentShop(), j=jobById(db.session.activeJobId)||s.jobs[0]; if(!j)return jobs();
+  const content=`${pageTitle('Technician Findings','Document tests, measurements, photos, codes, and final diagnosis.','jobs')}
+  <div class="job-banner"><div class="avatar">${esc(j.customerName.split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div><div class="job-banner-main"><b>${esc(j.customerName)} • ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><span class="badge">${esc(j.status)}</span></div>
+  <section class="work-white"><div class="work-card"><h3>Technician Notes / Voice Findings</h3><div class="field"><textarea id="findingText" placeholder="Record what you actually found...">${esc(j.findings||'')}</textarea></div><div class="btn-row"><button class="btn btn-soft" data-action="voice-findings">${ic('mic')} Dictate Findings</button><button class="btn btn-soft" data-action="save-findings">Save Findings</button></div></div>
+  <div class="work-grid" style="margin-top:8px"><div class="work-card"><h3>Codes / Test Results</h3><div class="field"><input id="codeInput" value="${esc(j.codes||'')}" placeholder="P0302, U0101, voltage, PSI, etc."></div><div class="field"><textarea id="measurements" placeholder="Measurements / scan data / test results"></textarea></div></div><div class="work-card"><h3>Before / After Evidence</h3><div class="finding-photo-grid"><label class="photo-placeholder">${ic('camera')}<input type="file" id="findingPhoto" accept="image/*" capture="environment" hidden></label>${(j.photos||[]).slice(0,2).map(p=>`<div class="photo-placeholder" style="background-image:url('${esc(p)}');background-size:cover;background-position:center"></div>`).join('')}</div><button class="btn btn-soft btn-wide" style="margin-top:7px" data-action="photo-upload">Add Photo</button></div></div>
+  <div class="work-card" style="margin-top:8px"><h3>Issue Classification</h3><div class="row4"><button class="btn btn-green" data-severity="Good">Good</button><button class="btn btn-blue" data-severity="Monitor">Monitor</button><button class="btn btn-soft" data-severity="Needs Attention">Needs Attention</button><button class="btn btn-danger" data-severity="Safety Concern">Safety Concern</button></div></div>
+  <div class="work-card" style="margin-top:8px"><h3>Support Tools for This Finding</h3><div class="btn-row"><button class="btn btn-soft" data-external="${esc(youtubeLink(exactVideoQuery(j,'repair procedure')))}">${ic('play')} YouTube Videos</button><button class="btn btn-soft" data-route="ai-second">${ic('brain')} AI Second Opinion</button><button class="btn btn-soft" data-action="before-replace">Before You Replace It</button><button class="btn btn-soft" data-route="carfax">CARFAX-Ready Record</button></div></div></section>
+  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-action="to-estimate" data-job="${j.id}">${ic('money')} Build / Send Estimate</button><button class="btn btn-soft" data-action="complete-job" data-job="${j.id}">Complete Job</button></div>`;
+  shopShell(content,'jobs');
 }
-function dictateInto(sel){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return notify("Voice recognition is unavailable here. Use the phone keyboard microphone or type.");
-  const r=new SR();r.lang="en-US";r.onresult=e=>{$(sel).value+=($(sel).value?" ":"")+e.results[0][0].transcript};r.start();
-}
-function quote(){
-  state.screen="quote";if(!state.job.assessment)state.job.assessment=generateAssessment(state.job.states);
-  if(!state.job.labor?.length)state.job.labor=clone(state.job.assessment.labor);
-  shell(`<div class="card"><div class="section-title"><span>✦</span><div><h2>AI-Assisted Quote</h2><p>${esc(vehicleLabel())} • ${esc(state.job.engine)}</p></div></div><button class="btn ai-button row" id="aiQuote" type="button">✦ Build / Refresh Quote From Assessment</button></div>
-  <div class="card"><h3>Technician Findings</h3><p>${esc(state.job.finding||"No technician findings entered yet.")}</p></div>
-  <div class="card"><h3>Parts</h3><div id="partsList"></div><button class="btn secondary" id="addPart" type="button">+ Add Part</button></div>
-  <div class="card"><h3>Labor</h3><div id="laborList"></div><button class="btn secondary" id="addLabor" type="button">+ Add Labor</button></div>
-  <div class="card" id="totals"></div>
-  <button class="btn primary row" id="saveQuote" type="button">Save Quote & Continue to Approval</button>`,{progressStep:3});
-  renderQuoteLines();
-  $("#aiQuote").onclick=()=>{const a=generateAssessment(`${state.job.states} ${state.job.finding}`);state.job.assessment=a;state.job.parts=clone(a.parts);state.job.labor=clone(a.labor);if(state.job.finding&&/coil/i.test(state.job.finding)&&!state.job.parts.some(x=>/coil/i.test(x.d)))state.job.parts.push({d:"Ignition Coil — technician confirmed",q:1,p:89.99});saveState();renderQuoteLines();notify("Quote starter rebuilt from the assessment and findings.")};
-  $("#addPart").onclick=()=>{state.job.parts.push({d:"New part",q:1,p:0});renderQuoteLines()};
-  $("#addLabor").onclick=()=>{state.job.labor.push({d:"Additional labor",h:0.5,r:state.business.labor});renderQuoteLines()};
-  $("#saveQuote").onclick=()=>{syncQuote();state.job.status="Awaiting Approval";saveState();go("approval")};
-}
-function renderQuoteLines(){
-  const p=$("#partsList"),l=$("#laborList");if(!p||!l)return;
-  p.innerHTML=(state.job.parts||[]).map((x,i)=>`<div class="lineitem"><input data-part="d" data-i="${i}" value="${esc(x.d)}"><input data-part="q" data-i="${i}" type="number" min="0" step="1" value="${x.q}"><input data-part="p" data-i="${i}" type="number" min="0" step=".01" value="${x.p}"><button class="remove" data-rpart="${i}" type="button">×</button></div>`).join("")||`<div class="mutedbox">No parts added yet.</div>`;
-  l.innerHTML=(state.job.labor||[]).map((x,i)=>`<div class="lineitem"><input data-labor="d" data-i="${i}" value="${esc(x.d)}"><input data-labor="h" data-i="${i}" type="number" min="0" step=".1" value="${x.h}"><input data-labor="r" data-i="${i}" type="number" min="0" step=".01" value="${x.r}"><button class="remove" data-rlabor="${i}" type="button">×</button></div>`).join("");
-  $$("[data-part],[data-labor]").forEach(el=>el.oninput=()=>{syncQuote();updateTotals()});
-  $$("[data-rpart]").forEach(b=>b.onclick=()=>{state.job.parts.splice(Number(b.dataset.rpart),1);renderQuoteLines()});
-  $$("[data-rlabor]").forEach(b=>b.onclick=()=>{state.job.labor.splice(Number(b.dataset.rlabor),1);renderQuoteLines()});
-  updateTotals();
-}
-function syncQuote(){
-  $$("[data-part]").forEach(el=>{const i=+el.dataset.i,k=el.dataset.part;if(state.job.parts[i])state.job.parts[i][k]=k==="d"?el.value:Number(el.value)});
-  $$("[data-labor]").forEach(el=>{const i=+el.dataset.i,k=el.dataset.labor;if(state.job.labor[i])state.job.labor[i][k]=k==="d"?el.value:Number(el.value)});
-  saveState();
-}
-function updateTotals(){
-  const c=calc(),t=$("#totals");if(t)t.innerHTML=`<h3>Estimate Summary</h3><div class="job"><span>Parts</span><b>${money(c.parts)}</b></div><div class="job"><span>Labor</span><b>${money(c.labor)}</b></div><div class="job"><span>Service fee</span><b>${money(c.fee)}</b></div><div class="job"><span>Tax (${state.business.tax}%)</span><b>${money(c.tax)}</b></div><div class="total">${money(c.total)}</div>`;
-}
-function approval(){
-  state.screen="approval";const c=calc();
-  shell(`<div class="card"><h2>Customer Approval Required</h2><p>Review the estimate with the customer and choose how they will approve it.</p></div>
-  <div class="approval-options"><button class="option active" id="approveHere" type="button"><b>1. Approve Here on This Device</b><span>Customer reviews and signs on this phone.</span></button><button class="option" id="sendApproval" type="button"><b>2. Send Secure Approval Link</b><span>Creates a test share link for this estimate.</span></button><button class="option" id="customerApp" type="button"><b>3. Customer App</b><span>Opens the customer approval view in this test app.</span></button></div>
-  <div class="card"><h3>Estimate Total</h3><div class="total">${money(c.total)}</div><label class="check"><input type="checkbox" id="approveCheck"><span>I approve this estimate and authorize the listed work.</span></label><div class="field"><label>Customer Signature / Name</label><input id="signature" placeholder="Type customer name"></div><button class="btn primary row" id="approveBtn" type="button">Confirm Approval</button></div>`,{progressStep:4});
-  $("#approveHere").onclick=()=>selectApproval("On Device","#approveHere");
-  $("#sendApproval").onclick=()=>{selectApproval("Secure Link","#sendApproval");shareApprovalLink()};
-  $("#customerApp").onclick=()=>{selectApproval("Customer App","#customerApp");notify("Customer approval view is ready on this device for testing.")};
-  $("#approveBtn").onclick=()=>{if(!$("#approveCheck").checked||!$("#signature").value.trim())return notify("Customer acknowledgement and signature/name are required.");state.job.approved=true;state.job.approvalMethod=state.job.approvalMethod||"On Device";state.job.signature=$("#signature").value.trim();state.job.status="Approved";saveState();go("invoice")};
-}
-function selectApproval(method,sel){state.job.approvalMethod=method;$$(".option").forEach(x=>x.classList.remove("active"));$(sel).classList.add("active");saveState()}
-async function shareApprovalLink(){
-  const url=location.href.split("?")[0]+"?approval=demo";
-  const data={title:"Mobile Mechanic AI Estimate",text:`Estimate for ${vehicleLabel()} — ${money(calc().total)}`,url};
-  try{if(navigator.share){await navigator.share(data)}else{window.prompt("Copy this approval link:",url)}}catch(e){}
-}
-function invoice(){
-  state.screen="invoice";const c=calc();
-  shell(`<div class="card"><h2>Invoice #INV-000145</h2><p>${esc(state.job.customer)} • ${esc(vehicleLabel())}</p><span class="pill status">${state.job.approved?"Approved":"Draft"}</span></div>
-  <div class="card"><h3>Services & Totals</h3>${state.job.parts.map(x=>`<div class="job"><span>${esc(x.d)} × ${x.q}</span><b>${money(x.q*x.p)}</b></div>`).join("")}${state.job.labor.map(x=>`<div class="job"><span>${esc(x.d)} • ${x.h} hr</span><b>${money(x.h*x.r)}</b></div>`).join("")}<div class="job"><span>Service fee</span><b>${money(c.fee)}</b></div><div class="job"><span>Tax</span><b>${money(c.tax)}</b></div><div class="total">${money(c.total)}</div></div>
-  <div class="field"><label>Invoice Notes</label><textarea id="invoiceNotes">Thank you for your business.</textarea></div><button class="btn primary row" id="toPayment" type="button">Proceed to Payment</button>`,{progressStep:5});
-  $("#toPayment").onclick=()=>{state.job.invoiceNotes=$("#invoiceNotes").value;state.job.status="Payment Due";saveState();go("payment")};
-}
-function payment(){
-  state.screen="payment";const c=calc();const methods=["Square","Cash App","Venmo","PayPal","Zelle","Cash"];
-  shell(`<div class="card"><h2>Payment</h2><div class="total">${money(c.total)}</div><p class="sub">Select how the customer paid for this test job.</p></div><div class="grid two">${methods.map(x=>`<button type="button" class="btn secondary paymethod ${state.job.paymentMethod===x?"selected":""}" data-pay="${x}">${x}</button>`).join("")}</div>
-  <div class="card"><h3>Receipt Delivery</h3><div class="grid two"><button class="btn secondary receipt" data-receipt="Email" type="button">Email</button><button class="btn secondary receipt" data-receipt="Text" type="button">Text</button><button class="btn secondary" id="printInvoice" type="button">Print</button><button class="btn secondary" id="previewReceipt" type="button">Preview Receipt</button></div></div>
-  <button class="btn success row" id="paid" type="button">Record Payment Received</button>`,{progressStep:6});
-  $$("[data-pay]").forEach(b=>b.onclick=()=>{state.job.paymentMethod=b.dataset.pay;saveState();payment()});
-  $$("[data-receipt]").forEach(b=>b.onclick=()=>notify(`${b.dataset.receipt} receipt selected. Live delivery will require the messaging/email integration.`));
-  $("#printInvoice").onclick=()=>window.print();
-  $("#previewReceipt").onclick=()=>notify(`Receipt preview: INV-000145 • ${money(c.total)} • ${state.job.paymentMethod||"payment method not selected"}`);
-  $("#paid").onclick=()=>{if(!state.job.paymentMethod)return notify("Select a payment method first.");state.job.paid=true;state.job.status="Complete";saveState();go("complete")};
-}
-function complete(){
-  state.screen="complete";const c=calc();
-  shell(`<div class="complete-banner">✓ JOB COMPLETED & PAID IN FULL</div><div class="card"><h2>${esc(vehicleLabel())}</h2><p>${esc(state.job.engine)} • ${esc(state.job.drivetrain||"")} • ${esc(state.job.mileage)} mi</p><p class="sub">${esc(state.job.customer)} • ${esc(state.job.address)}</p></div>
-  <div class="card"><h3>Job Summary</h3><p><b>Customer complaint:</b> ${esc(state.job.states)}</p><p><b>Technician findings:</b> ${esc(state.job.finding)}</p><p><b>Total paid:</b> ${money(c.total)} via ${esc(state.job.paymentMethod)}</p></div>
-  <div class="card"><h3>Photos & Documents</h3><input id="docUpload" type="file" accept="image/*,.pdf" multiple><div id="docStatus" class="sub">${state.job.documents.length} document(s) recorded in this test session.</div></div>
-  <div class="grid two"><button class="btn secondary" id="printFinal" type="button">Print Invoice</button><button class="btn secondary" id="viewReceipt" type="button">View Receipt</button><button class="btn secondary" id="shareSummary" type="button">Share Job Summary</button><button class="btn primary" data-go="carfax" type="button">Complete & Report</button></div>`,{progressStep:7});
-  $("#docUpload").onchange=e=>{state.job.documents=[...state.job.documents,...[...(e.target.files||[])].map(f=>f.name)];saveState();$("#docStatus").textContent=`${state.job.documents.length} document(s) recorded in this test session.`};
-  $("#printFinal").onclick=()=>window.print();
-  $("#viewReceipt").onclick=()=>notify(`Receipt INV-000145 — ${money(c.total)} paid by ${state.job.paymentMethod}.`);
-  $("#shareSummary").onclick=async()=>{const text=`${vehicleLabel()} — completed. Total ${money(c.total)}. ${state.job.finding}`;try{if(navigator.share)await navigator.share({title:"Mobile Mechanic AI Job Summary",text});else window.prompt("Copy job summary:",text)}catch(e){}};
-}
-function carfax(){
-  state.screen="carfax";
-  shell(`<div class="card report-card"><div class="carfax-word">CARFAX <span>✓</span></div><h2>Service Report Ready</h2><p>The completed job record is ready for an authorized CARFAX service-history connection.</p><div class="review"><b>${esc(vehicleLabel())}</b><span>VIN: ${esc(state.job.vin||"Not provided")}</span><span>${new Date().toLocaleDateString()} • ${money(calc().total)}</span></div><div class="warning">Live reporting requires an approved CARFAX provider account and secure server connection. This test build safely stores the report as pending.</div><button class="btn primary row" id="queueCarfax">Save Pending Report</button><button class="btn secondary row" data-go="customerAlerts">Open Customer Alerts</button></div>`,{title:"Service Report",hideNav:true});
-  $("#queueCarfax").onclick=()=>{state.job.carfaxStatus="Pending authorized connection";saveState();notify("Service report saved as pending.")};
-}
-function customerAlerts(){
-  state.screen="customerAlerts";
-  shell(`<div class="card"><h2>My Vehicle</h2><p>${esc(vehicleLabel())}</p></div><div class="segmented dark-tabs"><button class="active">Alerts</button><button>Progress</button><button>Notes</button></div><div class="alert-list">${[["Estimate Approved","Work was authorized."],["Vehicle In Service","Technician is working on your vehicle."],["Payment Received",`${money(calc().total)} received.`],["Job Completed","Your vehicle is ready."]].map(x=>`<div class="alert-card"><b>✓</b><div><h3>${x[0]}</h3><p>${x[1]}</p><small>Today</small></div></div>`).join("")}</div><button class="btn primary row" data-go="history">View Service History</button>`,{title:"Customer App",customer:true,hideNav:true});
-}
-function settings(){
-  state.screen="settings";
-  shell(`<div class="card"><h3>Business Defaults</h3><div class="field"><label>Business Name</label><input id="bizName" value="${esc(state.business.name)}"></div><div class="grid two"><div class="field"><label>Labor / hr</label><input id="labor" type="number" value="${state.business.labor}"></div><div class="field"><label>Service Call Fee</label><input id="serviceFee" type="number" value="${state.business.service}"></div><div class="field"><label>Tax %</label><input id="tax" type="number" step=".01" value="${state.business.tax}"></div><div class="field"><label>Accent</label><input id="accent" type="color" value="${state.business.accent}"></div></div><button class="btn primary row" id="saveBiz" type="button">Save Defaults</button></div>
-  <div class="card"><h3>Integrations</h3>${["Live AI API","Payments","SMS / Email","Service History / CARFAX"].map(x=>`<div class="job"><span>${x}</span><button class="btn secondary integration" type="button" data-int="${x}">Not Connected</button></div>`).join("")}<p class="sub">The test build runs a local symptom-based assessment engine so no private API key is exposed in browser code.</p></div>
-  <div class="card"><h3>Test Data</h3><button class="btn danger-btn row" id="resetApp" type="button">Reset App Test Data</button></div>`);
-  $("#saveBiz").onclick=()=>{Object.assign(state.business,{name:$("#bizName").value,labor:Number($("#labor").value)||75,service:Number($("#serviceFee").value)||0,tax:Number($("#tax").value)||0,accent:$("#accent").value});document.documentElement.style.setProperty("--accent",state.business.accent);saveState();notify("Business defaults saved.")};
-  $$(".integration").forEach(b=>b.onclick=()=>notify(`${b.dataset.int} requires a live backend/provider connection. It is intentionally not faked in this static build.`));
-  $("#resetApp").onclick=()=>{if(confirm("Reset all test data in this browser?")){state=clone(DEFAULT_STATE);saveState();render()}};
-}
-function jobs(){state.screen="jobs";shell(`<div class="card"><h2>Jobs</h2>${state.job.states?`<div class="job"><div><b>${esc(vehicleLabel())}</b><div class="sub">${esc(state.job.customer||"Customer")}</div></div><button class="btn secondary" data-go="${state.job.status==="Complete"?"complete":"workup"}" type="button">Open</button></div>`:`<div class="mutedbox">No jobs yet.</div>`}</div>`)}
-function history(){state.screen="history";shell(`<div class="card"><h2>Vehicle History</h2>${state.job.status==="Complete"?`<div class="job"><div><b>${esc(vehicleLabel())}</b><div class="sub">${esc(state.job.finding)} • ${esc(state.job.mileage)} mi</div></div><button class="btn secondary" data-go="complete" type="button">Open</button></div>`:`<div class="mutedbox">Complete a job to create its first history record.</div>`}</div>`)}
-function newJob(){state.screen="new";shell(`<div class="card"><h2>New Job</h2><p class="sub">Choose the workflow for this request.</p><div class="grid two"><button class="btn primary typeJob" data-type="Repair / Diagnosis" type="button">Repair / Diagnostic</button><button class="btn secondary typeJob" data-type="Maintenance" type="button">Maintenance</button><button class="btn secondary typeJob" data-type="Pre-Purchase Inspection" type="button">Pre-Purchase Inspection</button><button class="btn secondary typeJob" data-type="Roadside / Tow" type="button">Roadside / Tow</button><button class="btn secondary typeJob" data-type="Fleet / Diesel" type="button">Fleet / Semi-Diesel</button></div></div>`);$$(".typeJob").forEach(b=>b.onclick=()=>{state.job.serviceType=b.dataset.type;state.intakeStep=1;saveState();go("intake")})}
 
-function render(){
-  document.documentElement.style.setProperty("--accent",state.business.accent||"#d61f2c");
-  const params=new URLSearchParams(location.search);
-  if(!deepLinkHandled){
-    if(location.hash==="#intake")state.screen="intake";
-    else if(location.hash.startsWith("#approval-")||params.has("approval"))state.screen="approval";
-    deepLinkHandled=true;
-  }
-  if(!state.setupAccepted&&state.screen!=="setup"&&location.hash!=="#intake"&&!location.hash.startsWith("#approval-")&&!params.has("approval"))state.screen="setup";
-  const map={setup,dashboard,jobs,new:newJob,history,settings,intake,workup,inspection,findings,quote,approval,invoice,payment,complete,carfax,customerAlerts};
-  (map[state.screen]||dashboard)();
+function aiSecond(){
+  const s=currentShop(), j=jobById(db.session.activeJobId)||s.jobs[0];
+  const content=`${pageTitle('AI Second Opinion','Challenge the first diagnosis before replacing expensive parts.','jobs')}
+  <section class="card card-pad"><div class="card-title">${ic('brain')} SECOND OPINION</div><div class="section-note red">Ask what could be overlooked, misdiagnosed, or proven with a better test.</div><div class="divider"></div>${j?`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div></div>`:''}<div class="field" style="margin-top:10px"><label>Question for AI</label><textarea id="secondQuestion">What could I be overlooking, and what tests should I perform before replacing the suspected part?</textarea></div><button class="btn btn-primary" data-action="second-opinion">${ic('brain')} Generate Challenge Checklist</button><div id="secondResult" style="margin-top:10px"></div></section>`;
+  shopShell(content,'jobs');
 }
-render();
+
+function quote(){
+  const s=currentShop();
+  const content=`${pageTitle('Quick Quote','Uses this shop’s labor, tax, parts markup, travel fee, and deposit settings.')}
+  <section class="card card-pad"><div class="row2"><div class="field"><label>Labor Hours</label><input id="qHours" type="number" step=".1" value="1.5"></div><div class="field"><label>Parts Cost</label><input id="qParts" type="number" step=".01" value="100"></div></div><div class="row2"><div class="field"><label>Shop Supplies</label><input id="qSupplies" type="number" step=".01" value="12"></div><div class="field"><label>Travel / Service Call</label><input id="qTravel" type="number" step=".01" value="${s.settings.travelFee||0}"></div></div><button class="btn btn-primary" data-action="calc-quote">Calculate</button><div id="quoteResult" style="margin-top:10px"></div></section>`;
+  shopShell(content,'jobs');
+}
+
+function estimateShare(jobId){
+  const s=currentShop(),j=jobById(jobId); if(!j)return;
+  j.estimate=estimateFromJob(j,s); j.status='Awaiting Approval'; save();
+  const url=approvalUrl(s,j); const text=`${s.name} estimate for ${vehicleText(j.vehicle)}: review Good / Better / Best options here: ${url}`;
+  if(navigator.share) navigator.share({title:`Estimate from ${s.name}`,text,url}).catch(()=>{}); else navigator.clipboard?.writeText(text).then(()=>toast('Estimate link copied','good'));
+}
+function estimatePage(data){
+  const s=db.shops[data.shop]; if(!s) return publicMessage('Estimate not found','Ask the shop to send a new estimate link.');
+  const j=s.jobs.find(x=>x.id===data.job); if(!j) return publicMessage('Estimate not found','Ask the shop to send a new estimate link.');
+  const est=j.estimate||estimateFromJob(j,s);
+  ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><header class="customer-top">${logo(s)}<div><h1>Mobile <span>Mechanic</span> AI</h1><p>Customer Estimate Approval</p></div><div class="customer-shop"><b>${esc(s.name)}</b><span>${esc(s.phone||'')}</span></div></header><div class="customer-body"><div class="customer-card"><h3>Vehicle / Request</h3><h2>${esc(vehicleText(j.vehicle))}</h2><p class="muted small">${esc(j.complaint)}</p></div><div class="customer-card"><h3>Choose Your Repair Option</h3><div class="estimate-options">${Object.entries(est).map(([k,o])=>`<label class="estimate-card ${k}"><input type="radio" name="customerOption" value="${k}"><b>${esc(o.title)}</b><strong>${money(o.price)}</strong><p>${esc(o.summary)}</p></label>`).join('')}</div><div class="customer-alert" style="margin-top:10px">Your selection authorizes only the option you choose. If price or scope changes afterward, the shop should send a revised authorization.</div></div><div class="customer-card"><h3>Authorization</h3><div class="field"><label>Your Name</label><input id="approveName" value="${esc(j.customerName)}"></div><label class="list-item"><input type="checkbox" id="approveCheck"><div class="list-main"><b>I approve the selected repair option</b><p>I understand only the selected option is authorized.</p></div></label><div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-action="approve-estimate" data-shop="${s.id}" data-job="${j.id}">${ic('check')} Approve Selected Repair</button><button class="btn btn-soft" data-action="decline-estimate" data-shop="${s.id}" data-job="${j.id}">Decline All / Contact Shop</button></div></div></div></div></section>`;
+  bind();
+}
+function publicMessage(title,text){ ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><div class="customer-body" style="padding:28px"><h2>${esc(title)}</h2><p>${esc(text)}</p></div></div></section>`; }
+
+function inspection(){
+  const s=currentShop();
+  const content=`${pageTitle('Pre-Purchase Inspection','Customer flow, required photos, seller contact, scan results, and AI summary.')}
+  <section class="work-white"><div class="work-card"><h3>Inspection Request</h3><div class="row2"><div class="field"><label>Customer Name</label><input id="ppiCustomer"></div><div class="field"><label>Seller / Vehicle Owner</label><input id="ppiSeller"></div></div><div class="row3"><div class="field"><label>Year</label><select id="ppiYear"><option>${new Date().getFullYear()}</option>${yearOptions()}</select></div><div class="field"><label>Make</label><input id="ppiMake"></div><div class="field"><label>Model</label><input id="ppiModel"></div></div><div class="row2"><div class="field"><label>VIN</label><input id="ppiVin"></div><div class="field"><label>Mileage</label><input id="ppiMiles" type="number"></div></div></div>
+  <div class="work-card" style="margin-top:8px"><h3>Inspection Checklist</h3><div class="row2">${['Exterior / Body','Tires / Wheels','Brakes','Suspension / Steering','Engine / Fluids','Transmission / Driveline','Electrical / Battery','HVAC','Interior','Scan All Modules','Road Test','Safety Concerns'].map(x=>`<label class="diag-check"><input type="checkbox">${x}</label>`).join('')}</div></div><div class="work-card" style="margin-top:8px"><h3>Required Photos</h3><div class="finding-photo-grid">${Array.from({length:6},()=>`<label class="photo-placeholder">${ic('camera')}<input type="file" accept="image/*" capture="environment" hidden></label>`).join('')}</div></div><div class="work-card" style="margin-top:8px"><h3>AI Customer Summary</h3><p class="muted">Technician findings can be converted into Good / Monitor / Needs Attention / Safety Concern categories. Technician reviews before sending.</p><button class="btn btn-primary" data-action="save-ppi">Save Inspection Draft</button></div></section>`;
+  shopShell(content,'more');
+}
+
+function team(){
+  const s=currentShop();
+  const seats=plans[s.plan].seats, activeUsers=s.users.filter(u=>u.active).length;
+  const content=`${pageTitle('Technician Accounts',`${activeUsers}/${seats} seats used • each technician has their own login`,'more')}
+  <section class="card card-pad"><div class="card-title">${ic('users')} SHOP TEAM</div><div class="section-note">Every account is tied to shop ID ${esc(s.id)} and cannot switch into another shop.</div><div class="divider"></div><div class="list">${s.users.map(u=>`<div class="list-item"><div class="list-icon">${ic('user')}</div><div class="list-main"><b>${esc(u.name)} ${u.id===db.session.userId?'<span class="badge">You</span>':''}</b><p>${esc(u.email)} • ${esc(u.role)} • ${u.active?'Active':'Disabled'}</p><div class="list-actions">${u.role!=='owner'?`<button class="btn btn-soft" data-action="toggle-user" data-user="${u.id}">${u.active?'Disable':'Enable'}</button><button class="btn btn-soft" data-action="reset-tech-password" data-user="${u.id}">Reset Password</button>`:''}</div></div></div>`).join('')}</div></section>
+  ${roleCan('owner','manager')?`<section class="card card-pad" style="margin-top:10px"><div class="card-title">ADD TECHNICIAN / STAFF LOGIN</div><div class="section-note">${activeUsers>=seats?'This plan has no open seats. Upgrade or disable a user to add another.':'Create a temporary password. The production version will email an invite so the user sets their own password.'}</div><div class="divider"></div><form id="teamForm"><div class="row2"><div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Email</label><input name="email" type="email" required></div></div><div class="row2"><div class="field"><label>Role</label><select name="role"><option value="technician">Technician</option><option value="service_writer">Service Writer</option><option value="manager">Manager</option></select></div><div class="field"><label>Temporary Password</label><input name="password" type="password" minlength="8" required></div></div><button class="btn btn-primary" ${activeUsers>=seats?'disabled':''}>Create Shop User</button></form></section>`:''}`;
+  shopShell(content,'more');
+}
+
+function billing(blocked=false){
+  const s=currentShop(); if(!s)return login();
+  const content=`${pageTitle('Subscription',blocked?'Your trial has expired. Choose a plan to continue.':'60-day trial followed by automatic monthly billing.','more')}
+  ${blocked?`<div class="priority-strip">${ic('lock')}<b>Mechanic workspace paused</b><span>Your records are retained. Activate a plan to continue.</span></div>`:''}
+  <div class="subscription-cards">${Object.entries(plans).map(([k,p])=>`<section class="subscription-card ${k===s.plan?'featured':''}"><h3>${p.name}</h3><div class="price">${money(p.price)}<small>/month</small></div><div class="badge ${k===s.plan?'red':''}">${k===s.plan?'Selected plan':p.label}</div><ul><li>${p.seats} included user${p.seats>1?'s':''}</li><li>Shop-specific customer intake</li><li>AI diagnostic workflow</li><li>Quotes / approvals / invoices</li>${k!=='solo'?'<li>Shared shop workspace</li>':''}${k==='pro'?'<li>Fleet + roadside tools</li>':''}</ul><button class="btn ${k===s.plan?'btn-primary':'btn-soft'} btn-wide" data-plan="${k}">${k===s.plan?'Keep / Activate':'Select Plan'}</button></section>`).join('')}</div>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">AUTOMATIC BILLING</div><div class="section-note">Production Stripe connection will automatically charge subscriptions, retry failed payments, handle upgrades/downgrades/cancellations, and deposit platform revenue to the platform owner's bank account.</div><div class="divider"></div><div class="list-item"><div class="list-icon">${ic('money')}</div><div class="list-main"><b>Current status: ${esc(s.subscriptionStatus)}</b><p>${s.subscriptionStatus==='active'?'Paid subscription active':`${trialDays(s)} trial days remaining`} • Stripe secret keys must remain server-side.</p></div></div></section>`;
+  shopShell(content,'more');
+}
+
+function settings(){
+  const s=currentShop();
+  const content=`${pageTitle('Business Settings','Shop branding, pricing, travel, markup, deposit, and intake identity.','more')}
+  <form id="settingsForm"><section class="card card-pad"><div class="card-title">SHOP PROFILE</div><div class="divider"></div><div class="row2"><div class="field"><label>Shop Name</label><input name="name" value="${esc(s.name)}"></div><div class="field"><label>Public Phone</label><input name="phone" value="${esc(s.phone||'')}"></div></div><div class="row2"><div class="field"><label>Shop Slug</label><input name="slug" value="${esc(s.slug)}"></div><div class="field"><label>Primary Shop Email</label><input name="email" value="${esc(s.email||'')}"></div></div><div class="field"><label>Mobile Mechanic AI Shop Identity</label><input value="${esc(s.slug)}@mobile-mechanic.app" readonly><small>App identity/alias for routing and branding; not a paid mailbox unless email hosting is added later.</small></div></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">PRICING DEFAULTS</div><div class="divider"></div><div class="row3"><div class="field"><label>Labor Rate / hr</label><input name="laborRate" type="number" step=".01" value="${s.settings.laborRate}"></div><div class="field"><label>Tax %</label><input name="taxRate" type="number" step=".01" value="${s.settings.taxRate}"></div><div class="field"><label>Parts Markup %</label><input name="partsMarkup" type="number" step=".01" value="${s.settings.partsMarkup}"></div></div><div class="row3"><div class="field"><label>Travel Fee</label><input name="travelFee" type="number" step=".01" value="${s.settings.travelFee}"></div><div class="field"><label>Free Radius (mi)</label><input name="freeRadius" type="number" value="${s.settings.freeRadius}"></div><div class="field"><label>Default Deposit %</label><input name="depositPercent" type="number" value="${s.settings.depositPercent}"></div></div><button class="btn btn-primary">Save Shop Settings</button></section></form>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">SHOP INTAKE IDENTITY</div><div class="section-note">Customers use this shop-specific link: <span class="red">${esc(intakeUrl(s))}</span></div><div class="divider"></div><button class="btn btn-soft" data-route="send-intake">Manage / Share Intake Link</button></section>`;
+  shopShell(content,'more');
+}
+
+function more(){
+  const s=currentShop();
+  const content=`${pageTitle('More','Shop administration and supporting tools','dashboard')}<div class="dashboard-grid"><button class="dash-action" data-route="team">${ic('users')}<div><b>TEAM LOGINS</b><span>${s.users.length}/${plans[s.plan].seats} seats</span></div></button><button class="dash-action" data-route="billing">${ic('money')}<div><b>SUBSCRIPTION</b><span>${plans[s.plan].name}</span></div></button><button class="dash-action" data-route="settings">${ic('settings')}<div><b>SHOP SETTINGS</b><span>Rates + branding</span></div></button><button class="dash-action" data-route="carfax">${ic('report')}<div><b>CARFAX</b><span>Service reporting</span></div></button><button class="dash-action" data-route="warranty">${ic('shield')}<div><b>WARRANTY</b><span>Comebacks + parts</span></div></button><button class="dash-action" data-route="templates">${ic('clipboard')}<div><b>TEMPLATES</b><span>Common services</span></div></button><button class="dash-action" data-route="training">${ic('book')}<div><b>TRAINING</b><span>ASE / 609 study</span></div></button><button class="dash-action" data-route="export">${ic('upload')}<div><b>DATA EXPORT</b><span>Shop records</span></div></button></div><div class="card card-pad" style="margin-top:10px"><button class="btn btn-soft btn-wide" data-action="logout">Log Out</button></div>`;
+  shopShell(content,'more');
+}
+
+function calendar(){
+  const s=currentShop(); const sorted=[...s.jobs].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const content=`${pageTitle('Calendar','Customer availability, scheduled jobs, and future calendar integration.')}
+  <section class="card card-pad"><div class="list">${sorted.map(j=>`<div class="list-item"><div class="list-icon">${ic('calendar')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.status)} • ${esc(j.location||'No location')}<br>${esc(j.availability||'Schedule time not set')}</p></div></div>`).join('')}</div></section>`;
+  shopShell(content,'calendar');
+}
+function reports(){
+  const s=currentShop();
+  const content=`${pageTitle('Reports','Job history, profitability, declined work, warranties, and service records.')}
+  <div class="metric-grid"><div class="metric red"><b>${s.jobs.length}</b><span>Total Jobs</span></div><div class="metric green"><b>${s.jobs.filter(j=>j.status==='Completed').length}</b><span>Completed</span></div><div class="metric orange"><b>${s.declined?.length||0}</b><span>Declined</span></div><div class="metric blue"><b>${s.warranties?.length||0}</b><span>Warranty / Comeback</span></div></div><section class="card card-pad" style="margin-top:10px"><div class="card-title">JOB PROFITABILITY</div><div class="section-note">Production version compares estimate vs. actual technician time, parts cost, travel expense, and gross profit. Customer never sees internal cost/profit.</div></section>`;
+  shopShell(content,'reports');
+}
+
+function simpleModule(title,desc,items,active='more'){
+  const content=`${pageTitle(title,desc,'more')}<section class="card card-pad"><div class="list">${items.map(([icon,t,p])=>`<div class="list-item"><div class="list-icon">${ic(icon)}</div><div class="list-main"><b>${esc(t)}</b><p>${esc(p)}</p></div></div>`).join('')}</div></section>`;
+  shopShell(content,active);
+}
+function parts(){ simpleModule('Parts & Warranty Vault','Parts sourcing, markup, receipt storage, core tracking, and warranty.',[['search','Nearby Parts Sources','AutoZone, O’Reilly, NAPA, dealerships, and other suppliers. Real-time inventory/pricing only when an authorized data source is connected.'],['report','Receipt / Warranty Vault','Attach supplier receipt, part number, purchase date, warranty, vehicle, and technician.'],['money','Core Charge Tracking','Remind the shop until starters, alternators, batteries, transmissions, and other cores are returned.'],['shield','Parts Warranty','Connect warranty replacement to original job and installed part.']]); }
+function fleet(){ simpleModule('Fleet Service','Pro/Fleet tools for fleet customers, unit numbers, diesel/semi service, maintenance history, and roadside.',[['truck','Fleet Units','Multiple vehicles, unit numbers, driver contacts, locations, and maintenance records.'],['brain','Fleet AI Intake','Vehicle/unit-specific complaint and diagnostic pre-workup.'],['calendar','Scheduled Maintenance','Mileage/time-based maintenance recommendations and reminders.'],['report','Fleet Reports','Service history and recurring maintenance records.']]); }
+function roadside(){ simpleModule('Roadside + Tow Handoff','When a vehicle should not be driven, transfer the customer, vehicle, and location into a towing workflow.',[['location','Roadside Location','Current customer/job location with permission.'],['tow','Tow Required','Reason vehicle should not be driven, pickup, destination, and technician notes.'],['send','Tow Handoff','Production integrations can send the job to a towing provider; until connected, the app prepares the handoff details.']]); }
+function warranty(){ simpleModule('Warranty / Comeback Tracking','Connect a warranty or comeback to the original repair.',[['shield','Warranty Job','Track labor warranty, parts warranty, and original invoice.'],['wrench','Comeback / Recheck','Record whether the issue is related, unrelated, or diagnostic follow-up.'],['camera','Evidence','Before/after photos and technician findings remain with the original repair.']]); }
+function templates(){ simpleModule('Shop Templates','Save repeatable service packages without forcing a full CRM.',[['clipboard','Common Services','Brake service, oil service, AC diagnostic, no-start diagnostic, PPI, etc.'],['money','Pricing Defaults','Each template can include labor, supplies, markup, travel, and disclaimer defaults.'],['send','Customer Explanation','AI can convert technical work into plain language; mechanic reviews before sending.']]); }
+function training(){ simpleModule('Training & Certification Study','Optional technician education and practice—not official certification issuance.',[['book','ASE Practice','Diagnostic and system practice questions.'],['book','EPA Section 609 Study','Study resources only; official certification remains with authorized providers.'],['brain','Diagnostic Exercises','Electrical, engine performance, brakes, HVAC, and troubleshooting scenarios.']]); }
+function carfax(){
+  const s=currentShop();
+  const content=`${pageTitle('CARFAX-Ready Service Reporting','Prepare service history records without pretending they were submitted.')}
+  <section class="card card-pad"><div class="card-title">${ic('report')} COMPLETED SERVICE RECORDS</div><div class="section-note red">Actual CARFAX submission requires an authorized CARFAX service/partner connection.</div><div class="divider"></div><div class="list">${s.jobs.map(j=>`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))} • ${esc(j.customerName)}</b><p>VIN: ${esc(j.vehicle.vin||'Not entered')} • Mileage: ${esc(j.vehicle.mileage||'—')}<br>Service status: ${esc(j.carfax?.status||'Ready')}</p><div class="list-actions"><button class="btn btn-soft" data-action="prepare-carfax" data-job="${j.id}">Prepare Service Record</button></div></div></div>`).join('')}</div></section>`;
+  shopShell(content,'more');
+}
+function exportData(){
+  const s=currentShop();
+  const content=`${pageTitle('Shop Data Export','A shop can export its customers, vehicles, jobs, invoices, and service records.')}
+  <section class="card card-pad"><div class="card-title">${ic('upload')} EXPORT ${esc(s.name).toUpperCase()}</div><div class="section-note">The shop owns its business records. Subscription access does not transfer ownership of Mobile Mechanic AI software.</div><div class="divider"></div><button class="btn btn-primary" data-action="export-json">Download Shop Data (JSON)</button></section>`;
+  shopShell(content,'more');
+}
+
+function platformAdmin(){
+  const u=platformUser(); if(!u)return login();
+  const shops=Object.values(db.shops); const active=shops.filter(subscriptionOK); const mrr=shops.filter(s=>s.subscriptionStatus==='active'&&!s.comped).reduce((t,s)=>t+(plans[s.plan]?.price||0),0);
+  const canAdmins=platformCan('admins_manage'), canAct=platformCan('activity_view');
+  const shopRows=shops.map(s=>`<tr><td><strong>${esc(s.name)}</strong><br><span class="muted">${esc(s.slug)} • ${esc(s.id)}</span></td><td>${plans[s.plan]?.name}</td><td>${s.subscriptionStatus==='active'?'Paid':s.comped?'Comped':s.subscriptionStatus==='suspended'?'Suspended':`${trialDays(s)} trial days`}</td><td>${s.users.filter(x=>x.active).length}/${plans[s.plan].seats}</td><td><div class="btn-row">${platformCan('shops_open')?`<button class="btn btn-soft" data-admin="open" data-shop="${s.id}">Open</button>`:''}${platformCan('trial_extend')?`<button class="btn btn-soft" data-admin="extend" data-shop="${s.id}">+30 Days</button>`:''}${platformCan('comp')?`<button class="btn btn-soft" data-admin="comp" data-shop="${s.id}">${s.comped?'Uncomp':'Comp'}</button>`:''}${platformCan('suspend')?`<button class="btn btn-danger" data-admin="suspend" data-shop="${s.id}">${s.subscriptionStatus==='suspended'?'Reactivate':'Suspend'}</button>`:''}${!platformCan('shops_open')&&!platformCan('trial_extend')&&!platformCan('comp')&&!platformCan('suspend')?'<span class="muted">View only</span>':''}</div></td></tr>`).join('');
+  const admins=[db.platformOwner,...(db.platformAdmins||[])];
+  ROOT.innerHTML=`<div class="shell"><header class="topbar"><div class="brand">${logo(null)}<div class="brand-copy"><div class="brand-title">Mobile <span class="red">Mechanic</span> AI</div><div class="brand-sub">${esc(platformRoleLabels[u.role]||u.role).toUpperCase()}</div></div></div><div class="top-spacer"></div><div class="shop-pill">${ic('shield')}<span>${esc(u.name)}</span></div><button class="top-btn" data-action="logout">${ic('lock')}</button></header><div class="layout" style="grid-template-columns:1fr"><main class="content"><div class="admin-banner"><div class="eyebrow">${esc(platformRoleLabels[u.role]||u.role)}</div><h1>Platform Administration</h1><p>${u.role==='platform_owner'?'Your owner account has full platform control and no subscription requirement.':'Your permissions are limited to your assigned platform-admin role.'}</p></div><div class="metric-grid"><div class="metric red"><b>${shops.length}</b><span>Total Shops</span></div><div class="metric green"><b>${active.length}</b><span>Accessible</span></div><div class="metric orange"><b>${shops.filter(s=>s.subscriptionStatus==='trialing').length}</b><span>Trials</span></div><div class="metric blue"><b>${money(mrr)}</b><span>Estimated MRR</span></div></div>
+  <section class="card card-pad table-card" style="margin-top:10px"><div class="card-title">SHOP ACCOUNTS</div><div class="section-note">Platform-level view. Tenant records remain isolated by immutable shop ID.</div><div class="divider"></div><table class="data-table"><thead><tr><th>Shop</th><th>Plan</th><th>Status</th><th>Users</th><th>Actions</th></tr></thead><tbody>${shopRows}</tbody></table></section>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">PLATFORM ADMIN PROFILES</div><div class="section-note">Delegate billing, support, operations, or technical work without giving away Platform Owner control.</div><div class="divider"></div><div class="list">${admins.map(a=>`<div class="list-item"><div class="list-icon">${ic('shield')}</div><div class="list-main"><b>${esc(a.name)}</b><p>${esc(a.email)} • ${esc(platformRoleLabels[a.role]||a.role)} • ${a.active?'Active':'Disabled'}</p>${canAdmins&&a.role!=='platform_owner'?`<div class="list-actions"><button class="btn btn-soft" data-platform-user-toggle="${a.id}">${a.active?'Disable':'Enable'}</button></div>`:''}</div></div>`).join('')}</div>${canAdmins?`<div class="divider"></div><form id="platformAdminForm"><div class="row2"><div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Email</label><input name="email" type="email" required></div></div><div class="row2"><div class="field"><label>Role</label><select name="role"><option value="billing_admin">Billing Admin</option><option value="support_admin">Support Admin</option><option value="operations_admin">Operations Admin</option><option value="technical_admin">Technical Admin</option><option value="read_only_admin">Read-Only Admin</option></select></div><div class="field"><label>Temporary Password</label><input name="password" type="password" minlength="8" required></div></div><button class="btn btn-primary">Create Platform Admin</button></form>`:''}</section>
+  ${canAct?`<section class="card card-pad" style="margin-top:10px"><div class="card-title">ADMIN ACTIVITY LOG</div><div class="section-note">Shows who performed sensitive platform actions.</div><div class="divider"></div><div class="list">${(db.adminActivity||[]).slice(0,20).map(x=>`<div class="list-item"><div class="list-icon">${ic('report')}</div><div class="list-main"><b>${esc(x.adminName)} — ${esc(x.action)}</b><p>${new Date(x.at).toLocaleString()}${x.shopId?` • ${esc(db.shops[x.shopId]?.name||x.shopId)}`:''}${x.detail?`<br>${esc(x.detail)}`:''}</p></div></div>`).join('')||'<div class="muted">No admin activity recorded yet.</div>'}</div></section>`:''}
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">PLATFORM EMAIL IDENTITY</div><div class="section-note">Recommended public addresses: support@mobile-mechanic.app • billing@mobile-mechanic.app • notifications@mobile-mechanic.app. Your private Platform Owner login stays private.</div></section></main></div></div>`;
+  bind();
+}
+
+function addVehicle(customerId){
+  const s=currentShop(),c=s.customers.find(x=>x.id===customerId); if(!c)return;
+  modal('Add Vehicle',`<form id="addVehicleForm" data-customer="${c.id}"><div class="row2"><div class="field"><label>Year</label><select name="year">${yearOptions()}</select></div><div class="field"><label>Make</label><input name="make" required></div></div><div class="row2"><div class="field"><label>Model</label><input name="model" required></div><div class="field"><label>Engine</label><input name="engine"></div></div><div class="field"><label>VIN</label><input name="vin" maxlength="17"></div><button class="btn btn-primary">Save Vehicle</button></form>`);
+}
+function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close-modal">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); }
+
+function bind(){
+  document.querySelectorAll('[data-route]').forEach(el=>el.onclick=()=>go(el.dataset.route));
+  document.querySelectorAll('[data-job]').forEach(el=>el.onclick=()=>workup(el.dataset.job));
+  document.querySelectorAll('[data-external]').forEach(el=>el.onclick=()=>window.open(el.dataset.external,'_blank','noopener'));
+
+  document.querySelector('[data-action="login"]')?.addEventListener('click',()=>{
+    const email=document.getElementById('loginEmail').value.trim().toLowerCase(),pass=document.getElementById('loginPassword').value;
+    if(email===db.platformOwner.email.toLowerCase() && pass===db.platformOwner.password && db.platformOwner.active!==false){ db.session={role:'platform_owner',adminId:db.platformOwner.id,name:db.platformOwner.name};save();location.hash='#admin';return platformAdmin(); }
+    const pa=(db.platformAdmins||[]).find(a=>a.active!==false && a.email.toLowerCase()===email && a.password===pass);
+    if(pa){ db.session={role:'platform_admin',adminId:pa.id,name:pa.name};save();location.hash='#admin';return platformAdmin(); }
+    for(const s of Object.values(db.shops)){
+      const u=s.users.find(u=>u.active && u.email.toLowerCase()===email && u.password===pass);
+      if(u){ db.session={role:'shop',shopId:s.id,userId:u.id,activeJobId:s.jobs[0]?.id||null};save();location.hash='#dashboard';return s.setupComplete?dashboard():setup(); }
+    }
+    toast('Login not found. Check email and password.','bad');
+  });
+
+  document.getElementById('signupForm')?.addEventListener('submit',e=>{
+    e.preventDefault(); const d=Object.fromEntries(new FormData(e.currentTarget));
+    if(Object.values(db.shops).some(s=>s.users.some(u=>u.email.toLowerCase()===d.email.toLowerCase()))) return toast('That email is already in use.','bad');
+    const id=uid('shop'), userId=uid('usr'), slugBase=slugify(d.shopName); let slug=slugBase,n=2; while(Object.values(db.shops).some(s=>s.slug===slug))slug=`${slugBase}-${n++}`;
+    db.shops[id]={id,slug,name:d.shopName,ownerName:d.ownerName,phone:d.phone,email:d.email,plan:d.plan,trialStarted:nowISO(),trialEnds:new Date(Date.now()+60*86400000).toISOString(),subscriptionStatus:'trialing',comped:false,setupComplete:false,logo:null,theme:{accent:'#ef2a31',background:'dark',style:'vibrant'},settings:{laborRate:75,taxRate:0,partsMarkup:25,travelFee:0,freeRadius:10,depositPercent:60},terms:null,users:[{id:userId,name:d.ownerName,email:d.email,password:d.password,role:'owner',active:true}],customers:[],jobs:[],inspections:[],warranties:[],declined:[],receipts:[],fleet:[]};
+    db.session={role:'shop',shopId:id,userId,activeJobId:null};save();location.hash='#setup';setup();
+  });
+
+  document.querySelector('[data-action="trigger-logo"]')?.addEventListener('click',()=>document.getElementById('logoFile')?.click());
+  document.getElementById('logoFile')?.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{currentShop().logo=r.result;save();setup();}; r.readAsDataURL(f); });
+  document.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{currentShop().theme.accent=b.dataset.color;save();document.documentElement.style.setProperty('--red',b.dataset.color);document.querySelectorAll('[data-color]').forEach(x=>x.classList.toggle('active',x===b));});
+  document.querySelector('[data-action="accept-all"]')?.addEventListener('click',()=>{
+    document.querySelectorAll('.agreement-check').forEach(c=>c.checked=true); const s=currentShop(); s.name=document.getElementById('setupShopName').value.trim()||s.name;s.phone=document.getElementById('setupPhone').value.trim();s.email=document.getElementById('setupEmail').value.trim()||s.email; const u=currentUser(); if(u)u.name=document.getElementById('setupTechName').value.trim()||u.name;s.setupComplete=true;s.terms={version:TERMS_VERSION,acceptedAt:nowISO(),userId:u?.id};save();toast('Agreements recorded for this prototype.','good');setTimeout(()=>go('dashboard'),450);
+  });
+
+  document.getElementById('intakeForm')?.addEventListener('submit',e=>{
+    e.preventDefault(); const f=e.currentTarget,d=Object.fromEntries(new FormData(f)),s=db.shops[f.dataset.shop]; if(!s)return;
+    const cid=uid('cus'),vid=uid('veh'),jid=uid('job'); const vehicle={id:vid,year:d.year,make:d.make,model:d.model,trim:d.trim,engine:d.engine,drive:d.drive,vin:(d.vin||'').toUpperCase(),plate:d.plate,mileage:d.mileage};
+    const existing=s.customers.find(c=>c.phone && c.phone===d.phone); let customerId;
+    if(existing){ customerId=existing.id; existing.email=existing.email||d.email;existing.address=d.location||existing.address; if(!existing.vehicles.some(v=>vehicle.vin&&v.vin===vehicle.vin))existing.vehicles.push(vehicle); }
+    else { customerId=cid;s.customers.push({id:cid,name:d.customerName,phone:d.phone,email:d.email,address:d.location,vehicles:[vehicle]}); }
+    s.jobs.push({id:jid,customerId,customerName:d.customerName,phone:d.phone,email:d.email,vehicle,complaint:d.complaint,requestType:d.requestType,availability:d.availability,location:d.location,createdAt:nowISO(),status:'AI Pre-Workup',assignedTo:null,findings:'',codes:'',photos:[],estimate:null,approval:null,carfax:{status:'Not connected'}});save();
+    if(f.dataset.public==='true'){ ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><header class="customer-top">${logo(s)}<div><h1>Mobile <span>Mechanic</span> AI</h1><p>Request Sent</p></div></header><div class="customer-body" style="padding:26px"><div class="customer-card" style="text-align:center"><h2>✓ Sent to ${esc(s.name)}</h2><p>Your vehicle and Customer States information are connected to this shop's intake queue.</p><p class="muted small">The shop can now review the request and prepare the diagnostic workup.</p></div></div></div></section>`;return; }
+    db.session.activeJobId=jid;save();workup(jid);
+  });
+
+  document.querySelector('[data-action="location"]')?.addEventListener('click',()=>{
+    if(!navigator.geolocation)return toast('Location is not supported on this device.','bad');navigator.geolocation.getCurrentPosition(p=>{document.getElementById('serviceLocation').value=`${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;toast('Current location added.','good');},()=>toast('Location permission was not granted.','bad'));
+  });
+  document.querySelector('[data-action="vin-decode"]')?.addEventListener('click',async()=>{
+    const vin=document.getElementById('vinInput').value.trim().toUpperCase(),out=document.getElementById('vinResult'); if(vin.length!==17){out.textContent='Enter a 17-character VIN.';return;}
+    out.textContent='Looking up VIN using the free NHTSA vPIC service…';
+    try{const r=await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(vin)}?format=json`);const js=await r.json();const v=js.Results?.[0];if(!v)throw 0;out.innerHTML=`<span class="badge">NHTSA decoded</span> ${esc([v.ModelYear,v.Make,v.Model,v.Trim,v.DisplacementL?`${v.DisplacementL}L`:v.EngineModel].filter(Boolean).join(' • '))}`;const form=document.getElementById('intakeForm');if(v.ModelYear)form.elements.year.value=v.ModelYear;if(v.Make){const sel=form.elements.make;const found=[...sel.options].find(o=>o.text.toLowerCase()===v.Make.toLowerCase());if(found)sel.value=found.value;}if(v.Model)form.elements.model.value=v.Model;if(v.Trim)form.elements.trim.value=v.Trim;if(v.DisplacementL)form.elements.engine.value=`${v.DisplacementL}L`;toast('VIN decoded from NHTSA.','good');}
+    catch{out.textContent='VIN lookup could not be reached. Manual entry still works.';}
+  });
+  document.querySelector('[data-action="scan-placeholder"]')?.addEventListener('click',()=>toast('Camera OCR/plate scanning requires the production scanner integration.',''));
+  setupSpeech('[data-action="voice-customer"]','complaintInput'); setupSpeech('[data-action="voice-findings"]','findingText');
+
+  document.querySelector('[data-action="copy-intake"]')?.addEventListener('click',async()=>{await navigator.clipboard?.writeText(document.getElementById('intakeLink').value);toast('Shop intake link copied.','good');});
+  document.querySelector('[data-action="share-intake"]')?.addEventListener('click',()=>{const s=currentShop(),url=intakeUrl(s);navigator.share?navigator.share({title:`${s.name} Customer Intake`,text:`Please fill out this vehicle intake for ${s.name}.`,url}).catch(()=>{}):navigator.clipboard?.writeText(url).then(()=>toast('Intake link copied.','good'));});
+  document.querySelector('[data-action="preview-intake"]')?.addEventListener('click',()=>publicIntake(currentShop()));
+
+  document.querySelector('[data-action="save-estimate"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.estimate=estimateFromJob(j,currentShop());j.status='Estimate Ready';save();toast('Good / Better / Best saved to job.','good');});
+  document.querySelector('[data-action="send-estimate"]')?.addEventListener('click',e=>estimateShare(e.currentTarget.dataset.job));
+  document.querySelector('[data-action="single-estimate"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.estimate=estimateFromJob(j,currentShop());modal('Send One Estimate Option',`<p class="muted small">Choose the one option you want the customer to see. Production backend will create a secure, versioned authorization link.</p>${Object.entries(j.estimate).map(([k,o])=>`<button class="btn btn-wide ${k==='better'?'btn-primary':'btn-soft'}" data-action="send-one" data-job="${j.id}" data-option="${k}">${o.title} — ${money(o.price)}</button>`).join('<br><br>')}`);});
+  document.querySelectorAll('[data-action="send-one"]').forEach(b=>b.onclick=()=>{const j=jobById(b.dataset.job),s=currentShop(),o=j.estimate[b.dataset.option];const text=`${s.name} estimate for ${vehicleText(j.vehicle)}: ${o.title} ${money(o.price)} — ${o.summary}`;navigator.share?navigator.share({title:'Repair Estimate',text}).catch(()=>{}):navigator.clipboard?.writeText(text).then(()=>toast('Single estimate copied.','good'));});
+
+  document.querySelector('[data-action="approve-estimate"]')?.addEventListener('click',e=>{
+    const option=document.querySelector('input[name="customerOption"]:checked')?.value;if(!option)return toast('Choose Good, Better, or Best first.','bad');if(!document.getElementById('approveCheck').checked)return toast('Check the authorization box first.','bad');const s=db.shops[e.currentTarget.dataset.shop],j=s.jobs.find(x=>x.id===e.currentTarget.dataset.job),name=document.getElementById('approveName').value.trim();j.approval={status:'approved',option,name,approvedAt:nowISO(),estimateVersion:1};j.status='Approved / Ready for Work';save();const msg=`I, ${name}, approve the ${j.estimate[option].title} option (${money(j.estimate[option].price)}) for ${vehicleText(j.vehicle)}. Approval time: ${new Date(j.approval.approvedAt).toLocaleString()}.`;
+    ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><div class="customer-body" style="padding:28px"><div class="customer-card" style="text-align:center"><h2>Repair Option Approved</h2><p><b>${esc(j.estimate[option].title)} — ${money(j.estimate[option].price)}</b></p><p class="muted small">${esc(msg)}</p><button class="btn btn-primary" id="shareApproval">Send Confirmation to Shop</button></div></div></div></section>`;document.getElementById('shareApproval').onclick=()=>{if(navigator.share)navigator.share({text:msg}).catch(()=>{});else if(s.phone)location.href=`sms:${s.phone}?body=${encodeURIComponent(msg)}`;};
+  });
+  document.querySelector('[data-action="decline-estimate"]')?.addEventListener('click',e=>{const s=db.shops[e.currentTarget.dataset.shop],j=s.jobs.find(x=>x.id===e.currentTarget.dataset.job);j.approval={status:'declined',declinedAt:nowISO()};j.status='Customer Declined';s.declined.push({jobId:j.id,when:nowISO(),note:'Customer declined all estimate options'});save();publicMessage('Estimate Declined','The shop can contact you to discuss other options.');});
+
+  document.querySelector('[data-action="save-findings"]')?.addEventListener('click',()=>{const j=jobById(db.session.activeJobId);j.findings=document.getElementById('findingText').value;j.codes=document.getElementById('codeInput').value;j.status='Diagnosis / Findings';save();toast('Technician findings saved.','good');});
+  document.querySelector('[data-action="photo-upload"]')?.addEventListener('click',()=>document.getElementById('findingPhoto')?.click());
+  document.getElementById('findingPhoto')?.addEventListener('change',e=>{const f=e.target.files?.[0],j=jobById(db.session.activeJobId);if(!f||!j)return;const r=new FileReader();r.onload=()=>{j.photos.push(r.result);save();findings();};r.readAsDataURL(f);});
+  document.querySelectorAll('[data-severity]').forEach(b=>b.onclick=()=>{const j=jobById(db.session.activeJobId);j.severity=b.dataset.severity;save();toast(`Inspection category: ${b.dataset.severity}`,'good');});
+  document.querySelector('[data-action="before-replace"]')?.addEventListener('click',()=>modal('Before You Replace It',`<div class="list">${[['check','Confirm the symptom independently','Reproduce it and compare commanded vs. actual data.'],['shield','Check power, ground, connectors','Rule out wiring, voltage drop, network, and connector faults.'],['brain','Look upstream','Ask what could make the component look bad even if it is good.'],['wrench','Use a definitive test','Choose the safest test that can prove or disprove the theory before replacement.']].map(x=>`<div class="list-item"><div class="list-icon">${ic(x[0])}</div><div class="list-main"><b>${x[1]}</b><p>${x[2]}</p></div></div>`).join('')}</div>`));
+  document.querySelector('[data-action="to-estimate"]')?.addEventListener('click',e=>workup(e.currentTarget.dataset.job));
+  document.querySelector('[data-action="complete-job"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.status='Completed';j.completedAt=nowISO();j.carfax={status:'Ready'};save();toast('Job marked completed; service record is CARFAX-ready.','good');findings();});
+  document.querySelector('[data-action="ask-vehicle"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);modal('Ask Mobile Mechanic AI About This Vehicle',`<p class="muted small">Production AI will automatically receive this vehicle's complaint, mileage, prior repairs, codes, findings, and current job context.</p><div class="field"><textarea placeholder="Ask about this vehicle...">What should I verify next on this ${esc(vehicleText(j.vehicle))}?</textarea></div><button class="btn btn-primary" data-action="not-connected">Ask AI</button>`);});
+
+  document.querySelector('[data-action="second-opinion"]')?.addEventListener('click',()=>{const out=document.getElementById('secondResult');out.innerHTML=`<div class="list">${[['brain','Challenge the leading theory','What condition could produce the same symptom without the suspected component being bad?'],['wrench','Prove the failure','Identify the test that most directly proves or disproves the suspected component.'],['shield','Check basics first','Confirm power, ground, connector integrity, fluid/pressure conditions, and related inputs.'],['report','Compare authoritative data','Verify specs and procedures against official service information before final repair.']].map(x=>`<div class="list-item"><div class="list-icon">${ic(x[0])}</div><div class="list-main"><b>${x[1]}</b><p>${x[2]}</p></div></div>`).join('')}</div><p class="small muted">This is a rule-based prototype response. Secure production AI is not connected yet.</p>`;});
+
+  document.querySelector('[data-action="calc-quote"]')?.addEventListener('click',()=>{const s=currentShop(),hours=+document.getElementById('qHours').value||0,parts=+document.getElementById('qParts').value||0,sup=+document.getElementById('qSupplies').value||0,travel=+document.getElementById('qTravel').value||0,labor=hours*s.settings.laborRate,partsSell=parts*(1+s.settings.partsMarkup/100),sub=labor+partsSell+sup+travel,tax=sub*s.settings.taxRate/100,total=sub+tax,deposit=total*s.settings.depositPercent/100;document.getElementById('quoteResult').innerHTML=`<div class="list-item"><div class="list-main"><b>Customer Total: ${money(total)}</b><p>Labor ${money(labor)} • Parts with markup ${money(partsSell)} • Supplies ${money(sup)} • Travel ${money(travel)} • Tax ${money(tax)}<br>Suggested ${s.settings.depositPercent}% deposit: ${money(deposit)}</p></div></div>`;});
+
+  document.getElementById('teamForm')?.addEventListener('submit',e=>{e.preventDefault();const s=currentShop();if(s.users.filter(u=>u.active).length>=plans[s.plan].seats)return toast('No open seats on this plan.','bad');const d=Object.fromEntries(new FormData(e.currentTarget));if(Object.values(db.shops).some(sh=>sh.users.some(u=>u.email.toLowerCase()===d.email.toLowerCase())))return toast('That login email is already in use.','bad');s.users.push({id:uid('usr'),name:d.name,email:d.email,password:d.password,role:d.role,active:true});save();toast('Technician login created.','good');team();});
+  document.querySelectorAll('[data-action="toggle-user"]').forEach(b=>b.onclick=()=>{const s=currentShop(),u=s.users.find(x=>x.id===b.dataset.user);u.active=!u.active;save();team();});
+  document.querySelectorAll('[data-action="reset-tech-password"]').forEach(b=>b.onclick=()=>{const s=currentShop(),u=s.users.find(x=>x.id===b.dataset.user);modal('Reset Technician Password',`<form id="resetPassForm" data-user="${u.id}"><p class="small muted">Prototype reset. Production version will use a secure password-reset link.</p><div class="field"><label>New Temporary Password</label><input name="password" type="password" minlength="8" required></div><button class="btn btn-primary">Save Temporary Password</button></form>`);});
+  document.getElementById('resetPassForm')?.addEventListener('submit',e=>{e.preventDefault();const u=currentShop().users.find(x=>x.id===e.currentTarget.dataset.user);u.password=new FormData(e.currentTarget).get('password');save();document.querySelector('.modal-backdrop')?.remove();toast('Temporary password updated.','good');});
+
+  document.getElementById('settingsForm')?.addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget)),s=currentShop();s.name=d.name.trim()||s.name;s.phone=d.phone.trim();s.email=d.email.trim();s.slug=slugify(d.slug)||s.slug;s.settings={...s.settings,laborRate:+d.laborRate||0,taxRate:+d.taxRate||0,partsMarkup:+d.partsMarkup||0,travelFee:+d.travelFee||0,freeRadius:+d.freeRadius||0,depositPercent:+d.depositPercent||0};save();toast('Shop settings saved.','good');settings();});
+  document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>{const s=currentShop();s.plan=b.dataset.plan;s.subscriptionStatus='active';save();toast(`${plans[s.plan].name} selected for prototype. Production will open Stripe checkout.`, 'good');billing();});
+
+  document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{const s=db.shops[b.dataset.shop];if(!s)return;if(b.dataset.admin==='open'&&platformCan('shops_open')){logAdmin('Opened shop workspace',s.id);const pu=platformUser();const owner=s.users.find(x=>x.role==='owner')||s.users[0];db.session={role:'shop',shopId:s.id,userId:owner.id,supportMode:true,platformReturn:{role:pu.role==='platform_owner'?'platform_owner':'platform_admin',adminId:pu.id}};save();return dashboard();}if(b.dataset.admin==='extend'&&platformCan('trial_extend')){s.trialEnds=new Date(Math.max(Date.now(),new Date(s.trialEnds).getTime())+30*86400000).toISOString();if(s.subscriptionStatus==='suspended')s.subscriptionStatus='trialing';logAdmin('Extended trial 30 days',s.id);toast('Trial extended 30 days.','good');platformAdmin();}if(b.dataset.admin==='comp'&&platformCan('comp')){s.comped=!s.comped;s.subscriptionStatus=s.comped?'active':'trialing';logAdmin(s.comped?'Comped shop account':'Removed comp',s.id);platformAdmin();}if(b.dataset.admin==='suspend'&&platformCan('suspend')){s.subscriptionStatus=s.subscriptionStatus==='suspended'?'trialing':'suspended';logAdmin(s.subscriptionStatus==='suspended'?'Suspended shop':'Reactivated shop',s.id);platformAdmin();}});
+  document.getElementById('platformAdminForm')?.addEventListener('submit',e=>{e.preventDefault();if(!platformCan('admins_manage'))return;const d=Object.fromEntries(new FormData(e.currentTarget));if([db.platformOwner,...(db.platformAdmins||[])].some(a=>a.email.toLowerCase()===d.email.toLowerCase()))return toast('That admin email is already in use.','bad');db.platformAdmins=db.platformAdmins||[];db.platformAdmins.push({id:uid('adm'),name:d.name,email:d.email,password:d.password,role:d.role,active:true});logAdmin('Created platform admin',null,`${d.name} — ${platformRoleLabels[d.role]}`);platformAdmin();});
+  document.querySelectorAll('[data-platform-user-toggle]').forEach(b=>b.onclick=()=>{if(!platformCan('admins_manage'))return;const a=(db.platformAdmins||[]).find(x=>x.id===b.dataset.platformUserToggle);if(!a)return;a.active=!a.active;logAdmin(a.active?'Enabled platform admin':'Disabled platform admin',null,a.email);platformAdmin();});
+
+  document.querySelectorAll('[data-action="add-vehicle"]').forEach(b=>b.onclick=()=>addVehicle(b.dataset.customer));
+  document.querySelectorAll('[data-action="customer-history"]').forEach(b=>b.onclick=()=>{const s=currentShop(),c=s.customers.find(x=>x.id===b.dataset.customer),js=s.jobs.filter(j=>j.customerId===c.id);modal('Vehicle Timeline',`<h3>${esc(c.name)}</h3><div class="list">${js.map(j=>`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))} — ${esc(j.status)}</b><p>${new Date(j.createdAt).toLocaleString()}<br>${esc(j.complaint)}</p></div></div>`).join('')||'<p class="muted">No job history.</p>'}</div>`);});
+  document.getElementById('addVehicleForm')?.addEventListener('submit',e=>{e.preventDefault();const s=currentShop(),c=s.customers.find(x=>x.id===e.currentTarget.dataset.customer),d=Object.fromEntries(new FormData(e.currentTarget));c.vehicles.push({id:uid('veh'),year:d.year,make:d.make,model:d.model,engine:d.engine,vin:d.vin,trim:'',drive:'',plate:'',mileage:''});save();document.querySelector('.modal-backdrop')?.remove();toast('Vehicle added to returning customer.','good');customers();});
+
+  document.querySelectorAll('[data-action="prepare-carfax"]').forEach(b=>b.onclick=()=>{const j=jobById(b.dataset.job);j.carfax={status:'Ready',preparedAt:nowISO(),record:{vin:j.vehicle.vin,mileage:j.vehicle.mileage,date:j.completedAt||nowISO(),services:j.findings||j.complaint,shop:currentShop().name}};save();toast('Service record prepared. Not submitted to CARFAX.','good');carfax();});
+  document.querySelector('[data-action="export-json"]')?.addEventListener('click',()=>{const s=currentShop(),blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${s.slug}-mobile-mechanic-ai-export.json`;a.click();URL.revokeObjectURL(a.href);});
+  document.querySelector('[data-action="save-ppi"]')?.addEventListener('click',()=>toast('PPI draft saved in prototype workflow.','good'));
+  document.querySelectorAll('[data-action="not-connected"]').forEach(b=>b.onclick=()=>toast('This secure API is not connected in the static prototype.',''));
+  document.querySelector('[data-action="close-modal"]')?.addEventListener('click',()=>document.querySelector('.modal-backdrop')?.remove());
+  document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
+  document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
+  document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
+}
+
+function setupSpeech(selector,targetId){
+  const b=document.querySelector(selector);if(!b)return;b.onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR)return toast('Speech recognition is not supported by this browser.','bad');const r=new SR();r.lang='en-US';r.interimResults=false;r.onresult=e=>{const t=e.results[0][0].transcript,el=document.getElementById(targetId);el.value=(el.value?el.value+' ':'')+t;toast('Voice added.','good');};r.onerror=()=>toast('Voice transcription could not complete.','bad');r.start();toast('Listening…');};
+}
+
+function render(route=hashRoute()){
+  if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
+  if(db.session?.role!=='shop'||!currentShop())return login();
+  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,export:exportData};
+  (routes[route]||dashboard)();
+}
+
+// Public customer routes take precedence over login/session.
+const qs=new URLSearchParams(location.search);
+if(qs.get('intake')){
+  const s=Object.values(db.shops).find(x=>x.slug===qs.get('intake'));
+  if(s) publicIntake(s); else publicMessage('Shop intake link not found','Ask the mechanic/shop to send a new intake link.');
+} else if(qs.get('estimate')){
+  try{const data=JSON.parse(decodeURIComponent(escape(atob(qs.get('estimate')))));estimatePage(data);}catch{publicMessage('Estimate link not found','Ask the shop to send a new estimate link.');}
+} else {
+  if(!location.hash) location.hash=(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')?'#admin':db.session?.role==='shop'?'#dashboard':'#login';
+  render();
+}
+window.addEventListener('hashchange',()=>{if(!qs.get('intake')&&!qs.get('estimate'))render(hashRoute());});
+
+})();
