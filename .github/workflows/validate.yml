@@ -24,6 +24,7 @@ jobs:
         run: |
           node --check app.js
           node --check estimate-approvals.js
+          node --check estimate-public.js
           node --check supabase-production.js
           node --check production-guards.js
           node --check intake-queue.js
@@ -33,8 +34,10 @@ jobs:
           test -f styles.css
           test -f netlify.toml
           test -f estimate-approvals.js
+          test -f estimate-public.js
           test -f intake-queue.js
           grep -q "estimate-approvals.js" index.html
+          grep -q "estimate-public.js" index.html
           grep -q "supabase-production.js" index.html
           grep -q "production-guards.js" index.html
           grep -q "intake-queue.js" index.html
