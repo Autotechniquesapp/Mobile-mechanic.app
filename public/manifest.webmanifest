@@ -1,0 +1,10 @@
+{
+  "name": "Mobile Mechanic AI",
+  "short_name": "Mechanic AI",
+  "description": "Work Smarter. Fix Faster. Get Paid.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#b80912",
+  "icons": []
+}
