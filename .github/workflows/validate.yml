@@ -23,6 +23,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
+          node --check legal-protections.js
           node --check estimate-approvals.js
           node --check estimate-public.js
           node --check supabase-production.js
@@ -32,15 +33,19 @@ jobs:
       - name: Check required production files
         run: |
           test -f index.html
+          test -f terms.html
+          test -f legal-protections.js
           test -f styles.css
           test -f netlify.toml
           test -f estimate-approvals.js
           test -f estimate-public.js
           test -f pricing-gates.js
           test -f intake-queue.js
+          grep -q "legal-protections.js" index.html
           grep -q "estimate-approvals.js" index.html
           grep -q "estimate-public.js" index.html
           grep -q "supabase-production.js" index.html
           grep -q "pricing-gates.js" index.html
           grep -q "production-guards.js" index.html
           grep -q "intake-queue.js" index.html
+          grep -q "from = \"/terms\"" netlify.toml
