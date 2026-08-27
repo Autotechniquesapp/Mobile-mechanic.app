@@ -1,51 +1,47 @@
-# Mobile Mechanic AI — GitHub / Netlify Ready Prototype
+# Mobile Mechanic AI
 
-This is the current Netlify-ready prototype built around the approved black/red mechanic UI and white/red shop-linked customer intake.
+Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations. The production path uses GitHub → Netlify for the frontend and Supabase for authentication, tenant-isolated data, customer intake, and secure estimate approvals.
 
-## Upload to GitHub
+## Production deployment
 
-Use the GitHub account **Autotechniquesapp**. Upload the **contents of this folder** to the correct Mobile Mechanic AI repository, with `index.html` at the repository root. Use `main` as the production branch.
+- Repository: `Autotechniquesapp/Mobile-mechanic.app`
+- Production branch: `main`
+- Netlify publishes the repository root using `netlify.toml`
+- Supabase provides Auth/Postgres/RLS and customer-facing Edge Functions
 
-Then connect the existing Netlify project that serves **mobile-mechanic.app** to that repository. Netlify reads `netlify.toml` and publishes the project root.
+## Subscription pricing
 
-## Demo logins
+New shops receive a 60-day trial of the plan they select.
 
-- Platform Owner: `master@mobile-mechanic.app` / `MasterDemo2026!`
-- Billing Admin: `billing-admin@mobile-mechanic.app` / `BillingDemo2026!`
-- Support Admin: `support-admin@mobile-mechanic.app` / `SupportDemo2026!`
-- Demo Shop Owner: `demo@mobile-mechanic.app` / `DemoShop2026!`
-- Demo Technician: `tech@mobile-mechanic.app` / `TechDemo2026!`
+- **Solo — $69/month:** 1 included user. Customer intake, customers/vehicles/jobs, basic AI workup, Good/Better/Best estimates, secure customer approval, voice notes, quick quote, calendar, basic reporting, and data export.
+- **Shop — $149/month:** up to 5 included users. Everything in Solo plus AI Second Opinion, pre-purchase inspections, parts tools, warranty/comeback tracking, templates, team accounts, CARFAX-ready tools, and training.
+- **Pro / Fleet — $249/month:** up to 15 included users. Everything in Shop plus fleet, roadside/tow workflow, advanced reporting, and priority support.
 
-These credentials are **prototype-only browser demo credentials**. Replace them with secure backend authentication before commercial use.
+The core workflow—customer intake → job → diagnosis → estimate → customer approval—remains available on every paid plan. Higher-value features are gated by plan rather than charging for every individual button.
 
-## Included prototype flows
+## Production flows already connected
 
-- Platform Owner and delegated platform admin roles (Billing, Support, Operations, Technical, Read-Only)
-- Admin activity log and role-limited shop actions
-- Multi-shop browser prototype with immutable `shop_id` model
-- 60-day trial and Solo $29.99 / Shop $69.99 / Pro-Fleet $129.99 plan UI
-- Shop owner + technician/service-writer/manager accounts and seat limits
-- Shop-specific branded intake URL and app identity
-- Customer intake, current location, VIN decode using free NHTSA vPIC where available, voice Customer States
-- AI pre-workup UI, diagnostic checklist, AI Second Opinion, Before You Replace It
-- Technician findings, photos, diagnostic history surfaces
-- Good / Better / Best estimates, secure-link style customer selection/approval, single-estimate option
-- Vehicle/job-specific YouTube repair search links
-- Quick quote, markup, labor, tax, travel, deposit settings
-- Pre-purchase inspection, warranty/comeback, parts/warranty/core, fleet/roadside, training/templates
-- CARFAX-ready service record preparation without falsely claiming submission
-- Shop data export
+- Supabase Auth signup/login/logout
+- Multi-shop tenant isolation with immutable `shop_id`
+- 60-day trials and plan catalog
+- Shop-specific customer intake links
+- Secure intake queue and conversion into customer/vehicle/job records
+- Technician findings saved to Supabase
+- Good / Better / Best estimate snapshots
+- Secure cross-device customer estimate approval links with expiration/versioning
+- Supabase Edge Function for public estimate decisions
+- Pricing and feature gates loaded from the Supabase plan catalog
+- GitHub Actions JavaScript/required-file validation
 
-## Production services still required
+## Production services still required or being completed
 
-For real shops/customers, connect secure production services:
-
-1. Supabase Auth/Postgres/Storage (or equivalent) with tenant/RLS protection by `shop_id`.
-2. Stripe subscriptions and webhooks through server-side functions.
-3. AI provider through Netlify Functions.
-4. Authorized CARFAX connection before any record can be marked Submitted.
-5. Optional paid VIN/plate, parts inventory, SMS/email, maps/service-data APIs only when justified.
+1. Stripe subscriptions, checkout, webhooks, retries, upgrades/downgrades, and cancellation.
+2. Production AI provider through server-side functions with plan-based usage controls.
+3. Secure staff invitations/password management.
+4. Supabase Storage for photos, receipts, logos, and inspection evidence.
+5. Authorized CARFAX connection before any service record can be marked Submitted.
+6. Optional SMS/email, paid VIN/plate, parts inventory, maps, and legitimate service-data integrations.
 
 ## Security
 
-Never commit Stripe secrets, AI keys, CARFAX credentials, Supabase service-role keys, or other private credentials to GitHub. Store them in Netlify Environment Variables and access them only from server-side functions.
+Never commit Stripe secrets, AI provider keys, CARFAX credentials, Supabase service-role keys, or other private credentials to GitHub. Client code uses only the Supabase publishable key; privileged operations must remain server-side or inside protected Supabase functions/Edge Functions.
