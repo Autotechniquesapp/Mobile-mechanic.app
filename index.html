@@ -47,11 +47,16 @@
     </defs>
   </svg>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4"></script>
+  <script src="estimate-approvals.js"></script>
   <script src="supabase-production.js"></script>
   <script src="production-guards.js"></script>
   <script src="intake-queue.js"></script>
   <script>
-    (window.MobileMechanicBootstrap || Promise.resolve()).finally(() => {
+    Promise.all([
+      window.MobileMechanicBootstrap || Promise.resolve(),
+      Promise.resolve().then(() => window.MobileMechanicEstimatePublic ? window.MobileMechanicEstimatePublic() : false)
+    ]).finally(() => {
+      if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
       script.src = 'app.js';
       document.body.appendChild(script);
