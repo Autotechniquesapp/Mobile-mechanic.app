@@ -25,10 +25,13 @@ jobs:
           node --check app.js
           node --check supabase-production.js
           node --check production-guards.js
+          node --check intake-queue.js
       - name: Check required production files
         run: |
           test -f index.html
           test -f styles.css
           test -f netlify.toml
+          test -f intake-queue.js
           grep -q "supabase-production.js" index.html
           grep -q "production-guards.js" index.html
+          grep -q "intake-queue.js" index.html
