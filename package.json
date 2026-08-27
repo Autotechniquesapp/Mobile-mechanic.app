@@ -1,9 +1,13 @@
 {
   "name": "mobile-mechanic-ai",
-  "version": "0.7.0-prototype",
+  "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "serve": "python3 -m http.server 8888",
-    "check": "node --check app.js"
+    "check": "node --check public/app.js && node --check public/service-worker.js && node --check netlify/functions/_shared.mjs && node --check netlify/functions/shop-signup.mjs && node --check netlify/functions/shop-login.mjs && node --check netlify/functions/session.mjs && node --check netlify/functions/logout.mjs && node --check netlify/functions/dashboard-data.mjs && node --check netlify/functions/shop-public.mjs && node --check netlify/functions/customer-intake.mjs && node --check netlify/functions/vin-decode.mjs && node --check netlify/functions/ai-workup.mjs && node --check netlify/functions/invite-technician.mjs",
+    "test": "npm run check && node tests/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
