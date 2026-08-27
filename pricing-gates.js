@@ -68,15 +68,19 @@ function updatePlanCards(){
     const input=card.querySelector('input[name="plan"]');if(!input)return;
     const p=catalog[input.value];if(!p)return;
     const name=card.querySelector('b'),strong=card.querySelector('strong'),span=card.querySelector('span');
-    if(name)name.textContent=p.name;
-    if(strong)strong.innerHTML=`${priceText(p.price)}<small>/mo</small>`;
-    if(span)span.innerHTML=`${p.description}<br>Up to ${p.seats} user${p.seats===1?'':'s'}`;
+    if(name&&name.textContent!==p.name)name.textContent=p.name;
+    const priceHtml=`${priceText(p.price)}<small>/mo</small>`;
+    if(strong&&strong.innerHTML!==priceHtml)strong.innerHTML=priceHtml;
+    const detailsHtml=`${p.description}<br>Up to ${p.seats} user${p.seats===1?'':'s'}`;
+    if(span&&span.innerHTML!==detailsHtml)span.innerHTML=detailsHtml;
   });
   document.querySelectorAll('.subscription-card').forEach(card=>{
     const title=(card.querySelector('h3')?.textContent||'').toLowerCase();
     const key=title.includes('pro')?'pro':title.includes('solo')?'solo':'shop';
     const p=catalog[key];if(!p)return;
-    const price=card.querySelector('.price');if(price)price.innerHTML=`${priceText(p.price)}<small>/month</small>`;
+    const price=card.querySelector('.price');
+    const priceHtml=`${priceText(p.price)}<small>/month</small>`;
+    if(price&&price.innerHTML!==priceHtml)price.innerHTML=priceHtml;
   });
 }
 
@@ -103,7 +107,20 @@ function decorateGates(){
     allowed(feature)?unlockElement(el):lockElement(el,feature);
   });
 }
-function refresh(){updatePlanCards();decorateGates();}
+function observe(){
+  if(!observer)return;
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+}
+function refresh(){
+  // Avoid a self-triggering MutationObserver loop when plan text is updated.
+  observer?.disconnect();
+  try{
+    updatePlanCards();
+    decorateGates();
+  }finally{
+    observe();
+  }
+}
 
 // Capture before app.js navigation handlers.
 document.addEventListener('click',e=>{
@@ -126,7 +143,8 @@ window.addEventListener('hashchange',()=>{
 
 window.MobileMechanicPricingReady=(async()=>{
   await loadCatalog();
-  observer=new MutationObserver(refresh);observer.observe(document.documentElement,{childList:true,subtree:true});
+  observer=new MutationObserver(refresh);
+  observe();
   refresh();
   window.MobileMechanicPlanCatalog=catalog;
 })();
