@@ -1,47 +1,112 @@
 # Mobile Mechanic AI
 
-Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations. The production path uses GitHub → Netlify for the frontend and Supabase for authentication, tenant-isolated data, customer intake, and secure estimate approvals.
+Mobile-first, multi-shop automotive repair application for `mobile-mechanic.app`.
 
-## Production deployment
+The approved product direction is preserved:
 
-- Repository: `Autotechniquesapp/Mobile-mechanic.app`
-- Production branch: `main`
-- Netlify publishes the repository root using `netlify.toml`
-- Supabase provides Auth/Postgres/RLS and customer-facing Edge Functions
+- dark black/charcoal, red-glow mechanic workspace;
+- clean white/red customer intake;
+- AI as an advisory assistant, never the final repair authority;
+- immutable `shop_id` tenant boundaries;
+- Netlify hosting, Supabase auth/data/storage, Stripe platform billing, and server-side external integrations.
 
-## Subscription pricing
+## What this build contains
 
-New shops receive a 60-day trial of the plan they select.
+- Responsive mechanic protection, sign-up, sign-in, dashboard, jobs, customers, AI workup, findings, estimates, technician invite, and platform-admin interface foundations.
+- Shop-specific intake at `/intake/:shop-slug`, including vehicle selection, VIN entry/decoding, current location, voice complaint capture, returning-customer-safe backend matching, and pre-purchase inspection fields.
+- Netlify Functions for Supabase sessions, shop signup/login, dashboard data, public shop lookup, customer intake, technician invitations, NHTSA VIN decoding, and OpenAI diagnostic workups.
+- Supabase schema with permanent `shp_...` IDs, 60-day trials, role definitions, row-level security, composite tenant foreign keys, estimate/invoice/service-history foundations, and admin audit records.
+- An offline-first static shell and local note-friendly service worker foundation.
+- Smoke checks for source syntax, safe disconnected states, tenant-schema markers, logout cookies, public-intake bot friction, and invalid VIN handling.
 
-- **Solo — $69/month:** 1 included user. Customer intake, customers/vehicles/jobs, basic AI workup, Good/Better/Best estimates, secure customer approval, voice notes, quick quote, calendar, basic reporting, and data export.
-- **Shop — $149/month:** up to 5 included users. Everything in Solo plus AI Second Opinion, pre-purchase inspections, parts tools, warranty/comeback tracking, templates, team accounts, CARFAX-ready tools, and training.
-- **Pro / Fleet — $249/month:** up to 15 included users. Everything in Shop plus fleet, roadside/tow workflow, advanced reporting, and priority support.
+See [Build status](docs/BUILD_STATUS.md) for the exact implemented/not-connected boundary.
 
-The core workflow—customer intake → job → diagnosis → estimate → customer approval—remains available on every paid plan. Higher-value features are gated by plan rather than charging for every individual button.
+## Safe local testing
 
-## Production flows already connected
+Requirements: Node.js 20 or newer.
 
-- Supabase Auth signup/login/logout
-- Multi-shop tenant isolation with immutable `shop_id`
-- 60-day trials and plan catalog
-- Shop-specific customer intake links
-- Secure intake queue and conversion into customer/vehicle/job records
-- Technician findings saved to Supabase
-- Good / Better / Best estimate snapshots
-- Secure cross-device customer estimate approval links with expiration/versioning
-- Supabase Edge Function for public estimate decisions
-- Pricing and feature gates loaded from the Supabase plan catalog
-- GitHub Actions JavaScript/required-file validation
+```bash
+npm test
+```
 
-## Production services still required or being completed
+For a static interface-only preview, serve the `public` directory. Netlify Functions require a Netlify local development environment or a deployed Netlify site.
 
-1. Stripe subscriptions, checkout, webhooks, retries, upgrades/downgrades, and cancellation.
-2. Production AI provider through server-side functions with plan-based usage controls.
-3. Secure staff invitations/password management.
-4. Supabase Storage for photos, receipts, logos, and inspection evidence.
-5. Authorized CARFAX connection before any service record can be marked Submitted.
-6. Optional SMS/email, paid VIN/plate, parts inventory, maps, and legitimate service-data integrations.
+The explicit **Local UI Demo** contains labeled sample records. It does not claim that AI, messaging, payments, inventory, CARFAX, or any outside action occurred.
 
-## Security
+## Supabase setup
 
-Never commit Stripe secrets, AI provider keys, CARFAX credentials, Supabase service-role keys, or other private credentials to GitHub. Client code uses only the Supabase publishable key; privileged operations must remain server-side or inside protected Supabase functions/Edge Functions.
+1. Create a new Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor before production data is added.
+3. Enable the desired email/password confirmation behavior and set the approved authentication redirect URLs.
+4. Add these values to the existing Netlify site's environment variables:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+APP_ORIGIN=https://mobile-mechanic.app
+```
+
+The Netlify Functions also accept `SUPABASE_URL` and `SUPABASE_ANON_KEY` if you prefer those names. If the `VITE_` variables already exist in Netlify, keep them.
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-only. It must never be added to browser code or GitHub.
+
+After the Platform Owner creates a normal authenticated account, promote that account once using its Supabase Auth UUID:
+
+```sql
+insert into public.platform_admins (user_id, role)
+values ('AUTH-USER-UUID', 'platform_owner');
+```
+
+Do not hard-code the owner's email or password.
+
+## OpenAI setup
+
+The diagnostic function uses the server-side Responses API and defaults to `gpt-5.6-luna`. Configure in Netlify:
+
+```text
+OPENAI_API_KEY
+OPENAI_MODEL=gpt-5.6-luna
+```
+
+The key belongs only in secure environment variables. The browser never receives it. AI output is saved to the applicable tenant/job only after a valid authenticated request and is always marked advisory.
+
+## Existing Netlify site and GitHub
+
+Preserve the existing Netlify project, domain, HTTPS, and DNS for `mobile-mechanic.app`.
+
+The intended production source is:
+
+```text
+Autotechniquesapp/Mobile-mechanic.app
+branch: main
+publish directory: public
+functions directory: netlify/functions
+```
+
+Before linking the existing Netlify site:
+
+1. Confirm GitHub is signed in as `Autotechniquesapp`.
+2. Confirm the exact repository contains this build and is not empty or an old prototype.
+3. Link that exact repository to the **existing** Netlify site.
+4. Set `main` as the production branch.
+5. Configure environment variables in Netlify, not in GitHub.
+6. Deploy a preview and run the release checklist before promoting production.
+
+For temporary static Netlify Drop testing, upload the `public` directory. That preview will not include secure Functions. A full connected deployment should build from the project root using `netlify.toml`.
+
+## Production release gate
+
+Before production use:
+
+- apply and validate the Supabase schema in a staging project;
+- test Shop Owner, Manager, Technician, Service Writer, and platform-admin permissions;
+- verify two unrelated test shops cannot read or relate each other's records;
+- configure the OpenAI key in Netlify and run a controlled diagnostic workup;
+- confirm intake creates records only in the slug's shop;
+- test mobile camera, microphone, geolocation, poor-signal behavior, and accessibility on real devices;
+- add attorney-reviewed Terms, Privacy, Data Use, Subscription, AI limitation, and IP documents;
+- connect Stripe and verify webhooks in test mode before enabling subscription gating;
+- keep every unconnected service visibly labeled **Not Connected**.
+
+No production secret is included in this project package.
