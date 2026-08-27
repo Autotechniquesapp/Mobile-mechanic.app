@@ -23,6 +23,8 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
+          node --check admin.js
+          node --check admin-access.js
           node --check legal-protections.js
           node --check referral-tracking.js
           node --check estimate-approvals.js
@@ -34,6 +36,9 @@ jobs:
       - name: Check required production files
         run: |
           test -f index.html
+          test -f admin.html
+          test -f admin.js
+          test -f admin-access.js
           test -f terms.html
           test -f legal-protections.js
           test -f referral-tracking.js
@@ -43,6 +48,7 @@ jobs:
           test -f estimate-public.js
           test -f pricing-gates.js
           test -f intake-queue.js
+          grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html
           grep -q "estimate-approvals.js" index.html
@@ -52,3 +58,4 @@ jobs:
           grep -q "production-guards.js" index.html
           grep -q "intake-queue.js" index.html
           grep -q "from = \"/terms\"" netlify.toml
+          grep -q "from = \"/admin\"" netlify.toml
