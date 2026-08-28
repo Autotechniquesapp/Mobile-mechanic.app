@@ -273,6 +273,26 @@ document.addEventListener('click',async e=>{
 
 document.addEventListener('submit',async e=>{
   const form=e.target;
+  if(form.id==='teamForm'){
+    e.preventDefault();e.stopImmediatePropagation();
+    const d=Object.fromEntries(new FormData(form));
+    const cache=readCache(), sid=cache.session?.shopId, userId=cache.session?.userId, shop=cache.shops?.[sid];
+    if(!sid||!userId||!shop)return showStatus('Open your shop before inviting staff.','bad');
+    const token=crypto.randomUUID()+'-'+Math.random().toString(36).slice(2);
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+    const hash=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    const inviteLink=`${location.origin}/invite/${encodeURIComponent(token)}`;
+    try{
+      const {error}=await sb.from('staff_invites').insert({shop_id:sid,email:String(d.email||'').trim().toLowerCase(),full_name:d.name||null,role:d.role,token_hash:hash,invited_by:userId});
+      if(error)throw error;
+      await sb.from('outbound_messages').insert({shop_id:sid,template_id:'staff_invite_email',channel:'email',recipient:String(d.email||'').trim().toLowerCase(),subject:`You have been invited to ${shop.name}`,body:`${shop.name} invited you to join Mobile Mechanic AI as ${d.role}. Open this invite link: ${inviteLink}`,status:'queued',provider:'pending',created_by:userId});
+      if(d.phone)await sb.from('outbound_messages').insert({shop_id:sid,template_id:'staff_invite_sms',channel:'sms',recipient:String(d.phone).trim(),body:`${shop.name} invited you to Mobile Mechanic AI as ${d.role}: ${inviteLink}`,status:'queued',provider:'pending',created_by:userId});
+      const result=document.getElementById('inviteResult');
+      if(result)result.innerHTML=`Invite created. <button class="btn btn-soft" type="button" data-action="copy-text" data-copy="${inviteLink}">Copy Invite Link</button><p class="small muted">${inviteLink}</p><p class="small muted">Email/SMS is queued and will send when provider keys are connected.</p>`;
+      showStatus('Staff invite created.','good');
+    }catch(err){showStatus(err.message||'Could not create invite.','bad');}
+    return;
+  }
   if(form.id==='signupForm'){
     e.preventDefault();e.stopImmediatePropagation();
     const d=Object.fromEntries(new FormData(form)),button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
@@ -312,6 +332,7 @@ document.addEventListener('click',e=>{
   },0);
 },false);
 
+window.MobileMechanicTrackUsage=async(feature,metadata={})=>{try{const cache=readCache(),sid=cache.session?.shopId;if(!sid)return;await sb.from('feature_usage_events').insert({shop_id:sid,feature,metadata});}catch(err){console.warn('Usage tracking failed',err);}};
 window.MobileMechanicBootstrap = bootstrap().catch(err=>{console.error('Supabase bootstrap failed',err);writeCache(blankCache());});
 
 })();
