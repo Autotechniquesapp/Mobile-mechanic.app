@@ -201,7 +201,8 @@ async function submitShopIntake(form,d){
 
 async function bootstrap(){
   const qs=new URLSearchParams(location.search);
-  const intakeSlug=qs.get('intake');
+  const parts=location.pathname.split('/').filter(Boolean);
+  const intakeSlug=(parts[0]==='intake'&&parts[1]?decodeURIComponent(parts[1]):null)||qs.get('intake');
   if(intakeSlug){
     const {data,error}=await sb.from('shops').select('shop_id,slug,name,logo_url,business_phone,service_area').eq('slug',intakeSlug).maybeSingle();
     const cache=blankCache();
