@@ -136,6 +136,7 @@ async function loadWorkspace(user, allowCreate=true){
       vehicle:{id:v.id,year:v.year||'',make:v.make||'',model:v.model||'',trim:v.submodel||'',engine:v.engine||'',drive:v.drivetrain||'',vin:v.vin||'',plate:v.license_plate||'',mileage:v.mileage||''},
       complaint:j.customer_states||'',requestType:'Repair / Diagnostic',availability:j.availability||'',
       location:j.current_location?.raw||'',createdAt:j.created_at,status:statusToUi(j.status),assignedTo:j.assigned_user_id||null,
+      scheduledStart:j.scheduled_start_at||null,scheduledEnd:j.scheduled_end_at||null,estimatedLaborHours:Number(j.estimated_labor_hours||1),travelMinutes:Number(j.travel_minutes||0),bufferMinutes:Number(j.buffer_minutes??15),scheduleNotes:j.schedule_notes||'',
       findings:j.findings||'',codes:j.codes||'',photos:[],estimate:j.estimate||null,approval:j.approval||null,
       completedAt:j.completed_at||null,carfax:{status:j.carfax_status||'Not Connected'}
     };
@@ -194,7 +195,7 @@ async function submitShopIntake(form,d){
     const r=await sb.from('vehicles').insert({shop_id:sid,customer_id:customer.id,year:d.year?Number(d.year):null,make:d.make||null,model:d.model||null,submodel:d.trim||null,engine:d.engine||null,drivetrain:d.drive||null,vin:vin||null,license_plate:(d.plate||'').trim()||null,mileage:d.mileage?Number(d.mileage):null}).select('id').single();
     if(r.error)throw r.error; vehicle={id:r.data.id};
   }
-  const r=await sb.from('jobs').insert({shop_id:sid,customer_id:customer.id,vehicle_id:vehicle.id,status:'ai_workup',customer_states:d.complaint||null,current_location:d.location?{raw:d.location}:null,availability:d.availability||null,priority:'normal'}).select('id').single();
+  const r=await sb.from('jobs').insert({shop_id:sid,customer_id:customer.id,vehicle_id:vehicle.id,status:'ai_workup',customer_states:d.complaint||null,current_location:d.location?{raw:d.location}:null,availability:d.availability||null,priority:'normal',estimated_labor_hours:1,travel_minutes:0,buffer_minutes:15}).select('id').single();
   if(r.error)throw r.error;
   await refreshWorkspace('#jobs',r.data.id);
 }
@@ -242,6 +243,14 @@ document.addEventListener('click',async e=>{
       const {error}=await sb.from('shops').update({name:document.getElementById('setupShopName')?.value.trim()||undefined,business_phone:document.getElementById('setupPhone')?.value.trim()||null,setup_complete:true,terms_version:TERMS_VERSION,terms_accepted_at:new Date().toISOString()}).eq('shop_id',sid);if(error)throw error;
       await refreshWorkspace('#dashboard');
     }catch(err){showStatus(err.message||'Could not save setup.','bad');}
+    return;
+  }
+  if(action==='save-schedule'){
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job;if(!jid)return;
+    const startVal=document.getElementById('scheduleStart')?.value;if(!startVal)return showStatus('Pick a start time.','bad');
+    const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
+    const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
+    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
   if(action==='save-findings'){
