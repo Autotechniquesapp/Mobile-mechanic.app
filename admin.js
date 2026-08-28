@@ -8,6 +8,7 @@ const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',ma
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const date=v=>v?new Date(v).toLocaleDateString():'—';
 let current=null;
+let activeFilter='all';
 
 async function call(body){
   const {data,error}=await sb.functions.invoke('platform-admin',{body});
@@ -32,19 +33,44 @@ function render(data){
   current=data;
   const m=data.metrics||{};const owner=data.role==='platform_owner';
   ROOT.innerHTML=`<div class="admin-shell"><header class="admin-top"><div class="admin-mark">MM</div><div class="admin-title"><div class="admin-brand">Mobile <span>Mechanic</span> AI</div><div class="admin-sub">Platform command center</div></div><div class="admin-spacer"></div><div class="admin-actions-top"><span class="status active">${esc(data.role).replace('_',' ')}</span><a class="admin-btn primary" href="/#dashboard">My Shop</a><button class="admin-btn" id="refreshAdmin">Refresh</button><button class="admin-btn" id="logoutAdmin">Log Out</button></div></header><p id="adminNote"></p>
-  <div class="admin-grid"><div class="admin-card metric red"><small>Total Shops</small><b>${m.total_shops||0}</b></div><div class="admin-card metric"><small>Trials</small><b>${m.trialing||0}</b></div><div class="admin-card metric"><small>Paying</small><b>${m.paying||0}</b></div><div class="admin-card metric"><small>MRR</small><b>${money(m.mrr)}</b></div><div class="admin-card metric"><small>Past Due</small><b>${m.past_due||0}</b></div><div class="admin-card metric"><small>Suspended</small><b>${m.suspended||0}</b></div></div>
-  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2>Shops</h2><p>Manage trials, plans, status, and protected owner access.</p></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table></div></section>
+  <div class="admin-grid"><button class="admin-card metric red" data-filter="all"><small>Total Shops</small><b>${m.total_shops||0}</b></button><button class="admin-card metric" data-filter="trialing"><small>Trials</small><b>${m.trialing||0}</b></button><button class="admin-card metric" data-filter="active"><small>Paying</small><b>${m.paying||0}</b></button><button class="admin-card metric" data-filter="mrr"><small>MRR</small><b>${money(m.mrr)}</b></button><button class="admin-card metric" data-filter="past_due"><small>Past Due</small><b>${m.past_due||0}</b></button><button class="admin-card metric" data-filter="suspended"><small>Suspended</small><b>${m.suspended||0}</b></button></div>
+  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2 id="shopSectionTitle">Shops</h2><p id="shopSectionHelp">Manage trials, plans, status, and protected owner access.</p></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table></div></section>
   <aside class="side-stack"><section class="section admin-panel"><div class="panel-head"><div><h2>Referrals</h2><p>Signup source tracking.</p></div></div><div class="ref-grid" style="padding:12px">${(data.referrals||[]).length?(data.referrals||[]).map(r=>`<div class="admin-card"><b>${esc(r.source)}</b><div class="muted" style="margin-top:6px">${r.signups} signup${r.signups===1?'':'s'} · ${r.paying} paying</div></div>`).join(''):'<div class="admin-card muted">No referral signups yet.</div>'}</div></section>
   <section class="section admin-panel"><div class="panel-head"><div><h2>Activity</h2><p>Recent admin actions.</p></div></div><div class="activity">${(data.activity||[]).length?(data.activity||[]).slice(0,8).map(a=>`<div class="activity-row"><b>${esc(a.action)}</b><div class="muted">${new Date(a.created_at).toLocaleString()}</div><div class="muted">${esc(a.actor_role||'admin')}${a.affected_shop_id?` · ${esc(a.affected_shop_id)}`:''}</div></div>`).join(''):'<div class="admin-card muted">No admin actions recorded yet.</div>'}</div></section></aside></div></div>`;
   document.getElementById('refreshAdmin').onclick=loadOverview;
   document.getElementById('logoutAdmin').onclick=async()=>{await sb.auth.signOut();loginScreen();};
+  bindMetricFilters();
+  applyShopFilter(activeFilter);
   bindActions();
 }
 function shopRow(s,owner){
   const own=s.slug==='autotechniques';
   const source=s.referral_code||s.referred_by_name||'—';
   const planNames={solo:'Solo',shop:'Shop',pro_fleet:'Pro / Fleet'};
-  return `<tr><td data-label="Shop"><div class="shop-name">${esc(s.name)}</div>${own?'<div class="owner-shop">Owner shop · non-expiring</div>':''}<div class="shop-slug">${esc(s.slug)}</div></td><td data-label="Referral">${esc(source)}</td><td data-label="Plan">${owner&&!own?`<select class="admin-select plan-select" data-shop="${esc(s.shop_id)}"><option value="solo" ${s.plan==='solo'?'selected':''}>Solo · $29.99</option><option value="shop" ${s.plan==='shop'?'selected':''}>Shop · $69.99</option><option value="pro_fleet" ${s.plan==='pro_fleet'?'selected':''}>Pro / Fleet · $129.99</option></select>`:`${esc(planNames[s.plan]||s.plan)}`}</td><td data-label="Status"><span class="status ${esc(s.billing_status)}">${esc(s.billing_status)}</span></td><td data-label="Trial">${own?'Non-expiring':date(s.trial_expires_at)}</td><td data-label="Users">${Number(s.active_members||0)}</td><td data-label="Actions"><div class="admin-actions">${owner&&!own?`<button class="admin-btn" data-admin-action="extend" data-shop="${esc(s.shop_id)}">+30 Days</button>${s.billing_status==='suspended'?`<button class="admin-btn" data-admin-action="status" data-status="active" data-shop="${esc(s.shop_id)}">Reactivate</button>`:`<button class="admin-btn danger" data-admin-action="status" data-status="suspended" data-shop="${esc(s.shop_id)}">Suspend</button>`}<button class="admin-btn" data-admin-action="status" data-status="comped" data-shop="${esc(s.shop_id)}">Comp</button>`:'<span class="muted">Protected</span>'}</div></td></tr>`;
+  return `<tr data-shop-status="${esc(s.billing_status)}"><td data-label="Shop"><div class="shop-name">${esc(s.name)}</div>${own?'<div class="owner-shop">Owner shop · non-expiring</div>':''}<div class="shop-slug">${esc(s.slug)}</div></td><td data-label="Referral">${esc(source)}</td><td data-label="Plan">${owner&&!own?`<select class="admin-select plan-select" data-shop="${esc(s.shop_id)}"><option value="solo" ${s.plan==='solo'?'selected':''}>Solo · $29.99</option><option value="shop" ${s.plan==='shop'?'selected':''}>Shop · $69.99</option><option value="pro_fleet" ${s.plan==='pro_fleet'?'selected':''}>Pro / Fleet · $129.99</option></select>`:`${esc(planNames[s.plan]||s.plan)}`}</td><td data-label="Status"><span class="status ${esc(s.billing_status)}">${esc(s.billing_status)}</span></td><td data-label="Trial">${own?'Non-expiring':date(s.trial_expires_at)}</td><td data-label="Users">${Number(s.active_members||0)}</td><td data-label="Actions"><div class="admin-actions">${owner&&!own?`<button class="admin-btn" data-admin-action="extend" data-shop="${esc(s.shop_id)}">+30 Days</button>${s.billing_status==='suspended'?`<button class="admin-btn" data-admin-action="status" data-status="active" data-shop="${esc(s.shop_id)}">Reactivate</button>`:`<button class="admin-btn danger" data-admin-action="status" data-status="suspended" data-shop="${esc(s.shop_id)}">Suspend</button>`}<button class="admin-btn" data-admin-action="status" data-status="comped" data-shop="${esc(s.shop_id)}">Comp</button>`:'<span class="muted">Protected</span>'}</div></td></tr>`;
+}
+function bindMetricFilters(){
+  document.querySelectorAll('[data-filter]').forEach(tile=>{
+    tile.addEventListener('click',()=>{
+      activeFilter=tile.dataset.filter||'all';
+      applyShopFilter(activeFilter);
+      document.querySelector('.admin-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  });
+}
+function applyShopFilter(filter='all'){
+  const labels={all:['Shops','All platform shops.'],trialing:['Trial Shops','Shops currently in the trial period.'],active:['Paying Shops','Active paid shops.'],mrr:['MRR Shops','Shops counted toward monthly recurring revenue.'],past_due:['Past Due','Shops with failed or overdue billing.'],suspended:['Suspended Shops','Accounts currently paused.']};
+  document.querySelectorAll('[data-filter]').forEach(tile=>tile.classList.toggle('active',tile.dataset.filter===filter));
+  document.querySelectorAll('[data-shop-status]').forEach(row=>{
+    const status=row.dataset.shopStatus;
+    const show=filter==='all'||status===filter||(filter==='mrr'&&status==='active');
+    row.style.display=show?'':'none';
+  });
+  const visible=[...document.querySelectorAll('[data-shop-status]')].filter(row=>row.style.display!=='none').length;
+  const [title,help]=labels[filter]||labels.all;
+  const t=document.getElementById('shopSectionTitle'),h=document.getElementById('shopSectionHelp');
+  if(t)t.textContent=`${title} (${visible})`;
+  if(h)h.textContent=help;
 }
 function bindActions(){
   document.querySelectorAll('.plan-select').forEach(el=>el.addEventListener('change',async()=>{note('Updating plan…');try{await call({action:'set_plan',shop_id:el.dataset.shop,plan:el.value});await loadOverview();note('Plan updated.','success');}catch(err){note(err.message,'error');}}));
