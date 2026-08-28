@@ -36,13 +36,17 @@ function trialDays(s){ return Math.max(0, Math.ceil((new Date(s.trialEnds).getTi
 function subscriptionOK(s){ return !!s && (s.subscriptionStatus==='active' || s.comped || new Date(s.trialEnds)>new Date()); }
 function currentShop(){ return db.session?.shopId ? db.shops[db.session.shopId] : null; }
 function currentUser(){ const s=currentShop(); return s?.users?.find(u=>u.id===db.session?.userId) || null; }
-function intakeUrl(s){ return `${location.origin}${location.pathname}?intake=${encodeURIComponent(s.slug)}`; }
+function intakeUrl(s){ return `${location.origin}/intake/${encodeURIComponent(s.slug)}`; }
 function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON.stringify({shop:s.id,slug:s.slug,job:j.id})))); return `${location.origin}${location.pathname}?estimate=${encodeURIComponent(payload)}`; }
 function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
 function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function toast(msg,type=''){ document.querySelector('.toast')?.remove(); const d=document.createElement('div'); d.className=`toast ${type}`; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2700); }
 function go(name, params={}){ location.hash = '#'+name; render(name,params); }
 function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
+function pathIntakeSlug(){
+  const parts=location.pathname.split('/').filter(Boolean);
+  return parts[0]==='intake' && parts[1] ? decodeURIComponent(parts[1]) : null;
+}
 function roleCan(...roles){ return roles.includes(currentUser()?.role) || db.session?.role==='platform_owner'; }
 const platformRoleLabels={platform_owner:'Platform Owner',billing_admin:'Billing Admin',support_admin:'Support Admin',operations_admin:'Operations Admin',technical_admin:'Technical Admin',read_only_admin:'Read-Only Admin'};
 const platformPerms={
@@ -529,8 +533,9 @@ function render(route=hashRoute()){
 
 // Public customer routes take precedence over login/session.
 const qs=new URLSearchParams(location.search);
-if(qs.get('intake')){
-  const s=Object.values(db.shops).find(x=>x.slug===qs.get('intake'));
+const intakeSlug=pathIntakeSlug()||qs.get('intake');
+if(intakeSlug){
+  const s=Object.values(db.shops).find(x=>x.slug===intakeSlug);
   if(s) publicIntake(s); else publicMessage('Shop intake link not found','Ask the mechanic/shop to send a new intake link.');
 } else if(qs.get('estimate')){
   try{const data=JSON.parse(decodeURIComponent(escape(atob(qs.get('estimate')))));estimatePage(data);}catch{publicMessage('Estimate link not found','Ask the shop to send a new estimate link.');}
