@@ -175,7 +175,7 @@ async function submitPublicIntake(form,d){
   });
   if(error) throw error;
   const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
-  document.querySelector('.customer-body').innerHTML=`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your vehicle information and Customer States are now stored in the shop's secure intake queue.</p><p class="muted small">The mechanic can review the request from their account.</p></div>`;
+  document.querySelector('.customer-body').innerHTML=`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
   document.querySelector('.customer-footer')?.remove();
 }
 
