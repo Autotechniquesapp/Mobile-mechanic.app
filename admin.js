@@ -34,7 +34,7 @@ function render(data){
   const m=data.metrics||{};const owner=data.role==='platform_owner';
   ROOT.innerHTML=`<div class="admin-shell"><header class="admin-top"><div class="admin-mark">MM</div><div class="admin-title"><div class="admin-brand">Mobile <span>Mechanic</span> AI</div><div class="admin-sub">Platform command center</div></div><div class="admin-spacer"></div><div class="admin-actions-top"><span class="status active">${esc(data.role).replace('_',' ')}</span><a class="admin-btn primary" href="/#dashboard">My Shop</a><button class="admin-btn" id="refreshAdmin">Refresh</button><button class="admin-btn" id="logoutAdmin">Log Out</button></div></header><p id="adminNote"></p>
   <div class="admin-grid"><button class="admin-card metric red" data-filter="all"><small>Total Shops</small><b>${m.total_shops||0}</b></button><button class="admin-card metric" data-filter="trialing"><small>Trials</small><b>${m.trialing||0}</b></button><button class="admin-card metric" data-filter="active"><small>Paying</small><b>${m.paying||0}</b></button><button class="admin-card metric" data-filter="mrr"><small>MRR</small><b>${money(m.mrr)}</b></button><button class="admin-card metric" data-filter="past_due"><small>Past Due</small><b>${m.past_due||0}</b></button><button class="admin-card metric" data-filter="suspended"><small>Suspended</small><b>${m.suspended||0}</b></button></div>
-  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2 id="shopSectionTitle">Shops</h2><p id="shopSectionHelp">Manage trials, plans, status, and protected owner access.</p></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table></div></section>
+  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2 id="shopSectionTitle">Shops</h2><p id="shopSectionHelp">Manage trials, plans, status, and protected owner access.</p></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table><div id="shopEmpty" class="admin-empty"></div></div></section>
   <aside class="side-stack"><section class="section admin-panel"><div class="panel-head"><div><h2>Referrals</h2><p>Signup source tracking.</p></div></div><div class="ref-grid" style="padding:12px">${(data.referrals||[]).length?(data.referrals||[]).map(r=>`<div class="admin-card"><b>${esc(r.source)}</b><div class="muted" style="margin-top:6px">${r.signups} signup${r.signups===1?'':'s'} · ${r.paying} paying</div></div>`).join(''):'<div class="admin-card muted">No referral signups yet.</div>'}</div></section>
   <section class="section admin-panel"><div class="panel-head"><div><h2>Activity</h2><p>Recent admin actions.</p></div></div><div class="activity">${(data.activity||[]).length?(data.activity||[]).slice(0,8).map(a=>`<div class="activity-row"><b>${esc(a.action)}</b><div class="muted">${new Date(a.created_at).toLocaleString()}</div><div class="muted">${esc(a.actor_role||'admin')}${a.affected_shop_id?` · ${esc(a.affected_shop_id)}`:''}</div></div>`).join(''):'<div class="admin-card muted">No admin actions recorded yet.</div>'}</div></section></aside></div></div>`;
   document.getElementById('refreshAdmin').onclick=loadOverview;
@@ -56,6 +56,9 @@ function bindMetricFilters(){
       applyShopFilter(activeFilter);
       document.querySelector('.admin-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
     });
+    tile.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();tile.click();}
+    });
   });
 }
 function applyShopFilter(filter='all'){
@@ -71,6 +74,11 @@ function applyShopFilter(filter='all'){
   const t=document.getElementById('shopSectionTitle'),h=document.getElementById('shopSectionHelp');
   if(t)t.textContent=`${title} (${visible})`;
   if(h)h.textContent=help;
+  const empty=document.getElementById('shopEmpty');
+  if(empty){
+    empty.textContent=visible?'' : `No shops in ${title.toLowerCase()} right now.`;
+    empty.classList.toggle('show',!visible);
+  }
 }
 function bindActions(){
   document.querySelectorAll('.plan-select').forEach(el=>el.addEventListener('change',async()=>{note('Updating plan…');try{await call({action:'set_plan',shop_id:el.dataset.shop,plan:el.value});await loadOverview();note('Plan updated.','success');}catch(err){note(err.message,'error');}}));
