@@ -11,8 +11,6 @@ function notice(message){
 }
 
 function removeMechanicIntakeModules(){
-  // Fleet, towing, and pre-purchase are customer intake request types,
-  // not mechanic dashboard modules.
   ['fleet','roadside','inspection'].forEach(route=>{
     document.querySelectorAll(`[data-route="${route}"]`).forEach(el=>{
       if(el.closest('.customer-shell')) return;
@@ -21,38 +19,7 @@ function removeMechanicIntakeModules(){
   });
 }
 
-function intakeExtraFields(type){
-  if(type==='Fleet Service'){
-    return `
-      <div class="row2">
-        <div class="field"><label>Fleet / Company Name</label><input name="fleetCompany" placeholder="Company or fleet name"></div>
-        <div class="field"><label>Unit Number</label><input name="fleetUnit" placeholder="Truck / van / unit #"></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Driver / Contact</label><input name="fleetDriver" placeholder="Driver or contact name"></div>
-        <div class="field"><label>Fleet Notes</label><input name="fleetNotes" placeholder="Diesel, semi, account notes, etc."></div>
-      </div>`;
-  }
-  if(type==='Tow / Roadside'){
-    return `
-      <div class="row2">
-        <div class="field"><label>Tow Destination</label><input name="towDestination" placeholder="Shop, home, dealer, etc."></div>
-        <div class="field"><label>Vehicle Condition</label><select name="towCondition"><option value="">Select</option><option>Will not start</option><option>Will not move</option><option>Unsafe to drive</option><option>Accident / damage</option><option>Other</option></select></div>
-      </div>
-      <div class="field"><label>Tow / Roadside Notes</label><input name="towNotes" placeholder="Keys, access, parking, roadside details, etc."></div>`;
-  }
-  if(type==='Pre-Purchase Inspection'){
-    return `
-      <div class="row2">
-        <div class="field"><label>Seller / Owner Name</label><input name="sellerName" placeholder="Seller or current owner"></div>
-        <div class="field"><label>Seller Phone</label><input name="sellerPhone" type="tel" placeholder="Seller contact"></div>
-      </div>
-      <div class="field"><label>Vehicle / Seller Location</label><input name="ppiLocation" placeholder="Where the vehicle can be inspected"></div>`;
-  }
-  return '';
-}
-
-function renderIntakeExtras(form){
+function renderPpiExtras(form){
   if(!form || form.dataset.public!=='true') return;
   const selected=form.querySelector('input[name="requestType"]:checked')?.value || 'Repair / Diagnostic';
   let extra=form.querySelector('#customerRequestExtras');
@@ -64,9 +31,18 @@ function renderIntakeExtras(form){
     requestCard?.insertAdjacentElement('afterend',extra);
   }
   if(!extra) return;
-  const fields=intakeExtraFields(selected);
-  extra.style.display=fields?'block':'none';
-  extra.innerHTML=fields?`<h3>5 • ${selected} Details</h3>${fields}`:'';
+  if(selected!=='Pre-Purchase Inspection'){
+    extra.style.display='none';
+    extra.innerHTML='';
+    return;
+  }
+  extra.style.display='block';
+  extra.innerHTML=`<h3>5 • Pre-Purchase Inspection Details</h3>
+    <div class="row2">
+      <div class="field"><label>Seller / Owner Name</label><input name="sellerName" placeholder="Seller or current owner"></div>
+      <div class="field"><label>Seller Phone</label><input name="sellerPhone" type="tel" placeholder="Seller contact"></div>
+    </div>
+    <div class="field"><label>Where is the vehicle?</label><input name="ppiLocation" placeholder="Address or location where the vehicle can be inspected"></div>`;
 }
 
 function enhanceCustomerIntake(){
@@ -76,46 +52,35 @@ function enhanceCustomerIntake(){
 
   const requestCard=[...form.querySelectorAll('.customer-card')].find(x=>x.querySelector('input[name="requestType"]'));
   if(!requestCard) return;
-  const row=requestCard.querySelector('.row2');
-  if(!row) return;
+  const title=requestCard.querySelector('h3');
+  if(title) title.textContent='4 • What do you need?';
 
-  if(!form.querySelector('input[name="requestType"][value="Fleet Service"]')){
-    row.insertAdjacentHTML('beforeend',`<label class="list-item"><input type="radio" name="requestType" value="Fleet Service"><div class="list-main"><b>Fleet Service</b><p>Fleet vehicle, unit, driver, or commercial service request.</p></div></label>`);
-  }
-  if(!form.querySelector('input[name="requestType"][value="Tow / Roadside"]')){
-    row.insertAdjacentHTML('beforeend',`<label class="list-item"><input type="radio" name="requestType" value="Tow / Roadside"><div class="list-main"><b>Tow / Roadside</b><p>Vehicle disabled, unsafe to drive, or needs towing help.</p></div></label>`);
+  // For now the customer chooses only normal repair/diagnostic or pre-purchase inspection.
+  form.querySelectorAll('input[name="requestType"][value="Fleet Service"],input[name="requestType"][value="Tow / Roadside"]').forEach(input=>input.closest('label')?.remove());
+
+  const ppi=form.querySelector('input[name="requestType"][value="Pre-Purchase Inspection"]')?.closest('label');
+  if(ppi){
+    const p=ppi.querySelector('p');
+    if(p) p.textContent='Inspection of a vehicle before you buy it.';
   }
 
-  form.querySelectorAll('input[name="requestType"]').forEach(r=>r.addEventListener('change',()=>renderIntakeExtras(form)));
-  renderIntakeExtras(form);
+  form.querySelectorAll('input[name="requestType"]').forEach(r=>r.addEventListener('change',()=>renderPpiExtras(form)));
+  renderPpiExtras(form);
 }
 
-function appendSpecialIntakeDetails(form){
+function appendPpiDetails(form){
   if(!form || form.dataset.public!=='true') return;
   const type=form.querySelector('input[name="requestType"]:checked')?.value || 'Repair / Diagnostic';
-  if(type==='Repair / Diagnostic') return;
+  if(type!=='Pre-Purchase Inspection') return;
   const complaint=form.querySelector('[name="complaint"]');
   if(!complaint) return;
   const fd=new FormData(form);
-  const lines=[`Request Type: ${type}`];
-  if(type==='Fleet Service'){
-    if(fd.get('fleetCompany')) lines.push(`Fleet/Company: ${fd.get('fleetCompany')}`);
-    if(fd.get('fleetUnit')) lines.push(`Unit: ${fd.get('fleetUnit')}`);
-    if(fd.get('fleetDriver')) lines.push(`Driver/Contact: ${fd.get('fleetDriver')}`);
-    if(fd.get('fleetNotes')) lines.push(`Fleet Notes: ${fd.get('fleetNotes')}`);
-  }
-  if(type==='Tow / Roadside'){
-    if(fd.get('towDestination')) lines.push(`Tow Destination: ${fd.get('towDestination')}`);
-    if(fd.get('towCondition')) lines.push(`Vehicle Condition: ${fd.get('towCondition')}`);
-    if(fd.get('towNotes')) lines.push(`Tow Notes: ${fd.get('towNotes')}`);
-  }
-  if(type==='Pre-Purchase Inspection'){
-    if(fd.get('sellerName')) lines.push(`Seller/Owner: ${fd.get('sellerName')}`);
-    if(fd.get('sellerPhone')) lines.push(`Seller Phone: ${fd.get('sellerPhone')}`);
-    if(fd.get('ppiLocation')) lines.push(`Inspection Location: ${fd.get('ppiLocation')}`);
-  }
+  const lines=['Request Type: Pre-Purchase Inspection'];
+  if(fd.get('sellerName')) lines.push(`Seller/Owner: ${fd.get('sellerName')}`);
+  if(fd.get('sellerPhone')) lines.push(`Seller Phone: ${fd.get('sellerPhone')}`);
+  if(fd.get('ppiLocation')) lines.push(`Inspection Location: ${fd.get('ppiLocation')}`);
   if(!complaint.dataset.specialIntakeAdded){
-    complaint.value=`${lines.join('\n')}\n\nCustomer Concern / Notes:\n${complaint.value}`;
+    complaint.value=`${lines.join('\n')}\n\nCustomer Notes:\n${complaint.value}`;
     complaint.dataset.specialIntakeAdded='true';
   }
 }
@@ -129,7 +94,7 @@ document.addEventListener('click',e=>{
 },true);
 
 document.addEventListener('submit',e=>{
-  if(e.target?.id==='intakeForm') appendSpecialIntakeDetails(e.target);
+  if(e.target?.id==='intakeForm') appendPpiDetails(e.target);
 },true);
 
 const applyUiCorrections=()=>{
