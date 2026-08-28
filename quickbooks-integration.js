@@ -5,7 +5,17 @@ let busy=false;
 const REOPEN_KEY='mm_open_business_integrations';
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function toast(msg,type=''){document.querySelector('.biz-toast')?.remove();const d=document.createElement('div');d.className=`toast biz-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);}
-async function invoke(fn,body){if(!sb)throw new Error('Business integrations are not available.');const {data,error}=await sb.functions.invoke(fn,{body});if(error)throw new Error(error.message||'Integration request failed.');if(data?.error)throw new Error(data.error);return data;}
+async function invoke(fn,body){
+  if(!sb)throw new Error('Business integrations are not available.');
+  const {data,error}=await sb.functions.invoke(fn,{body});
+  if(error){
+    let detail;
+    try{detail=await error.context?.clone().json();}catch{}
+    throw new Error(typeof detail?.error==='string'?detail.error:error.message||'Integration request failed.');
+  }
+  if(data?.error)throw new Error(data.error);
+  return data;
+}
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
 function returnUrl(){return `${location.origin}${location.pathname}#settings`;}
 function launcherMarkup(){return `<section class="card card-pad" data-business-integrations-launcher style="margin-top:18px"><div class="card-title">BUSINESS INTEGRATIONS</div><div class="section-note">Accounting, calendar, email, texting, maps, vehicle data, CARFAX, parts and file services.</div><div class="divider"></div><button class="btn btn-soft btn-wide" data-open-business-integrations>Manage Business Integrations</button></section>`;}
