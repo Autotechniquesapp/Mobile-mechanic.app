@@ -3,7 +3,7 @@
 const sb=window.MobileMechanicSupabase;
 let busy=false;
 const REOPEN_KEY='mm_open_business_integrations';
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));}
 function toast(msg,type=''){document.querySelector('.biz-toast')?.remove();const d=document.createElement('div');d.className=`toast biz-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);}
 async function invoke(fn,body){if(!sb)throw new Error('Business integrations are not available.');const {data,error}=await sb.functions.invoke(fn,{body});if(error)throw new Error(error.message||'Integration request failed.');if(data?.error)throw new Error(data.error);return data;}
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
@@ -20,6 +20,7 @@ function badge(row){let status=row.status||'not_connected';if(status==='not_conn
 function pageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-business-integrations-back>‹</button><div><h2>Business Integrations</h2><p>Connect the services each shop wants to use.</p></div></div><section class="card card-pad" data-business-integrations-panel><div class="card-title">SHOP INTEGRATIONS</div><div class="section-note">These are separate from customer payment processing and the Mobile Mechanic AI subscription.</div><div class="divider"></div><div data-business-integrations-body class="muted">Checking integrations…</div></section>`;}
 async function openIntegrationsPage(){const main=settingsMain();if(!main||!sb)return;main.dataset.businessIntegrationsPage='1';main.dataset.paymentProcessingPage='1';main.innerHTML=pageMarkup();await renderIntegrations();}
 function actionButton(row){
+  if(row.always_on)return `<span class="small muted">Built in</span>`;
   const connected=row.status==='connected';
   if(connected)return `<button class="btn btn-soft" data-business-disconnect="${esc(row.provider)}">Disconnect</button>`;
   if(!row.configured)return `<button class="btn btn-soft" data-business-connect="${esc(row.provider)}">Setup Required</button>`;
@@ -36,6 +37,7 @@ async function renderIntegrations(){
 }
 async function connect(provider){if(busy)return;busy=true;try{
   const status=await invoke('business-integrations',{action:'status'});const row=(status.integrations||[]).find(x=>x.provider===provider);if(!row)throw new Error('Unknown integration.');
+  if(row.always_on){toast(`${row.name} is already built in and live.`,'good');return;}
   if(!row.configured){toast(`${row.name} is built into Settings, but its provider credentials still need to be added before it can connect.`,'bad');return;}
   if(!row.connector){await invoke('business-integrations',{action:'enable',provider});toast(`${row.name} enabled for this shop.`,'good');await renderIntegrations();return;}
   let d;if(row.connector==='quickbooks-oauth')d=await invoke('quickbooks-oauth',{action:'connect',return_url:returnUrl()});
