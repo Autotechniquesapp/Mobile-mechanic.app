@@ -19,30 +19,59 @@ function removeMechanicIntakeModules(){
   });
 }
 
+function intakeCards(form){
+  const cards=[...form.querySelectorAll('.customer-card')];
+  return {
+    customer:cards.find(c=>c.querySelector('[name="customerName"]')),
+    vehicle:cards.find(c=>c.querySelector('[name="year"]') && c.querySelector('[name="make"]')),
+    concern:cards.find(c=>c.querySelector('[name="complaint"]')),
+    request:cards.find(c=>c.querySelector('input[name="requestType"]'))
+  };
+}
+
 function renderPpiExtras(form){
   if(!form || form.dataset.public!=='true') return;
   const selected=form.querySelector('input[name="requestType"]:checked')?.value || 'Repair / Diagnostic';
   let extra=form.querySelector('#customerRequestExtras');
+  const {vehicle,concern,request}=intakeCards(form);
+
   if(!extra){
     extra=document.createElement('section');
     extra.id='customerRequestExtras';
     extra.className='customer-card';
-    const requestCard=[...form.querySelectorAll('.customer-card')].find(x=>x.querySelector('input[name="requestType"]'));
-    requestCard?.insertAdjacentElement('afterend',extra);
   }
-  if(!extra) return;
-  if(selected!=='Pre-Purchase Inspection'){
+
+  if(selected==='Pre-Purchase Inspection'){
+    if(request && vehicle && request.nextElementSibling!==vehicle) request.insertAdjacentElement('afterend',vehicle);
+    if(vehicle && extra.previousElementSibling!==vehicle) vehicle.insertAdjacentElement('afterend',extra);
+    if(concern) concern.style.display='none';
+    if(vehicle){
+      const h=vehicle.querySelector('h3');
+      if(h) h.textContent='3 • Vehicle You Want Inspected';
+    }
+    extra.style.display='block';
+    extra.innerHTML=`<h3>4 • Pre-Purchase Inspection Details</h3>
+      <div class="row2">
+        <div class="field"><label>Seller / Owner Name</label><input name="sellerName" placeholder="Seller or current owner"></div>
+        <div class="field"><label>Seller Phone</label><input name="sellerPhone" type="tel" placeholder="Seller contact"></div>
+      </div>
+      <div class="field"><label>Where is the vehicle?</label><input name="ppiLocation" placeholder="Address or location where the vehicle can be inspected"></div>
+      <div class="field"><label>Anything you want checked specifically?</label><textarea name="ppiNotes" placeholder="Optional concerns, seller claims, noises, warning lights, or anything you want the mechanic to pay extra attention to"></textarea></div>`;
+  } else {
+    if(request && vehicle && request.nextElementSibling!==vehicle) request.insertAdjacentElement('afterend',vehicle);
+    if(vehicle && concern && vehicle.nextElementSibling!==concern) vehicle.insertAdjacentElement('afterend',concern);
+    if(concern) concern.style.display='block';
+    if(vehicle){
+      const h=vehicle.querySelector('h3');
+      if(h) h.textContent='3 • Your Vehicle';
+    }
+    if(concern){
+      const h=concern.querySelector('h3');
+      if(h) h.textContent='4 • Vehicle Concern';
+    }
     extra.style.display='none';
     extra.innerHTML='';
-    return;
   }
-  extra.style.display='block';
-  extra.innerHTML=`<h3>5 • Pre-Purchase Inspection Details</h3>
-    <div class="row2">
-      <div class="field"><label>Seller / Owner Name</label><input name="sellerName" placeholder="Seller or current owner"></div>
-      <div class="field"><label>Seller Phone</label><input name="sellerPhone" type="tel" placeholder="Seller contact"></div>
-    </div>
-    <div class="field"><label>Where is the vehicle?</label><input name="ppiLocation" placeholder="Address or location where the vehicle can be inspected"></div>`;
 }
 
 function enhanceCustomerIntake(){
@@ -50,18 +79,34 @@ function enhanceCustomerIntake(){
   if(!form || form.dataset.public!=='true' || form.dataset.intakeTypesEnhanced==='true') return;
   form.dataset.intakeTypesEnhanced='true';
 
-  const requestCard=[...form.querySelectorAll('.customer-card')].find(x=>x.querySelector('input[name="requestType"]'));
-  if(!requestCard) return;
-  const title=requestCard.querySelector('h3');
-  if(title) title.textContent='4 • What do you need?';
+  const {customer,vehicle,request}=intakeCards(form);
+  if(!request) return;
 
-  // For now the customer chooses only normal repair/diagnostic or pre-purchase inspection.
+  // Put the choice immediately after customer information, before any vehicle questions.
+  if(customer && customer.nextElementSibling!==request) customer.insertAdjacentElement('afterend',request);
+
+  const customerTitle=customer?.querySelector('h3');
+  if(customerTitle) customerTitle.textContent='1 • Your Information';
+  const requestTitle=request.querySelector('h3');
+  if(requestTitle) requestTitle.textContent='2 • What do you need?';
+
+  // Only the two approved choices for now.
   form.querySelectorAll('input[name="requestType"][value="Fleet Service"],input[name="requestType"][value="Tow / Roadside"]').forEach(input=>input.closest('label')?.remove());
 
+  const repair=form.querySelector('input[name="requestType"][value="Repair / Diagnostic"]')?.closest('label');
+  if(repair){
+    const p=repair.querySelector('p');
+    if(p) p.textContent='I need diagnosis or repair on my vehicle.';
+  }
   const ppi=form.querySelector('input[name="requestType"][value="Pre-Purchase Inspection"]')?.closest('label');
   if(ppi){
     const p=ppi.querySelector('p');
-    if(p) p.textContent='Inspection of a vehicle before you buy it.';
+    if(p) p.textContent='I want a vehicle inspected before I buy it.';
+  }
+
+  if(vehicle){
+    const h=vehicle.querySelector('h3');
+    if(h) h.textContent='3 • Your Vehicle';
   }
 
   form.querySelectorAll('input[name="requestType"]').forEach(r=>r.addEventListener('change',()=>renderPpiExtras(form)));
@@ -79,10 +124,9 @@ function appendPpiDetails(form){
   if(fd.get('sellerName')) lines.push(`Seller/Owner: ${fd.get('sellerName')}`);
   if(fd.get('sellerPhone')) lines.push(`Seller Phone: ${fd.get('sellerPhone')}`);
   if(fd.get('ppiLocation')) lines.push(`Inspection Location: ${fd.get('ppiLocation')}`);
-  if(!complaint.dataset.specialIntakeAdded){
-    complaint.value=`${lines.join('\n')}\n\nCustomer Notes:\n${complaint.value}`;
-    complaint.dataset.specialIntakeAdded='true';
-  }
+  if(fd.get('ppiNotes')) lines.push(`Customer Inspection Notes: ${fd.get('ppiNotes')}`);
+  complaint.required=false;
+  complaint.value=lines.join('\n');
 }
 
 document.addEventListener('click',e=>{
