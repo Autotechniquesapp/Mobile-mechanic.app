@@ -117,7 +117,6 @@ function pageTitle(title,sub='',back='dashboard'){
 }
 
 function login(){
-  db.session=null; save();
   ROOT.innerHTML = `<section class="auth-screen"><div class="auth-card"><div class="auth-logo">${logo(null)}<h1>Mobile <span class="red">Mechanic</span> AI</h1><p>Multi-shop automotive workflow platform</p></div>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div>
     <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div>
@@ -518,6 +517,10 @@ function setupSpeech(selector,targetId){
 }
 
 function render(route=hashRoute()){
+  if((route==='login'||route==='signup') && db.session?.role==='shop' && currentShop()){
+    location.hash='#dashboard';
+    return dashboard();
+  }
   if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
   if(db.session?.role!=='shop'||!currentShop())return login();
   const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,export:exportData};
