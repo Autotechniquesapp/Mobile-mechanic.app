@@ -20,17 +20,31 @@ async function connect(provider){if(busy)return;busy=true;try{
 }catch(err){toast(err.message||'Could not connect payment processor.','bad');}finally{busy=false;}}
 async function setDefault(provider){if(busy)return;busy=true;try{await call('payment-processors',{action:'set_default',provider});toast(`${names[provider]} is now the default customer payment processor.`,'good');await renderProcessorList();}catch(err){toast(err.message||'Could not change the default processor.','bad');}finally{busy=false;}}
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
-function launcherMarkup(){return `<section class="card card-pad" data-payment-processing-launcher style="margin-top:10px"><div class="card-title">PAYMENT PROCESSING</div><div class="section-note">Choose where customer repair payments go.</div><div class="divider"></div><button class="btn btn-soft btn-wide" data-open-payment-processing>Manage Payment Processing</button></section>`;}
+function removeOldTopPaymentUi(main){
+  if(!main)return;
+  [...main.children].forEach(el=>{
+    if(el.matches?.('[data-payment-processing-launcher],[data-payment-processors-panel]'))return;
+    const text=(el.textContent||'').replace(/\s+/g,' ').trim();
+    const heading=(el.querySelector?.('.card-title,h2,h3')?.textContent||'').replace(/\s+/g,' ').trim();
+    const oldCustomerPaymentCard=/^customer payments?$/i.test(heading)||/^customer payment processors$/i.test(heading);
+    const oldDisconnectedBanner=/(square|stripe|paypal).{0,60}(not connected|isn.?t connected)|customer payments?.{0,80}(not connected|needs setup)/i.test(text);
+    if(oldCustomerPaymentCard||oldDisconnectedBanner)el.remove();
+  });
+}
+function launcherMarkup(){return `<section class="card card-pad" data-payment-processing-launcher style="margin-top:18px"><div class="card-title">PAYMENT PROCESSING</div><div class="section-note">Choose where your shop's customer repair payments go.</div><div class="divider"></div><button class="btn btn-soft btn-wide" data-open-payment-processing>Manage Payment Processing</button></section>`;}
 function renderLauncher(){
   const main=settingsMain();if(!main||!sb||main.dataset.paymentProcessingPage==='1')return;
   main.querySelector('[data-payment-processors-panel]')?.remove();
-  if(!main.querySelector('[data-payment-processing-launcher]'))main.insertAdjacentHTML('beforeend',launcherMarkup());
+  removeOldTopPaymentUi(main);
+  let launcher=main.querySelector('[data-payment-processing-launcher]');
+  if(!launcher){main.insertAdjacentHTML('beforeend',launcherMarkup());launcher=main.querySelector('[data-payment-processing-launcher]');}
+  if(launcher&&launcher!==main.lastElementChild)main.appendChild(launcher);
   if(sessionStorage.getItem(REOPEN_KEY)==='1'){
     sessionStorage.removeItem(REOPEN_KEY);
     setTimeout(openPaymentPage,80);
   }
 }
-function processorPageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-payment-back>‹</button><div><h2>Payment Processing</h2><p>Connect the payment service your shop wants to use for customer payments.</p></div></div><section class="card card-pad" data-payment-processors-panel><div class="card-title">CUSTOMER PAYMENT PROCESSORS</div><div class="section-note">This is separate from the Mobile Mechanic AI software subscription.</div><div class="divider"></div><div data-processor-body class="muted">Checking payment processors…</div></section>`;}
+function processorPageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-payment-back>‹</button><div><h2>Payment Processing</h2><p>Connect the payment service your shop wants to use for customer payments.</p></div></div><section class="card card-pad" data-payment-processors-panel><div class="card-title">CUSTOMER PAYMENT PROCESSORS</div><div class="section-note">This is separate from the Mobile Mechanic AI software subscription, which remains on Stripe.</div><div class="divider"></div><div data-processor-body class="muted">Checking payment processors…</div></section>`;}
 async function openPaymentPage(){
   const main=settingsMain();if(!main||!sb)return;
   main.dataset.paymentProcessingPage='1';
@@ -48,7 +62,7 @@ async function renderProcessorList(){
       const p=by[provider]||{provider,status:'not_connected',is_default:false};
       const connected=p.status==='connected';
       return `<div class="list-item"><div class="list-icon">${provider==='stripe'?'$':provider==='square'?'■':'P'}</div><div class="list-main"><b>${esc(names[provider])} ${badge(p)} ${p.is_default?'<span class="badge green">Default</span>':''}</b><p>${esc(detail[provider])}</p><div class="list-actions"><button class="btn ${connected?'btn-soft':'btn-primary'}" data-processor-connect="${provider}">${connected?'Manage / Reconnect':'Connect '+esc(names[provider])}</button>${connected&&!p.is_default?`<button class="btn btn-soft" data-processor-default="${provider}">Make Default</button>`:''}</div>${p.last_error?`<p class="small red">${esc(p.last_error)}</p>`:''}</div></div>`;
-    }).join('')+`<div class="divider"></div><p class="small muted">Connect only the processor your shop wants to use. You can change the default later.</p><button class="btn btn-soft" data-processor-refresh>Refresh Status</button>`;
+    }).join('')+`<div class="divider"></div><p class="small muted">Each shop can choose Square, Stripe, or PayPal / Venmo for its own customer payments. You can change the default later.</p><button class="btn btn-soft" data-processor-refresh>Refresh Status</button>`;
   }catch(err){body.innerHTML=`<div class="alert bad">${esc(err.message||'Could not load payment processors.')}</div><button class="btn btn-soft" data-processor-refresh>Try Again</button>`;}
 }
 function backToSettings(){sessionStorage.removeItem(REOPEN_KEY);location.reload();}
