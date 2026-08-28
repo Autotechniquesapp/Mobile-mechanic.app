@@ -34,20 +34,22 @@ function render(data){
   const m=data.metrics||{};const owner=data.role==='platform_owner';
   ROOT.innerHTML=`<div class="admin-shell"><header class="admin-top"><div class="admin-mark">MM</div><div class="admin-title"><div class="admin-brand">Mobile <span>Mechanic</span> AI</div><div class="admin-sub">Platform command center</div></div><div class="admin-spacer"></div><div class="admin-actions-top"><span class="status active">${esc(data.role).replace('_',' ')}</span><a class="admin-btn primary" href="/#dashboard">My Shop</a><button class="admin-btn" id="refreshAdmin">Refresh</button><button class="admin-btn" id="logoutAdmin">Log Out</button></div></header><p id="adminNote"></p>
   <div class="admin-grid"><button class="admin-card metric red" data-filter="all"><small>Total Shops</small><b>${m.total_shops||0}</b></button><button class="admin-card metric" data-filter="trialing"><small>Trials</small><b>${m.trialing||0}</b></button><button class="admin-card metric" data-filter="active"><small>Paying</small><b>${m.paying||0}</b></button><button class="admin-card metric" data-filter="mrr"><small>MRR</small><b>${money(m.mrr)}</b></button><button class="admin-card metric" data-filter="past_due"><small>Past Due</small><b>${m.past_due||0}</b></button><button class="admin-card metric" data-filter="suspended"><small>Suspended</small><b>${m.suspended||0}</b></button></div>
-  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2 id="shopSectionTitle">Shops</h2><p id="shopSectionHelp">Manage trials, plans, status, and protected owner access.</p></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table><div id="shopEmpty" class="admin-empty"></div></div></section>
+  <div class="admin-main"><section class="section admin-panel"><div class="panel-head"><div><h2 id="shopSectionTitle">Shops</h2><p id="shopSectionHelp">Manage trials, plans, status, and protected owner access.</p></div></div><div class="bulk-bar"><label><input id="selectVisibleShops" class="admin-check" type="checkbox"> Select visible</label><span id="selectedCount" class="muted">0 selected</span><div class="bulk-actions"><button class="admin-btn" data-bulk-action="extend">+30 Days</button><button class="admin-btn" data-bulk-action="comped">Comp</button><button class="admin-btn danger" data-bulk-action="suspended">Suspend</button><button class="admin-btn" data-bulk-action="active">Reactivate</button><button class="admin-btn" data-bulk-action="message">Thank-you / Reminder</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th class="check-cell"></th><th>Shop</th><th>Referral</th><th>Plan</th><th>Status</th><th>Trial</th><th>Users</th><th>Actions</th></tr></thead><tbody>${(data.shops||[]).map(s=>shopRow(s,owner)).join('')}</tbody></table><div id="shopEmpty" class="admin-empty"></div></div></section>
   <aside class="side-stack"><section class="section admin-panel"><div class="panel-head"><div><h2>Referrals</h2><p>Signup source tracking.</p></div></div><div class="ref-grid" style="padding:12px">${(data.referrals||[]).length?(data.referrals||[]).map(r=>`<div class="admin-card"><b>${esc(r.source)}</b><div class="muted" style="margin-top:6px">${r.signups} signup${r.signups===1?'':'s'} · ${r.paying} paying</div></div>`).join(''):'<div class="admin-card muted">No referral signups yet.</div>'}</div></section>
   <section class="section admin-panel"><div class="panel-head"><div><h2>Activity</h2><p>Recent admin actions.</p></div></div><div class="activity">${(data.activity||[]).length?(data.activity||[]).slice(0,8).map(a=>`<div class="activity-row"><b>${esc(a.action)}</b><div class="muted">${new Date(a.created_at).toLocaleString()}</div><div class="muted">${esc(a.actor_role||'admin')}${a.affected_shop_id?` · ${esc(a.affected_shop_id)}`:''}</div></div>`).join(''):'<div class="admin-card muted">No admin actions recorded yet.</div>'}</div></section></aside></div></div>`;
   document.getElementById('refreshAdmin').onclick=loadOverview;
   document.getElementById('logoutAdmin').onclick=async()=>{await sb.auth.signOut();loginScreen();};
   bindMetricFilters();
+  bindBulkActions();
   applyShopFilter(activeFilter);
+  updateSelectionCount();
   bindActions();
 }
 function shopRow(s,owner){
   const own=s.slug==='autotechniques';
   const source=s.referral_code||s.referred_by_name||'—';
   const planNames={solo:'Solo',shop:'Shop',pro_fleet:'Pro / Fleet'};
-  return `<tr data-shop-status="${esc(s.billing_status)}"><td data-label="Shop"><div class="shop-name">${esc(s.name)}</div>${own?'<div class="owner-shop">Owner shop · non-expiring</div>':''}<div class="shop-slug">${esc(s.slug)}</div></td><td data-label="Referral">${esc(source)}</td><td data-label="Plan">${owner&&!own?`<select class="admin-select plan-select" data-shop="${esc(s.shop_id)}"><option value="solo" ${s.plan==='solo'?'selected':''}>Solo · $29.99</option><option value="shop" ${s.plan==='shop'?'selected':''}>Shop · $69.99</option><option value="pro_fleet" ${s.plan==='pro_fleet'?'selected':''}>Pro / Fleet · $129.99</option></select>`:`${esc(planNames[s.plan]||s.plan)}`}</td><td data-label="Status"><span class="status ${esc(s.billing_status)}">${esc(s.billing_status)}</span></td><td data-label="Trial">${own?'Non-expiring':date(s.trial_expires_at)}</td><td data-label="Users">${Number(s.active_members||0)}</td><td data-label="Actions"><div class="admin-actions">${owner&&!own?`<button class="admin-btn" data-admin-action="extend" data-shop="${esc(s.shop_id)}">+30 Days</button>${s.billing_status==='suspended'?`<button class="admin-btn" data-admin-action="status" data-status="active" data-shop="${esc(s.shop_id)}">Reactivate</button>`:`<button class="admin-btn danger" data-admin-action="status" data-status="suspended" data-shop="${esc(s.shop_id)}">Suspend</button>`}<button class="admin-btn" data-admin-action="status" data-status="comped" data-shop="${esc(s.shop_id)}">Comp</button>`:'<span class="muted">Protected</span>'}</div></td></tr>`;
+  return `<tr data-shop-status="${esc(s.billing_status)}" data-shop-id="${esc(s.shop_id)}" data-protected="${own?'true':'false'}"><td class="check-cell" data-label="Select"><input class="admin-check shop-check" type="checkbox" data-shop="${esc(s.shop_id)}" ${own?'disabled title="Protected owner shop"':''}></td><td data-label="Shop"><div class="shop-name">${esc(s.name)}</div>${own?'<div class="owner-shop">Owner shop · non-expiring</div>':''}<div class="shop-slug">${esc(s.slug)}</div></td><td data-label="Referral">${esc(source)}</td><td data-label="Plan">${owner&&!own?`<select class="admin-select plan-select" data-shop="${esc(s.shop_id)}"><option value="solo" ${s.plan==='solo'?'selected':''}>Solo · $29.99</option><option value="shop" ${s.plan==='shop'?'selected':''}>Shop · $69.99</option><option value="pro_fleet" ${s.plan==='pro_fleet'?'selected':''}>Pro / Fleet · $129.99</option></select>`:`${esc(planNames[s.plan]||s.plan)}`}</td><td data-label="Status"><span class="status ${esc(s.billing_status)}">${esc(s.billing_status)}</span></td><td data-label="Trial">${own?'Non-expiring':date(s.trial_expires_at)}</td><td data-label="Users">${Number(s.active_members||0)}</td><td data-label="Actions"><div class="admin-actions">${owner&&!own?`<button class="admin-btn" data-admin-action="extend" data-shop="${esc(s.shop_id)}">+30 Days</button>${s.billing_status==='suspended'?`<button class="admin-btn" data-admin-action="status" data-status="active" data-shop="${esc(s.shop_id)}">Reactivate</button>`:`<button class="admin-btn danger" data-admin-action="status" data-status="suspended" data-shop="${esc(s.shop_id)}">Suspend</button>`}<button class="admin-btn" data-admin-action="status" data-status="comped" data-shop="${esc(s.shop_id)}">Comp</button>`:'<span class="muted">Protected</span>'}</div></td></tr>`;
 }
 function bindMetricFilters(){
   document.querySelectorAll('[data-filter]').forEach(tile=>{
@@ -70,6 +72,8 @@ function applyShopFilter(filter='all'){
     row.style.display=show?'':'none';
   });
   const visible=[...document.querySelectorAll('[data-shop-status]')].filter(row=>row.style.display!=='none').length;
+  document.querySelectorAll('.shop-check').forEach(check=>{if(check.closest('tr')?.style.display==='none')check.checked=false;});
+  updateSelectionCount();
   const [title,help]=labels[filter]||labels.all;
   const t=document.getElementById('shopSectionTitle'),h=document.getElementById('shopSectionHelp');
   if(t)t.textContent=`${title} (${visible})`;
@@ -79,6 +83,45 @@ function applyShopFilter(filter='all'){
     empty.textContent=visible?'' : `No shops in ${title.toLowerCase()} right now.`;
     empty.classList.toggle('show',!visible);
   }
+}
+function selectedShopIds(){
+  return [...document.querySelectorAll('.shop-check:checked')].map(x=>x.dataset.shop).filter(Boolean);
+}
+function visibleSelectableChecks(){
+  return [...document.querySelectorAll('.shop-check:not(:disabled)')].filter(x=>x.closest('tr')?.style.display!=='none');
+}
+function updateSelectionCount(){
+  const count=selectedShopIds().length;
+  const label=document.getElementById('selectedCount');
+  if(label)label.textContent=`${count} selected`;
+  const selectAll=document.getElementById('selectVisibleShops');
+  const visible=visibleSelectableChecks();
+  if(selectAll){
+    selectAll.checked=visible.length>0&&visible.every(x=>x.checked);
+    selectAll.indeterminate=visible.some(x=>x.checked)&&!selectAll.checked;
+  }
+}
+function bindBulkActions(){
+  document.getElementById('selectVisibleShops')?.addEventListener('change',e=>{
+    visibleSelectableChecks().forEach(check=>{check.checked=e.target.checked;});
+    updateSelectionCount();
+  });
+  document.querySelectorAll('.shop-check').forEach(check=>check.addEventListener('change',updateSelectionCount));
+  document.querySelectorAll('[data-bulk-action]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const ids=selectedShopIds();
+    if(!ids.length){note('Select at least one shop first.','error');return;}
+    const action=btn.dataset.bulkAction;
+    if(action==='message'){note('Thank-you and reminder messages need email/SMS connected before sending.','error');return;}
+    note('Applying bulk action...');
+    try{
+      for(const shop_id of ids){
+        if(action==='extend')await call({action:'extend_trial',shop_id,days:30});
+        else await call({action:'set_status',shop_id,status:action});
+      }
+      await loadOverview();
+      note(`Bulk action applied to ${ids.length} shop${ids.length===1?'':'s'}.`,'success');
+    }catch(err){note(err.message,'error');}
+  }));
 }
 function bindActions(){
   document.querySelectorAll('.plan-select').forEach(el=>el.addEventListener('change',async()=>{note('Updating plan…');try{await call({action:'set_plan',shop_id:el.dataset.shop,plan:el.value});await loadOverview();note('Plan updated.','success');}catch(err){note(err.message,'error');}}));
