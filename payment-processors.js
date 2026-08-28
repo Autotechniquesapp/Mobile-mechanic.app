@@ -22,13 +22,27 @@ async function setDefault(provider){if(busy)return;busy=true;try{await call('pay
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
 function removeOldTopPaymentUi(main){
   if(!main)return;
-  [...main.children].forEach(el=>{
-    if(el.matches?.('[data-payment-processing-launcher],[data-payment-processors-panel]'))return;
+
+  // Remove the legacy Stripe-only customer payment card shown above Business Settings.
+  [...main.querySelectorAll('*')].forEach(el=>{
+    if(el.closest?.('[data-payment-processing-launcher],[data-payment-processors-panel]'))return;
+    const exact=(el.textContent||'').replace(/\s+/g,' ').trim();
+    if(!/^customer payments?$/i.test(exact))return;
+    const wrapper=el.closest('section,.card,[class*="card"]');
+    if(wrapper&&!wrapper.matches('[data-payment-processing-launcher],[data-payment-processors-panel]'))wrapper.remove();
+  });
+
+  // Catch the whole old block even when the label is not its own element.
+  [...main.querySelectorAll('section,.card,[class*="card"]')].forEach(el=>{
+    if(!el.isConnected||el.matches('[data-payment-processing-launcher],[data-payment-processors-panel]')||el.closest('[data-payment-processors-panel]'))return;
     const text=(el.textContent||'').replace(/\s+/g,' ').trim();
-    const heading=(el.querySelector?.('.card-title,h2,h3')?.textContent||'').replace(/\s+/g,' ').trim();
-    const oldCustomerPaymentCard=/^customer payments?$/i.test(heading)||/^customer payment processors$/i.test(heading);
-    const oldDisconnectedBanner=/(square|stripe|paypal).{0,60}(not connected|isn.?t connected)|customer payments?.{0,80}(not connected|needs setup)/i.test(text);
-    if(oldCustomerPaymentCard||oldDisconnectedBanner)el.remove();
+    const legacyStripeCard=/customer payments/i.test(text)&&(
+      /stripe for your shop/i.test(text)||
+      /connect stripe to my shop/i.test(text)||
+      /connect your shop'?s own stripe account/i.test(text)||
+      /not connected yet/i.test(text)
+    );
+    if(legacyStripeCard)el.remove();
   });
 }
 function launcherMarkup(){return `<section class="card card-pad" data-payment-processing-launcher style="margin-top:18px"><div class="card-title">PAYMENT PROCESSING</div><div class="section-note">Choose where your shop's customer repair payments go.</div><div class="divider"></div><button class="btn btn-soft btn-wide" data-open-payment-processing>Manage Payment Processing</button></section>`;}
