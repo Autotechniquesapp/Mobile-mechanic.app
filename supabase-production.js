@@ -114,14 +114,16 @@ async function loadWorkspace(user, allowCreate=true){
   }
   if(!memberships?.length){ writeCache(blankCache()); return null; }
   const membership=memberships[0], sid=membership.shop_id;
-  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes]=await Promise.all([
+  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]=await Promise.all([
     sb.from('shops').select('*').eq('shop_id',sid).single(),
     sb.from('customers').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('vehicles').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('jobs').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
-    sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid)
+    sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid),
+    sb.from('addon_catalog').select('code,name,description,monthly_price,quantity,unit_label,available_on_plans').eq('active',true).order('sort_order'),
+    sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active')
   ]);
-  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes]) if(r.error) throw r.error;
+  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]) if(r.error) throw r.error;
   const shop=shopRes.data, vehicles=vehiclesRes.data||[], customers=customersRes.data||[], jobs=jobsRes.data||[];
   const vehicleMap=new Map(vehicles.map(v=>[v.id,v]));
   const customerMap=new Map(customers.map(c=>[c.id,c]));
@@ -154,7 +156,7 @@ async function loadWorkspace(user, allowCreate=true){
     settings:{laborRate:Number(shop.labor_rate||75),taxRate:Number(shop.tax_rate||0),partsMarkup:Number(shop.parts_markup||25),travelFee:Number(shop.travel_fee||0),freeRadius:Number(shop.free_radius_miles||10),depositPercent:Number(shop.deposit_percent||60)},
     terms:shop.terms_version?{version:shop.terms_version,acceptedAt:shop.terms_accepted_at,userId:user.id}:null,
     users:uiTeam.length?uiTeam:[{id:user.id,name:currentName,email:user.email||'',role:roleFromDb(membership.role),active:true}],
-    customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[]
+    customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[],addonCatalog:addonCatalogRes.data||[],addons:(shopAddonsRes.data||[]).map(a=>a.addon_code)
   };
   const cache=blankCache(); cache.shops={[s.id]:s}; cache.session={role:'shop',shopId:s.id,userId:user.id,activeJobId:uiJobs[0]?.id||null};
   writeCache(cache); document.documentElement.style.setProperty('--red',s.theme.accent);
@@ -251,6 +253,19 @@ document.addEventListener('click',async e=>{
     const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
     const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
     try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
+    return;
+  }
+  if(action==='toggle-addon'){
+    e.preventDefault();e.stopImmediatePropagation();
+    const cache=readCache(), sid=cache.session?.shopId, code=el.dataset.addon, s=cache.shops?.[sid];
+    if(!sid||!code||!s)return showStatus('Open your shop before changing add-ons.','bad');
+    const active=(s.addons||[]).includes(code);
+    try{
+      if(active){const {error}=await sb.from('shop_addons').update({status:'canceled',canceled_at:new Date().toISOString()}).eq('shop_id',sid).eq('addon_code',code);if(error)throw error;}
+      else {const {error}=await sb.from('shop_addons').upsert({shop_id:sid,addon_code:code,status:'active',quantity:1,started_at:new Date().toISOString(),canceled_at:null},{onConflict:'shop_id,addon_code'});if(error)throw error;}
+      showStatus(active?'Add-on removed.':'Add-on added as pending until Stripe is connected.','good');
+      await refreshWorkspace('#billing');
+    }catch(err){showStatus(err.message||'Could not update add-on.','bad');}
     return;
   }
   if(action==='save-findings'){
