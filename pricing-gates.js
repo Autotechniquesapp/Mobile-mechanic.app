@@ -3,9 +3,9 @@
 
 const DBKEY = 'mobile_mechanic_ai_approved_v7';
 const FALLBACK = {
-  solo:{code:'solo',name:'Solo',price:69,seats:1,description:'Independent mobile mechanic',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export']},
-  shop:{code:'shop',name:'Shop',price:149,seats:5,description:'Growing mobile mechanic or repair shop',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training']},
-  pro:{code:'pro_fleet',name:'Pro / Fleet',price:249,seats:15,description:'Larger shop, fleet, and roadside operations',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training','fleet','roadside','advanced_reports','priority_support']}
+  solo:{code:'solo',name:'Solo',price:29.99,seats:1,description:'Independent mobile mechanic',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export']},
+  shop:{code:'shop',name:'Shop',price:69.99,seats:5,description:'Growing mobile mechanic or repair shop',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training']},
+  pro:{code:'pro_fleet',name:'Pro / Fleet',price:129.99,seats:15,description:'Larger shop, fleet, and roadside operations',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training','fleet','roadside','advanced_reports','priority_support']}
 };
 
 const routeFeatures = {
@@ -37,7 +37,7 @@ function currentPlan(){
   return raw==='pro_fleet'?'pro':raw;
 }
 function allowed(feature){return (catalog[currentPlan()]?.features||[]).includes(feature);}
-function priceText(n){return `$${Number(n).toFixed(0)}`;}
+function priceText(n){return `${Number(n).toFixed(2).replace(/\.00$/,'')}`;}
 function notice(message){
   document.querySelector('.mma-plan-toast')?.remove();
   const d=document.createElement('div');
