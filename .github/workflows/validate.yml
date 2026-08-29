@@ -33,6 +33,7 @@ jobs:
           node --check pricing-gates.js
           node --check production-guards.js
           node --check intake-queue.js
+          node --check intake-repair.js
           node --check payment-processors.js
           node --check quickbooks-integration.js
           node --check integration-automation.js
@@ -41,6 +42,8 @@ jobs:
           node --check stripe-connect.js
           node --check stripe-job-payment.js
           node --check technician-help.js
+          node --check ai-quote-sms.js
+          node --check open-map.js
       - name: Check required production files
         run: |
           test -f index.html
@@ -51,11 +54,11 @@ jobs:
           test -f legal-protections.js
           test -f referral-tracking.js
           test -f styles.css
-          test -f netlify.toml
           test -f estimate-approvals.js
           test -f estimate-public.js
           test -f pricing-gates.js
           test -f intake-queue.js
+          test -f intake-repair.js
           test -f payment-processors.js
           test -f quickbooks-integration.js
           test -f integration-automation.js
@@ -73,5 +76,3 @@ jobs:
           grep -q "quickbooks-integration.js" index.html
           grep -q "integration-automation.js" index.html
           grep -q "vehicle-lookup.js" index.html
-          grep -q "from = \"/terms\"" netlify.toml
-          grep -q "from = \"/admin\"" netlify.toml
