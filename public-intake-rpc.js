@@ -31,7 +31,7 @@
     };
 
     try {
-      const {error}=await sb.rpc('submit_public_intake',{
+      const {data,error}=await sb.rpc('submit_public_intake',{
         p_shop_id:form.dataset.shop,
         p_customer_name:d.customerName||'',
         p_phone:d.phone||null,
@@ -43,6 +43,11 @@
         p_customer_states:d.complaint||''
       });
       if(error) throw error;
+
+      if(data){
+        sb.functions.invoke('push-notifications',{body:{action:'notify_intake',intake_id:data}})
+          .catch(err=>console.warn('Background shop push notification failed',err));
+      }
 
       const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
       const body=document.querySelector('.customer-body');
