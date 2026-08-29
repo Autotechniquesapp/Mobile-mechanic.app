@@ -96,3 +96,11 @@ window.addEventListener('hashchange',()=>setTimeout(injectDashboardQueue,120));
 setTimeout(injectDashboardQueue,200);
 
 })();
+
+(() => {
+  if (window.__MMAIntakeRepairLoaded) return;
+  window.__MMAIntakeRepairLoaded = true;
+  const s=document.createElement('script');
+  s.src='intake-repair.js?v=20260828-2355';
+  document.head.appendChild(s);
+})();
