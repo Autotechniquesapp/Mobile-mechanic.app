@@ -4,6 +4,7 @@
 const DBKEY='mobile_mechanic_ai_approved_v7';
 const sb=window.MobileMechanicSupabase;
 if(!sb)return;
+let intakeChannel=null;
 
 function esc(v=''){return String(v).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));}
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY))||{};}catch{return {};}}
@@ -11,7 +12,7 @@ function shopId(){return cache().session?.shopId||null;}
 function vehicleText(v={}){return [v.year,v.make,v.model,v.submodel].filter(Boolean).join(' ')||'Vehicle details pending';}
 function notice(message,type=''){
   document.querySelector('.intake-queue-notice')?.remove();
-  const d=document.createElement('div');d.className=`toast intake-queue-notice ${type}`;d.textContent=message;document.body.appendChild(d);setTimeout(()=>d.remove(),4200);
+  const d=document.createElement('div');d.className=`toast intake-queue-notice ${type}`;d.textContent=message;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);
 }
 
 async function pendingIntakes(){
@@ -20,9 +21,11 @@ async function pendingIntakes(){
   if(error)throw error;return data||[];
 }
 
-async function injectDashboardQueue(){
+async function injectDashboardQueue(force=false){
   const sid=shopId();
-  if(!sid||!document.querySelector('.dash-head')||document.querySelector('[data-production-intake-queue]'))return;
+  if(!sid||!document.querySelector('.dash-head'))return;
+  if(force)document.querySelector('[data-production-intake-queue]')?.remove();
+  if(document.querySelector('[data-production-intake-queue]'))return;
   try{
     const items=await pendingIntakes();
     const wrap=document.createElement('button');
@@ -80,6 +83,24 @@ async function closeIntake(id,button){
   }catch(err){button.disabled=false;notice(err.message||'Could not close intake.','bad');}
 }
 
+function startRealtimeIntakeAlerts(){
+  const sid=shopId();
+  if(!sid||intakeChannel)return;
+  intakeChannel=sb.channel(`shop-intakes-${sid}`)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'intake_submissions',filter:`shop_id=eq.${sid}`},payload=>{
+      const i=payload.new||{};
+      notice(`📥 New customer intake: ${i.customer_name||'Customer'} — ${vehicleText(i.vehicle||{})}`,'good');
+      injectDashboardQueue(true);
+    })
+    .subscribe(status=>{
+      if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Intake realtime notification unavailable:',status);
+    });
+}
+
+function stopRealtimeIntakeAlerts(){
+  if(intakeChannel){sb.removeChannel(intakeChannel);intakeChannel=null;}
+}
+
 document.addEventListener('click',e=>{
   const q=e.target.closest('[data-production-intake-queue]');if(q){e.preventDefault();openQueue();return;}
   const close=e.target.closest('[data-close-intake-modal]');if(close){document.querySelector('.modal-backdrop')?.remove();return;}
@@ -90,10 +111,11 @@ document.addEventListener('click',e=>{
 let scheduled=false;
 new MutationObserver(()=>{
   if(scheduled)return;scheduled=true;
-  setTimeout(()=>{scheduled=false;injectDashboardQueue();},80);
+  setTimeout(()=>{scheduled=false;injectDashboardQueue();startRealtimeIntakeAlerts();},80);
 }).observe(document.documentElement,{subtree:true,childList:true});
-window.addEventListener('hashchange',()=>setTimeout(injectDashboardQueue,120));
-setTimeout(injectDashboardQueue,200);
+window.addEventListener('hashchange',()=>setTimeout(()=>{injectDashboardQueue(true);startRealtimeIntakeAlerts();},120));
+window.addEventListener('beforeunload',stopRealtimeIntakeAlerts);
+setTimeout(()=>{injectDashboardQueue();startRealtimeIntakeAlerts();},200);
 
 })();
 
