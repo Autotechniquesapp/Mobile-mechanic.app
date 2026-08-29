@@ -6,6 +6,7 @@ const sb=window.MobileMechanicSupabase;
 if(!sb)return;
 let intakeChannel=null;
 let alertAudioArmed=false;
+let queueInjecting=false;
 
 function esc(v=''){return String(v).replace(/[&<>'\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[m]));}
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY))||{};}catch{return {};}}
@@ -43,10 +44,22 @@ async function pendingIntakes(){
 async function injectDashboardQueue(force=false){
   const sid=shopId();
   if(!sid||!document.querySelector('.dash-head'))return;
-  if(force)document.querySelector('[data-production-intake-queue]')?.remove();
-  if(document.querySelector('[data-production-intake-queue]'))return;
+
+  const current=[...document.querySelectorAll('[data-production-intake-queue]')];
+  if(force)current.forEach(el=>el.remove());
+  else if(current.length){
+    current.slice(1).forEach(el=>el.remove());
+    return;
+  }
+  if(queueInjecting)return;
+  queueInjecting=true;
   try{
     const items=await pendingIntakes();
+    const afterWait=[...document.querySelectorAll('[data-production-intake-queue]')];
+    if(afterWait.length){
+      afterWait.slice(1).forEach(el=>el.remove());
+      return;
+    }
     const wrap=document.createElement('button');
     wrap.type='button';wrap.dataset.productionIntakeQueue='1';
     wrap.className='priority-strip';
@@ -55,6 +68,7 @@ async function injectDashboardQueue(force=false){
     const target=document.querySelector('.dash-status')||document.querySelector('.dashboard-grid');
     target?.insertAdjacentElement('afterend',wrap);
   }catch(err){console.error('Could not load intake queue count',err);}
+  finally{queueInjecting=false;}
 }
 
 function intakeCard(i){
