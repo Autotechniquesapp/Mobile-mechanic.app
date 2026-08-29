@@ -2,8 +2,8 @@
 'use strict';
 
 const DBKEY = 'mobile_mechanic_ai_approved_v7';
-const TERMS_VERSION = '2026-08-v2';
-const TERMS_SHA256 = '9e8de91fbd8e98299d5bd788030952790e5c3a03736e254f9a15f9686a64e457';
+const TERMS_VERSION = '2026-08-v3';
+const TERMS_SHA256 = '89ce4120351d943e4c00f81aab95202b1a6fa8fbe18692ace9b887d6dcdd1e3a';
 
 function readCache(){
   try{return JSON.parse(localStorage.getItem(DBKEY))||{};}catch{return {};}
