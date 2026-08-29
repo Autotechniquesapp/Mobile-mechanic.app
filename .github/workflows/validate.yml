@@ -25,6 +25,8 @@ jobs:
           node --check app.js
           node --check admin.js
           node --check admin-access.js
+          node --check admin-feedback.js
+          node --check admin-costs.js
           node --check legal-protections.js
           node --check referral-tracking.js
           node --check estimate-approvals.js
@@ -51,6 +53,8 @@ jobs:
           test -f admin.html
           test -f admin.js
           test -f admin-access.js
+          test -f admin-feedback.js
+          test -f admin-costs.js
           test -f terms.html
           test -f legal-protections.js
           test -f referral-tracking.js
