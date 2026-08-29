@@ -45,6 +45,7 @@ jobs:
           node --check stripe-connect.js
           node --check stripe-job-payment.js
           node --check technician-help.js
+          node --check youtube-repair.js
           node --check ai-quote-sms.js
           node --check open-map.js
       - name: Check required production files
@@ -69,6 +70,7 @@ jobs:
           test -f integration-automation.js
           test -f vehicle-lookup.js
           test -f ai-credits.js
+          test -f youtube-repair.js
           grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html
@@ -83,3 +85,4 @@ jobs:
           grep -q "integration-automation.js" index.html
           grep -q "vehicle-lookup.js" index.html
           grep -q "ai-credits.js" index.html
+          grep -q "youtube-repair.js" index.html
