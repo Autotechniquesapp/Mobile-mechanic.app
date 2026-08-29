@@ -39,6 +39,7 @@ jobs:
           node --check integration-automation.js
           node --check vehicle-lookup.js
           node --check stripe-billing.js
+          node --check ai-credits.js
           node --check stripe-connect.js
           node --check stripe-job-payment.js
           node --check technician-help.js
@@ -63,6 +64,7 @@ jobs:
           test -f quickbooks-integration.js
           test -f integration-automation.js
           test -f vehicle-lookup.js
+          test -f ai-credits.js
           grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html
@@ -76,3 +78,4 @@ jobs:
           grep -q "quickbooks-integration.js" index.html
           grep -q "integration-automation.js" index.html
           grep -q "vehicle-lookup.js" index.html
+          grep -q "ai-credits.js" index.html
