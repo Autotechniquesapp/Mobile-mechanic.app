@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="app-icon.svg" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260829-1618" />
   <link rel="stylesheet" href="open-map.css?v=20260828-2225" />
 </head>
 <body>
@@ -73,7 +73,7 @@
   <script src="technician-help.js"></script>
   <script src="accessibility-controls.js?v=20260829-1600"></script>
   <script src="youtube-repair.js?v=20260829-0310"></script>
-  <script src="ai-quote-sms.js?v=20260829-0300"></script>
+  <script src="ai-quote-sms.js?v=20260829-1618"></script>
   <script src="referral-tracking.js"></script>
   <script src="pricing-gates.js"></script>
   <script src="estimate-public.js"></script>
@@ -90,7 +90,7 @@
     ]).finally(() => {
       if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
-      script.src = 'app.js';
+      script.src = 'app.js?v=20260829-1618';
       document.body.appendChild(script);
     });
   </script>
