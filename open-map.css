@@ -1,0 +1,17 @@
+/* Mobile Mechanic AI free/open-source map integration */
+.mma-map-tools{margin-top:10px;border:1px solid #2b343e;border-radius:12px;background:#0b0f14;overflow:hidden}
+.mma-map-tools-head{padding:12px 13px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-bottom:1px solid #252d36}
+.mma-map-tools-head b{font-size:12px}.mma-map-tools-head span{font-size:10px;color:#8e98a5}
+.mma-map-actions{display:flex;gap:7px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid #252d36}
+.mma-map-status{padding:8px 12px;color:#aeb6c0;font-size:10px;background:#0d1217;border-bottom:1px solid #252d36}
+.mma-map-canvas{width:100%;height:310px;background:#171b20;z-index:1}
+.mma-map-results{display:grid;gap:7px;padding:10px 12px;max-height:330px;overflow:auto}
+.mma-map-result{border:1px solid #303945;border-radius:10px;padding:10px;background:#10151b;color:#f5f6f8;text-align:left;width:100%}
+.mma-map-result b{display:block;font-size:11px}.mma-map-result span{display:block;color:#919ba7;font-size:9px;margin-top:3px}
+.mma-map-search-row{display:flex;gap:7px;padding:10px 12px;border-bottom:1px solid #252d36}
+.mma-map-search-row input{flex:1;min-width:0;min-height:40px;background:#080c10;color:#f6f7f8;border:1px solid #303945;border-radius:8px;padding:9px 10px;outline:none}
+.mma-map-search-row input:focus{border-color:#a22a30;box-shadow:0 0 0 2px rgba(239,42,49,.08)}
+.mma-map-badge{display:inline-flex;align-items:center;border:1px solid #5f2428;background:#211114;color:#ff8e93;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:800}
+.mma-map-tools .leaflet-control-attribution{font-size:8px}.mma-map-tools .leaflet-popup-content{color:#111;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+.mma-map-inline{margin-top:9px}.mma-map-inline .mma-map-canvas{height:250px}
+@media(max-width:620px){.mma-map-actions>.btn{flex:1 1 calc(50% - 7px)}.mma-map-canvas{height:285px}.mma-map-inline .mma-map-canvas{height:235px}.mma-map-search-row{flex-direction:column}.mma-map-search-row .btn{width:100%}}
