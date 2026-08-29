@@ -16,17 +16,18 @@ function renderLauncher(){
   const payment=main.querySelector('[data-payment-processing-launcher]');if(payment&&launcher&&launcher.nextElementSibling!==payment)main.insertBefore(launcher,payment);
   if(sessionStorage.getItem(REOPEN_KEY)==='1'){sessionStorage.removeItem(REOPEN_KEY);setTimeout(openIntegrationsPage,80);}
 }
-function badge(row){let status=row.status||'not_connected';if(status==='not_connected'&&!row.configured)status='needs_keys';const label={connected:'Connected',connecting:'Connecting',needs_keys:'Needs setup',needs_attention:'Needs attention',disabled:'Disabled',not_connected:'Not connected'}[status]||status;const cls=status==='connected'?'green':status==='needs_attention'?'orange':'red';return `<span class="badge ${cls}">${esc(label)}</span>`;}
+function displayRow(row){if(row.provider==='google_maps')return {...row,name:'OpenStreetMap / Leaflet',status:'connected',configured:true,always_on:true,display_name:'Built-in free maps',last_error:null,note:'Free built-in maps, GPS location and nearby parts-store lookup. No Google Maps API key required.'};return row;}
+function badge(raw){const row=displayRow(raw);let status=row.status||'not_connected';if(status==='not_connected'&&!row.configured)status='needs_keys';const label={connected:'Connected',connecting:'Connecting',needs_keys:'Needs setup',needs_attention:'Needs attention',disabled:'Disabled',not_connected:'Not connected'}[status]||status;const cls=status==='connected'?'green':status==='needs_attention'?'orange':'red';return `<span class="badge ${cls}">${esc(label)}</span>`;}
 function pageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-business-integrations-back>‹</button><div><h2>Business Integrations</h2><p>Connect the services each shop wants to use.</p></div></div><section class="card card-pad" data-business-integrations-panel><div class="card-title">SHOP INTEGRATIONS</div><div class="section-note">These are separate from customer payment processing and the Mobile Mechanic AI subscription.</div><div class="divider"></div><div data-business-integrations-body class="muted">Checking integrations…</div></section>`;}
 async function openIntegrationsPage(){const main=settingsMain();if(!main||!sb)return;main.dataset.businessIntegrationsPage='1';main.dataset.paymentProcessingPage='1';main.innerHTML=pageMarkup();await renderIntegrations();}
-function actionButton(row){
+function actionButton(raw){const row=displayRow(raw);
   if(row.always_on)return `<span class="small muted">Built in</span>`;
   const connected=row.status==='connected';
   if(connected)return `<button class="btn btn-soft" data-business-disconnect="${esc(row.provider)}">Disconnect</button>`;
   if(!row.configured)return `<button class="btn btn-soft" data-business-connect="${esc(row.provider)}">Setup Required</button>`;
   return `<button class="btn btn-primary" data-business-connect="${esc(row.provider)}">Connect ${esc(row.name)}</button>`;
 }
-function rowMarkup(row){return `<div class="list-item"><div class="list-icon">${esc((row.name||'?').split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div class="list-main"><b>${esc(row.name)} ${badge(row)}</b><p>${esc(row.note||'Business service integration.')}</p>${row.display_name?`<p class="small muted">Connected account: ${esc(row.display_name)}</p>`:''}${row.last_error?`<p class="small red">${esc(row.last_error)}</p>`:''}<div class="list-actions">${actionButton(row)}${row.provider==='quickbooks'&&row.status==='connected'?'<button class="btn btn-soft" data-quickbooks-check>Check Company</button>':''}</div></div></div>`;}
+function rowMarkup(raw){const row=displayRow(raw);return `<div class="list-item"><div class="list-icon">${esc((row.name||'?').split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div class="list-main"><b>${esc(row.name)} ${badge(row)}</b><p>${esc(row.note||'Business service integration.')}</p>${row.display_name?`<p class="small muted">Connected account: ${esc(row.display_name)}</p>`:''}${row.last_error?`<p class="small red">${esc(row.last_error)}</p>`:''}<div class="list-actions">${actionButton(row)}${row.provider==='quickbooks'&&row.status==='connected'?'<button class="btn btn-soft" data-quickbooks-check>Check Company</button>':''}</div></div></div>`;}
 async function renderIntegrations(){
   const body=document.querySelector('[data-business-integrations-body]');if(!body||!sb)return;body.innerHTML='Checking integrations…';
   try{
@@ -36,7 +37,7 @@ async function renderIntegrations(){
   }catch(err){body.innerHTML=`<div class="alert bad">${esc(err.message||'Could not load business integrations.')}</div><button class="btn btn-soft" data-business-refresh>Try Again</button>`;}
 }
 async function connect(provider){if(busy)return;busy=true;try{
-  const status=await invoke('business-integrations',{action:'status'});const row=(status.integrations||[]).find(x=>x.provider===provider);if(!row)throw new Error('Unknown integration.');
+  const status=await invoke('business-integrations',{action:'status'});const raw=(status.integrations||[]).find(x=>x.provider===provider);const row=raw?displayRow(raw):null;if(!row)throw new Error('Unknown integration.');
   if(row.always_on){toast(`${row.name} is already built in and live.`,'good');return;}
   if(!row.configured){toast(`${row.name} is built into Settings, but its provider credentials still need to be added before it can connect.`,'bad');return;}
   if(!row.connector){await invoke('business-integrations',{action:'enable',provider});toast(`${row.name} enabled for this shop.`,'good');await renderIntegrations();return;}
