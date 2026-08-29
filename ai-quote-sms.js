@@ -49,15 +49,16 @@ function voiceStatus(text){const el=document.querySelector('[data-aiq-voice-stat
 function micButton(){return document.querySelector('[data-aiq-mic]');}
 function setListening(on){listening=on;const b=micButton();if(b){b.classList.toggle('listening',on);b.textContent=on?'■':'🎤';b.setAttribute('aria-label',on?'Stop voice input':'Speak quote notes');}voiceStatus(on?'Listening… speak the quote details. Tap stop when finished.':'Tap the mic and speak your repair, parts, or labor notes.');}
 function stopVoice(){try{recognition?.stop();}catch{}setListening(false);}
-function startVoice(){
+async function startVoice(){
   if(listening){stopVoice();return;}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){toast('Voice recognition is not available in this browser. You can still use the microphone on your Android keyboard.','bad');return;}
   const notes=document.querySelector('[data-aiq-notes]');if(!notes)return;
+  try{if(navigator.mediaDevices?.getUserMedia){const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());}}catch(err){notes.focus();const blocked=err?.name==='NotAllowedError'||err?.name==='SecurityError';toast(blocked?'Microphone permission was denied. Open this site’s permissions in Chrome and set Microphone to Allow.':'The phone microphone could not be opened. Close other apps using it and try again.','bad');return;}
   try{
     recognition=new SR();
     recognition.lang='en-US';
-    recognition.continuous=true;
+    recognition.continuous=false;
     recognition.interimResults=true;
     const original=notes.value.trim();
     let finalText='';
@@ -74,7 +75,8 @@ function startVoice(){
       voiceStatus(interim?`Listening… ${interim.trim()}`:'Listening…');
     };
     recognition.onerror=(event)=>{
-      const message=event.error==='not-allowed'?'Microphone permission is blocked. Allow microphone access for this site.':event.error==='no-speech'?'I did not hear anything. Tap the mic and try again.':`Voice input stopped: ${event.error||'unknown error'}.`;
+      const messages={'not-allowed':'Microphone permission is blocked. Allow microphone access for this site, then try again.','service-not-allowed':'Android speech service is blocked. Enable Google voice typing or use the keyboard microphone.','no-speech':'I did not hear anything. Move closer and tap the microphone again.','audio-capture':'The phone microphone is unavailable or another app is using it.','network':'Android voice transcription could not reach its speech service. Check your connection or use the keyboard microphone.','aborted':'Voice input was stopped.'};
+      const message=messages[event.error]||`Voice input stopped (${event.error||'unknown'}). Use the Android keyboard microphone if it continues.`;
       toast(message,'bad');setListening(false);
     };
     recognition.onend=()=>setListening(false);
