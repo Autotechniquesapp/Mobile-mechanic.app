@@ -15,3 +15,22 @@ async function completeJobSync(jobId){const {s,j}=shopAndJob(jobId),st=await sta
 window.addEventListener('click',e=>{const el=e.target.closest?.('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='save-schedule'){const jobId=el.dataset.job;if(jobId)setTimeout(()=>syncSchedule(jobId),1800);}if(a==='complete-job'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>completeJobSync(jobId),2200);}if(a==='save-estimate'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>action('zapier.emit',{event:'estimate_saved',payload:{job_id:jobId}}).catch(()=>{}),1200);}},true);
 window.addEventListener('submit',e=>{const form=e.target;if(form?.id!=='teamForm')return;const d=Object.fromEntries(new FormData(form));setTimeout(async()=>{await deliverQueuedMessages();try{await action('zapier.emit',{event:'staff_invited',payload:{email:String(d.email||'').trim()||null,role:String(d.role||'')||null}});}catch{}},1800);},true);
 })();
+
+// Free/open-source map loader. Kept separate so the core app remains provider-agnostic.
+(() => {
+  if (window.__MMAOpenMapLoader) return;
+  window.__MMAOpenMapLoader = true;
+  const addCss = href => {
+    if ([...document.styleSheets].some(s => s.href && s.href.includes(href.split('/').pop()))) return;
+    const link=document.createElement('link');link.rel='stylesheet';link.href=href;document.head.appendChild(link);
+  };
+  const addScript = (src, done) => {
+    const existing=[...document.scripts].find(s=>s.src===new URL(src,location.href).href);
+    if(existing){if(done){if(src.includes('leaflet')&&window.L)done();else existing.addEventListener('load',done,{once:true});}return;}
+    const script=document.createElement('script');script.src=src;script.onload=()=>done?.();document.head.appendChild(script);
+  };
+  addCss('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+  addCss('open-map.css?v=20260828-2215');
+  const start=()=>addScript('open-map.js?v=20260828-2215');
+  if(window.L) start(); else addScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',start);
+})();
