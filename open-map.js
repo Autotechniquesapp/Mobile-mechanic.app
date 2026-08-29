@@ -41,28 +41,28 @@
     panel.className=`mma-map-tools${compact?' mma-map-inline':''}`;
     panel.innerHTML=`
       <div class="mma-map-tools-head">
-        <div><b>FREE LOCATION MAP</b><br><span>Leaflet + OpenStreetMap — no Google Maps API key</span></div>
+        <div><b>${compact?'SERVICE LOCATION':'FREE LOCATION MAP'}</b><br><span>${compact?'Confirm where the vehicle is located.':'Leaflet + OpenStreetMap — no Google Maps API key'}</span></div>
         <span class="mma-map-badge">OPEN SOURCE</span>
       </div>
       ${compact?'':`<div class="mma-map-search-row"><input class="mma-map-location" placeholder="Address or latitude, longitude" value="${esc(initialLocation)}"><button type="button" class="btn btn-soft mma-map-search">Show Location</button></div>`}
       <div class="mma-map-actions">
         <button type="button" class="btn btn-primary mma-map-locate">Use My Current Location</button>
-        <button type="button" class="btn btn-soft mma-map-parts">Find Nearby Parts</button>
+        ${compact?'':`<button type="button" class="btn btn-soft mma-map-parts">Find Nearby Parts</button>`}
         <button type="button" class="btn btn-soft mma-map-open">Open Full Map</button>
       </div>
       <div class="mma-map-status">Choose a location to show the map.</div>
       <div class="mma-map-canvas"></div>
-      <div class="mma-map-results" hidden></div>`;
+      ${compact?'':`<div class="mma-map-results" hidden></div>`}`;
 
     const canvas=panel.querySelector('.mma-map-canvas');
     const map=L.map(canvas,{zoomControl:true,attributionControl:true}).setView([39.8283,-98.5795],4);
     L.tileLayer(TILE_URL,{maxZoom:19,attribution:TILE_ATTR}).addTo(map);
     const markerLayer=L.layerGroup().addTo(map);
-    const state={map,markerLayer,point:null,input};
+    const state={map,markerLayer,point:null,input,compact};
     panels.set(panel,state);
 
     panel.querySelector('.mma-map-locate').addEventListener('click',()=>locate(panel));
-    panel.querySelector('.mma-map-parts').addEventListener('click',()=>findParts(panel));
+    panel.querySelector('.mma-map-parts')?.addEventListener('click',()=>findParts(panel));
     panel.querySelector('.mma-map-open').addEventListener('click',()=>openFullMap(panel));
     panel.querySelector('.mma-map-search')?.addEventListener('click',()=>showTypedLocation(panel));
     panel.querySelector('.mma-map-location')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();showTypedLocation(panel);}});
@@ -129,7 +129,7 @@
   }
 
   async function findParts(panel) {
-    const state=panels.get(panel); if(!state)return;
+    const state=panels.get(panel); if(!state || state.compact)return;
     setStatus(panel,'Preparing nearby parts search…');
     const point=await ensurePoint(panel);
     if(!point){setStatus(panel,'Choose a location first, then search for nearby parts.');return;}
@@ -154,6 +154,7 @@
 
   function renderStores(panel,stores) {
     const state=panels.get(panel), results=panel.querySelector('.mma-map-results');
+    if(!state || state.compact || !results)return;
     if(!stores.length){results.hidden=true;setStatus(panel,'No nearby auto-parts stores were found in OpenStreetMap data for this area.');return;}
     results.hidden=false;
     results.innerHTML=stores.map((s,i)=>{
@@ -192,7 +193,7 @@
     if(!title)return;
     const content=title.closest('.content');if(!content||content.querySelector('[data-mma-parts-map]'))return;
     const wrap=document.createElement('section');wrap.className='card card-pad';wrap.style.marginTop='10px';wrap.dataset.mmaPartsMap='1';
-    wrap.innerHTML='<div class="card-title">NEARBY PARTS MAP</div><div class="section-note">Free/open-source location lookup. Live store inventory and pricing still require supplier integrations.</div><div class="divider"></div>';
+    wrap.innerHTML='<div class="card-title">NEARBY PARTS MAP</div><div class="section-note">Mechanic-only parts sourcing. Free/open-source location lookup. Live store inventory and pricing still require supplier integrations.</div><div class="divider"></div>';
     wrap.appendChild(createPanel({initialLocation:readActiveJobLocation()}));
     content.appendChild(wrap);
   }
