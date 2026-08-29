@@ -64,7 +64,7 @@ async function injectDashboardQueue(force=false){
     wrap.type='button';wrap.dataset.productionIntakeQueue='1';
     wrap.className='priority-strip';
     wrap.style.width='100%';wrap.style.border='0';wrap.style.textAlign='left';wrap.style.cursor='pointer';
-    wrap.innerHTML=`<span style="font-size:20px">📥</span><b>${items.length} Customer Intake${items.length===1?'':'s'} Waiting</b><span>Open secure intake queue ›</span>`;
+    wrap.innerHTML=`<span style="font-size:20px">📥</span><b>${items.length} Customer Intake${items.length===1?'':'s'} Waiting</b><span>Open intake queue ›</span>`;
     const target=document.querySelector('.dash-status')||document.querySelector('.dashboard-grid');
     target?.insertAdjacentElement('afterend',wrap);
   }catch(err){console.error('Could not load intake queue count',err);}
@@ -89,7 +89,7 @@ async function openQueue(){
     const items=await pendingIntakes();
     document.querySelector('.modal-backdrop')?.remove();
     const d=document.createElement('div');d.className='modal-backdrop';
-    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">These submissions are stored in Supabase and isolated to this shop.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
+    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review new customer requests and convert them to jobs when you are ready.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
     document.body.appendChild(d);
   }catch(err){notice(err.message||'Could not open intake queue.','bad');}
 }
@@ -99,7 +99,7 @@ async function convertIntake(id,button){
   try{
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
-    notice('Customer, vehicle, and job created in Supabase.','good');
+    notice('Customer, vehicle, and job created.','good');
     document.querySelector('.modal-backdrop')?.remove();
     const c=cache();
     if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
