@@ -1,9 +1,20 @@
 {
+  "id":"./",
   "name":"Mobile Mechanic AI",
   "short_name":"Mechanic AI",
+  "description":"Mobile-first workflow platform for mobile mechanics and repair shops.",
   "start_url":"./",
+  "scope":"./",
   "display":"standalone",
+  "orientation":"portrait-primary",
   "background_color":"#06080b",
   "theme_color":"#07090c",
-  "icons":[]
+  "icons":[
+    {
+      "src":"app-icon.svg",
+      "sizes":"any",
+      "type":"image/svg+xml",
+      "purpose":"any maskable"
+    }
+  ]
 }
