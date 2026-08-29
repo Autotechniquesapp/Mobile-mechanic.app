@@ -94,6 +94,30 @@ function stopVisiblePolling(){
   if(queuePollTimer){clearInterval(queuePollTimer);queuePollTimer=null;}
 }
 
+function aiList(items=[]){return Array.isArray(items)&&items.length?`<ul style="margin:6px 0 0;padding-left:18px">${items.slice(0,6).map(x=>`<li style="margin:3px 0">${esc(typeof x==='string'?x:(x?.cause||x?.test||''))}</li>`).join('')}</ul>`:'';}
+function aiWorkupMarkup(i){
+  const status=String(i.ai_status||'pending');
+  const w=i.ai_workup||null;
+  if(status==='complete'&&w){
+    const causes=Array.isArray(w.likely_causes)?w.likely_causes.slice(0,5):[];
+    const tests=Array.isArray(w.diagnostic_tests)?w.diagnostic_tests.slice(0,5):[];
+    const safety=w.safety||{};
+    return `<div style="margin-top:10px;border:1px solid #5c2227;background:#11161c;border-radius:10px;padding:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><b style="color:#ff6b70">🤖 AI PRE-WORKUP</b><span class="badge red">PRELIMINARY</span></div>
+      <p style="margin:7px 0 0"><b>Assessment:</b> ${esc(w.summary||'Preliminary assessment ready.')}</p>
+      ${causes.length?`<div style="margin-top:7px"><b>Likely causes</b><ul style="margin:5px 0 0;padding-left:18px">${causes.map(c=>`<li style="margin:4px 0"><b>${esc(c.cause||'Possible cause')}</b>${c.likelihood?` <span class="muted">(${esc(c.likelihood)})</span>`:''}${c.why?` — ${esc(c.why)}`:''}</li>`).join('')}</ul></div>`:''}
+      ${Array.isArray(w.first_checks)&&w.first_checks.length?`<div style="margin-top:7px"><b>First checks</b>${aiList(w.first_checks)}</div>`:''}
+      ${tests.length?`<div style="margin-top:7px"><b>Confirmation tests</b><ul style="margin:5px 0 0;padding-left:18px">${tests.map(t=>`<li style="margin:4px 0"><b>${esc(t.test||'Test')}</b>${t.what_to_watch?` — watch for ${esc(t.what_to_watch)}`:''}${t.meaning?` <span class="muted">(${esc(t.meaning)})</span>`:''}</li>`).join('')}</ul></div>`:''}
+      ${Array.isArray(w.do_not_overlook)&&w.do_not_overlook.length?`<div style="margin-top:7px"><b>Do not overlook</b>${aiList(w.do_not_overlook)}</div>`:''}
+      ${safety.note?`<div style="margin-top:8px;padding:7px 8px;border-left:3px solid #ef2a31;background:#1a1012;border-radius:6px"><b>Safety — ${esc(safety.level||'check')}:</b> ${esc(safety.note)}</div>`:''}
+      <p class="small muted" style="margin:8px 0 0">AI pre-workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
+    </div>`;
+  }
+  if(status==='processing')return `<div style="margin-top:9px;padding:9px;border:1px solid #303945;border-radius:9px"><b>🤖 AI pre-workup:</b> analyzing customer concern…</div>`;
+  if(status==='error')return `<div style="margin-top:9px;padding:9px;border:1px solid #7a282d;background:#1a1012;border-radius:9px"><b>🤖 AI pre-workup could not finish.</b><div class="small muted" style="margin-top:4px">${esc(i.ai_error||'AI service error.')}</div><button class="btn btn-soft" style="margin-top:8px" data-retry-intake-ai="${esc(i.id)}">Retry AI Workup</button></div>`;
+  return `<div style="margin-top:9px;padding:9px;border:1px solid #303945;border-radius:9px"><b>🤖 AI pre-workup:</b> queued for analysis… <button class="btn btn-soft" style="margin-left:6px" data-retry-intake-ai="${esc(i.id)}">Run Now</button></div>`;
+}
+
 function intakeCard(i){
   const v=i.vehicle||{};
   const when=i.created_at?new Date(i.created_at).toLocaleString():'';
@@ -101,8 +125,9 @@ function intakeCard(i){
     <div class="list-icon">📥</div>
     <div class="list-main">
       <b>${esc(i.customer_name)} — ${esc(vehicleText(v))}</b>
-      <p>${esc(i.phone||'No phone')} ${i.email?`• ${esc(i.email)}`:''}<br>${esc(i.customer_states||'No complaint entered')}<br><span class="muted">${esc(i.address||i.current_location?.raw||'No service location')} ${when?`• ${esc(when)}`:''}</span></p>
-      <div class="list-actions"><button class="btn btn-primary" data-convert-intake="${esc(i.id)}">Convert to Job</button><button class="btn btn-soft" data-close-intake="${esc(i.id)}">Close Intake</button></div>
+      <p>${esc(i.phone||'No phone')} ${i.email?`• ${esc(i.email)}`:''}<br><b>Customer states:</b> ${esc(i.customer_states||'No complaint entered')}<br><span class="muted">${esc(i.address||i.current_location?.raw||'No service location')} ${i.availability?`• Preferred: ${esc(i.availability)}`:''} ${when?`• ${esc(when)}`:''}</span></p>
+      ${aiWorkupMarkup(i)}
+      <div class="list-actions" style="margin-top:10px"><button class="btn btn-primary" data-convert-intake="${esc(i.id)}">Convert to Job</button><button class="btn btn-soft" data-close-intake="${esc(i.id)}">Close Intake</button></div>
     </div>
   </div>`;
 }
@@ -112,10 +137,23 @@ async function openQueue(){
     const items=await pendingIntakes();
     renderQueueButton(items.length);
     document.querySelector('.modal-backdrop')?.remove();
-    const d=document.createElement('div');d.className='modal-backdrop';
-    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review new customer requests and convert them to jobs when you are ready.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
+    const d=document.createElement('div');d.className='modal-backdrop';d.dataset.intakeQueueModal='1';
+    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer concern and AI preliminary workup before converting it to a job.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
     document.body.appendChild(d);
   }catch(err){notice(err.message||'Could not open intake queue.','bad');}
+}
+
+async function retryAiWorkup(id,button){
+  if(!id||button?.disabled)return;
+  const original=button?.textContent||'Retry AI Workup';
+  if(button){button.disabled=true;button.textContent='Analyzing…';}
+  try{
+    const {data,error}=await sb.functions.invoke('intake-ai-workup',{body:{intake_id:id}});
+    if(error)throw new Error(error.message||'AI workup request failed.');
+    if(data?.error)throw new Error(data.error);
+    notice('AI pre-workup refreshed.','good');
+    await openQueue();
+  }catch(err){if(button){button.disabled=false;button.textContent=original;}notice(err.message||'AI workup failed.','bad');}
 }
 
 async function convertIntake(id,button){
@@ -123,7 +161,7 @@ async function convertIntake(id,button){
   try{
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
-    notice('Customer, vehicle, and job created.','good');
+    notice('Customer, vehicle, job, and AI workup carried forward.','good');
     document.querySelector('.modal-backdrop')?.remove();
     const c=cache();
     if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
@@ -150,7 +188,10 @@ function startRealtimeIntakeAlerts(){
       speakNewCustomer();
       injectDashboardQueue(true);
     })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'intake_submissions',filter:`shop_id=eq.${sid}`},()=>injectDashboardQueue(true))
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'intake_submissions',filter:`shop_id=eq.${sid}`},()=>{
+      injectDashboardQueue(true);
+      if(document.querySelector('[data-intake-queue-modal]'))openQueue();
+    })
     .subscribe(status=>{
       if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')console.warn('Intake realtime notification unavailable:',status);
     });
@@ -165,6 +206,7 @@ document.addEventListener('keydown',armAudibleAlerts,{once:true,capture:true});
 document.addEventListener('click',e=>{
   const q=e.target.closest('[data-production-intake-queue]');if(q){e.preventDefault();openQueue();return;}
   const close=e.target.closest('[data-close-intake-modal]');if(close){document.querySelector('.modal-backdrop')?.remove();return;}
+  const retry=e.target.closest('[data-retry-intake-ai]');if(retry){e.preventDefault();retryAiWorkup(retry.dataset.retryIntakeAi,retry);return;}
   const convert=e.target.closest('[data-convert-intake]');if(convert){e.preventDefault();convertIntake(convert.dataset.convertIntake,convert);return;}
   const closeItem=e.target.closest('[data-close-intake]');if(closeItem){e.preventDefault();closeIntake(closeItem.dataset.closeIntake,closeItem);return;}
 },true);
