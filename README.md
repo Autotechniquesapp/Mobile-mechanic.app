@@ -1,13 +1,16 @@
 # Mobile Mechanic AI
 
-Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations. The production path uses GitHub for source control, Supabase for authentication and tenant-isolated backend data, and a static frontend that is being prepared for Cloudflare hosting.
+Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations.
 
-## Production deployment
+## Current deployment
 
 - Repository: `Autotechniquesapp/Mobile-mechanic.app`
 - Production branch: `main`
-- Frontend: static web app, host-agnostic and being prepared for Cloudflare
-- Supabase provides Auth/Postgres/RLS and customer-facing Edge Functions
+- Frontend hosting now: GitHub / GitHub Pages only
+- Domain: `mobile-mechanic.app`
+- Backend: Supabase Auth/Postgres/RLS and Edge Functions
+- Netlify is not part of the current deployment
+- Cloudflare is a future migration only, after the app is finished and tested
 
 ## Subscription pricing and trial policy
 
@@ -56,7 +59,7 @@ The core workflow—customer intake → job → diagnosis → estimate → custo
 4. Supabase Storage for photos, receipts, logos, and inspection evidence.
 5. Authorized CARFAX connection before any service record can be marked Submitted.
 6. Optional QuickBooks, paid VIN/plate, supplier inventory, calendar-provider, and legitimate service-data integrations.
-7. Move the frontend/domain to Cloudflare hosting.
+7. After the app is finished and stable, migrate frontend/domain hosting from GitHub Pages to Cloudflare.
 
 ## Security
 
