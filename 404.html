@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mobile Mechanic AI</title>
+  <meta name="robots" content="noindex">
+  <script>
+    (() => {
+      const parts = location.pathname.split('/').filter(Boolean);
+      if (parts[0] === 'intake' && parts[1]) {
+        const slug = decodeURIComponent(parts[1]);
+        location.replace(`${location.origin}/?intake=${encodeURIComponent(slug)}`);
+        return;
+      }
+      if (parts[0] === 'admin') {
+        location.replace(`${location.origin}/admin.html`);
+        return;
+      }
+      if (parts[0] === 'terms') {
+        location.replace(`${location.origin}/terms.html`);
+        return;
+      }
+    })();
+  </script>
+  <style>
+    body{margin:0;background:#090b0e;color:#f5f6f8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}.card{max-width:560px;background:#12161c;border:1px solid #5c2227;border-radius:14px;padding:24px;text-align:center}a{color:#ff6d72}
+  </style>
+</head>
+<body>
+  <div class="card"><h1>Page not found</h1><p>The link may be outdated.</p><p><a href="/">Open Mobile Mechanic AI</a></p></div>
+</body>
+</html>
