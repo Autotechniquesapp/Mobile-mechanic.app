@@ -8,7 +8,7 @@ Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mecha
 - Production branch: `main`
 - Frontend hosting now: GitHub / GitHub Pages only
 - Domain: `mobile-mechanic.app`
-- Backend: Supabase Auth/Postgres/RLS and Edge Functions
+- Backend: Supabase Auth/Postgres/RLS, Storage, and Edge Functions
 - Netlify is not part of the current deployment
 - Cloudflare is a future migration only, after the app is finished and tested
 
@@ -16,10 +16,12 @@ Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mecha
 
 New shops receive a 60-day trial of the plan they select.
 
-- **Days 1–30:** completely free. No credit card is required, requested, or collected.
-- **Days 31–60:** the trial remains free, but the shop is asked to add a card for uninterrupted service.
+- **Days 1–30:** completely free. No subscription card is required, requested, or collected.
+- **Days 31–60:** the trial remains free, but the shop is asked to add a subscription card for uninterrupted service.
 - **After day 60:** recurring monthly billing begins automatically if a card/subscription was set up. A shop may cancel before paid billing begins.
-- Stripe checkout is server-enforced so a new shop cannot be sent to card collection during the first 30 days.
+- Stripe checkout is server-enforced so a new shop cannot be sent to subscription card collection during the first 30 days.
+- Each new trial shop receives **$5 promotional AI credit**. AI credit purchases are separate one-time payments and do not start or shorten the free subscription trial.
+- Shops can add prepaid AI balance in **$5 / $10 / $25 / $50** amounts. AI usage is metered per shop and debited from promotional credit first, then purchased credit.
 
 Plans:
 
@@ -46,20 +48,24 @@ The core workflow—customer intake → job → diagnosis → estimate → custo
 - Staff invite records and queued email/SMS delivery
 - Technician feedback / feature-request collection with platform-admin review
 - Technician Help UI and protected server-side AI endpoint
-- Stripe billing and signed webhook Edge Functions
+- Stripe subscription billing and signed webhook Edge Functions
+- Separate Stripe AI-credit top-up checkout and webhook handling
+- Per-shop AI usage ledger, model-cost table, promotional/purchased credit buckets, and automatic new-shop trial credit
 - GitHub Actions JavaScript/required-file validation
-- Free Leaflet/OpenStreetMap mapping
-- AI quote + SMS workflow with voice notes
+- Free Leaflet/OpenStreetMap mapping and nearby parts-store location lookup
+- Free NHTSA vPIC VIN/model lookup
+- AI quote + SMS workflow with browser/Android voice notes
+- Gmail, Google Calendar, and Google Drive integrations
+- Supabase Storage buckets and tenant-isolated policies for shop logos, job media, receipts, and inspection evidence
 
 ## Production services still required or being completed
 
-1. Finalize Stripe live/test secrets and webhook signing secret.
-2. Finalize OpenAI API key usage for production AI responses.
-3. Connect production SMS/email providers for automatic sending; device SMS fallback remains available.
-4. Supabase Storage for photos, receipts, logos, and inspection evidence.
-5. Authorized CARFAX connection before any service record can be marked Submitted.
-6. Optional QuickBooks, paid VIN/plate, supplier inventory, calendar-provider, and legitimate service-data integrations.
-7. After the app is finished and stable, migrate frontend/domain hosting from GitHub Pages to Cloudflare.
+1. Resolve the OpenAI API account-level `billing_not_active` response; the API key is present and Supabase is reaching OpenAI correctly.
+2. Connect/register production automatic SMS if desired; device SMS fallback remains available without a platform SMS provider.
+3. Move Supabase from Free to Pro when production traffic/storage/backups justify it.
+4. Authorized CARFAX connection before any service record can be marked Submitted.
+5. Optional QuickBooks/Xero, paid plate lookup, supplier inventory/pricing, and legitimate service-data integrations as demand requires.
+6. After the app is finished and stable, optionally migrate frontend/domain hosting from GitHub Pages to Cloudflare.
 
 ## Security
 
