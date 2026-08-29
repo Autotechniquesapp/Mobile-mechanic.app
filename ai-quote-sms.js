@@ -3,6 +3,8 @@
 const DBKEY='mobile_mechanic_ai_approved_v7';
 const sb=window.MobileMechanicSupabase;
 let busy=false;
+let recognition=null;
+let listening=false;
 
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function money(v){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0));}
@@ -20,14 +22,16 @@ function css(){if(document.getElementById('aiq-style'))return;const s=document.c
 .aiq-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.aiq-grid .field{margin:0}.aiq-grid textarea{min-height:74px}
 .aiq-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.aiq-actions .btn{flex:1 1 150px}
 .aiq-options{display:grid;gap:9px;margin-top:12px}.aiq-option{border:1px solid #303a45;border-radius:11px;padding:10px;background:#0b0f14}.aiq-option-top{display:grid;grid-template-columns:1fr 130px;gap:8px}.aiq-option textarea{width:100%;min-height:70px;margin-top:8px}.aiq-option input,.aiq-panel input,.aiq-panel textarea{background:#080c10;color:#f5f6f8;border:1px solid #303945;border-radius:8px;padding:9px 10px;outline:none}.aiq-option input:focus,.aiq-panel input:focus,.aiq-panel textarea:focus{border-color:#b52b31}.aiq-breakdown{font-size:9px;color:#8f99a5;margin-top:5px}.aiq-warning{font-size:10px;color:#ffb9bc;border-left:3px solid #ef2a31;padding:7px 9px;margin-top:10px;background:#1a1012;border-radius:7px}.aiq-sms{margin-top:12px;padding-top:12px;border-top:1px solid #2a323b}.aiq-sms textarea{width:100%;min-height:70px}
-@media(max-width:620px){.aiq-grid{grid-template-columns:1fr}.aiq-option-top{grid-template-columns:1fr 110px}.aiq-actions .btn{flex:1 1 100%}}
+.aiq-voice-row{display:flex;gap:8px;align-items:stretch}.aiq-voice-row textarea{flex:1;min-width:0}.aiq-mic{min-width:52px;display:grid;place-items:center;font-size:20px}.aiq-mic.listening{border-color:#ef2a31;background:#4a171b;box-shadow:0 0 0 3px rgba(239,42,49,.14)}
+.aiq-voice-status{font-size:9px;color:#909aa6;margin-top:5px;min-height:12px}
+@media(max-width:620px){.aiq-grid{grid-template-columns:1fr}.aiq-option-top{grid-template-columns:1fr 110px}.aiq-actions .btn{flex:1 1 100%}.aiq-mic{min-width:50px}}
 `;document.head.appendChild(s);}
 
 function panelMarkup(job){return `<section class="aiq-panel" data-aiq-panel>
   <div class="aiq-head"><div><b>AI QUOTE + CUSTOMER SMS</b><br><span>Mechanic review required before anything is sent.</span></div><span class="badge red">DRAFT ONLY</span></div>
   <div class="aiq-grid">
     <div class="field"><label>Known parts cost (optional)</label><input inputmode="decimal" data-aiq-parts placeholder="0.00"></div>
-    <div class="field"><label>Extra quote notes (optional)</label><textarea data-aiq-notes placeholder="Example: customer requested OEM option, include coolant, 2.5 labor hours already verified..."></textarea></div>
+    <div class="field"><label>Extra quote notes — type or speak</label><div class="aiq-voice-row"><textarea data-aiq-notes placeholder="Example: customer requested OEM option, include coolant, 2.5 labor hours already verified..."></textarea><button class="btn btn-soft aiq-mic" type="button" data-aiq-mic aria-label="Speak quote notes" title="Speak quote notes">🎤</button></div><div class="aiq-voice-status" data-aiq-voice-status>Tap the mic and speak your repair, parts, or labor notes.</div></div>
   </div>
   <div class="aiq-actions"><button class="btn btn-primary" type="button" data-aiq-generate>Generate AI Quote</button></div>
   <div data-aiq-results></div>
@@ -40,10 +44,47 @@ function panelMarkup(job){return `<section class="aiq-panel" data-aiq-panel>
 function findMount(){const send=document.querySelector('[data-action="send-estimate"]');if(!send)return null;return send.closest('section,.card,[class*="card"]')||send.parentElement;}
 function mount(){css();const {db,job}=ctx();if(db.session?.role!=='shop'||!job||document.querySelector('[data-aiq-panel]'))return;const target=findMount();if(!target)return;target.insertAdjacentHTML('beforebegin',panelMarkup(job));}
 
+function voiceStatus(text){const el=document.querySelector('[data-aiq-voice-status]');if(el)el.textContent=text;}
+function micButton(){return document.querySelector('[data-aiq-mic]');}
+function setListening(on){listening=on;const b=micButton();if(b){b.classList.toggle('listening',on);b.textContent=on?'■':'🎤';b.setAttribute('aria-label',on?'Stop voice input':'Speak quote notes');}voiceStatus(on?'Listening… speak the quote details. Tap stop when finished.':'Tap the mic and speak your repair, parts, or labor notes.');}
+function stopVoice(){try{recognition?.stop();}catch{}setListening(false);}
+function startVoice(){
+  if(listening){stopVoice();return;}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Voice recognition is not available in this browser. You can still use the microphone on your Android keyboard.','bad');return;}
+  const notes=document.querySelector('[data-aiq-notes]');if(!notes)return;
+  try{
+    recognition=new SR();
+    recognition.lang='en-US';
+    recognition.continuous=true;
+    recognition.interimResults=true;
+    const original=notes.value.trim();
+    let finalText='';
+    recognition.onstart=()=>setListening(true);
+    recognition.onresult=(event)=>{
+      let interim='';
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const text=event.results[i][0]?.transcript||'';
+        if(event.results[i].isFinal)finalText+=(finalText?' ':'')+text.trim();else interim+=text;
+      }
+      const combined=[original,finalText,interim.trim()].filter(Boolean).join(original||finalText?' ':'');
+      notes.value=combined;
+      notes.dispatchEvent(new Event('input',{bubbles:true}));
+      voiceStatus(interim?`Listening… ${interim.trim()}`:'Listening…');
+    };
+    recognition.onerror=(event)=>{
+      const message=event.error==='not-allowed'?'Microphone permission is blocked. Allow microphone access for this site.':event.error==='no-speech'?'I did not hear anything. Tap the mic and try again.':`Voice input stopped: ${event.error||'unknown error'}.`;
+      toast(message,'bad');setListening(false);
+    };
+    recognition.onend=()=>setListening(false);
+    recognition.start();
+  }catch(err){setListening(false);toast(err?.message||'Could not start voice input.','bad');}
+}
+
 function optionHtml(key,o,b={}){return `<div class="aiq-option" data-aiq-option="${key}"><div class="aiq-option-top"><input data-aiq-title value="${esc(o?.title||key)}"><input data-aiq-price inputmode="decimal" value="${Number(o?.price||0).toFixed(2)}"></div><textarea data-aiq-summary>${esc(o?.summary||'')}</textarea><div class="aiq-breakdown">AI draft: labor ${Number(b.hours||0).toFixed(1)} hr • parts cost ${money(b.parts_cost)} • marked parts ${money(b.marked_parts)} • labor ${money(b.labor)} • travel ${money(b.travel)} • tax ${money(b.tax)}</div></div>`;}
 function renderDraft(data){const root=document.querySelector('[data-aiq-results]');if(!root)return;root.innerHTML=`<div class="aiq-warning">${esc(data.warning||'AI-generated draft. Verify scope, labor, parts pricing, tax and totals before sending.')}</div><div class="aiq-options">${['good','better','best'].map(k=>optionHtml(k,data.estimate?.[k],data.breakdown?.[k])).join('')}</div><div class="aiq-actions"><button class="btn btn-soft" type="button" data-aiq-save>Save Draft</button><button class="btn btn-primary" type="button" data-aiq-save-text>Save + Text Estimate</button></div>`;}
 function collect(){const out={};for(const el of document.querySelectorAll('[data-aiq-option]')){const k=el.dataset.aiqOption;out[k]={title:el.querySelector('[data-aiq-title]')?.value.trim()||k,price:Number(el.querySelector('[data-aiq-price]')?.value||0),summary:el.querySelector('[data-aiq-summary]')?.value.trim()||''};}return out;}
-async function generate(){if(busy)return;const {job}=ctx();if(!job)return toast('Open a job first.','bad');busy=true;const b=document.querySelector('[data-aiq-generate]');if(b){b.disabled=true;b.textContent='Generating…';}try{const parts=document.querySelector('[data-aiq-parts]')?.value||'',notes=document.querySelector('[data-aiq-notes]')?.value||'';const d=await invoke('ai-quote',{action:'generate',job_id:job.id,parts_cost:parts,notes});renderDraft(d);toast('AI quote draft created. Review it before saving.','good');}catch(err){toast(err.message||'AI quote failed.','bad');}finally{busy=false;if(b){b.disabled=false;b.textContent='Generate AI Quote';}}}
+async function generate(){if(busy)return;const {job}=ctx();if(!job)return toast('Open a job first.','bad');if(listening)stopVoice();busy=true;const b=document.querySelector('[data-aiq-generate]');if(b){b.disabled=true;b.textContent='Generating…';}try{const parts=document.querySelector('[data-aiq-parts]')?.value||'',notes=document.querySelector('[data-aiq-notes]')?.value||'';const d=await invoke('ai-quote',{action:'generate',job_id:job.id,parts_cost:parts,notes});renderDraft(d);toast('AI quote draft created. Review it before saving.','good');}catch(err){toast(err.message||'AI quote failed.','bad');}finally{busy=false;if(b){b.disabled=false;b.textContent='Generate AI Quote';}}}
 async function saveDraft(){const {job}=ctx();const estimate=collect();if(!job||!estimate.good)return null;await invoke('ai-quote',{action:'save',job_id:job.id,estimate});return estimate;}
 async function createLink(estimate){const {shop,job}=ctx();if(!shop||!job)throw new Error('Open a valid job first.');const {data,error}=await sb.rpc('create_customer_estimate_link',{p_job_id:job.id,p_estimate:estimate,p_expires_hours:168});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row?.token)throw new Error('Secure estimate link was not created.');return {url:approvalUrl(row.token),version:row.estimate_version};}
 async function sendSms(to,text){try{const d=await invoke('integration-actions',{action:'twilio.send_sms',to,text});toast('SMS sent to customer.','good');return {sent:true,provider:'twilio',data:d};}catch(err){nativeSms(to,text);toast('Automatic SMS is not connected yet, so I opened your phone Messages app with the text filled in.','');return {sent:false,provider:'device',error:err?.message||''};}}
@@ -51,8 +92,8 @@ async function saveOnly(){if(busy)return;busy=true;try{await saveDraft();toast('
 async function saveAndText(){if(busy)return;busy=true;try{const {shop,job}=ctx();if(!job?.phone)throw new Error('Customer phone number is missing.');const estimate=await saveDraft();const link=await createLink(estimate);const vehicle=[job.vehicle?.year,job.vehicle?.make,job.vehicle?.model].filter(Boolean).join(' ');const text=`${shop?.name||'Your mechanic'} estimate${vehicle?` for ${vehicle}`:''}: ${link.url}`;await sendSms(job.phone,text);}catch(err){toast(err.message||'Could not text estimate.','bad');}finally{busy=false;}}
 async function quickText(){if(busy)return;const {job}=ctx();if(!job?.phone)return toast('Customer phone number is missing.','bad');const text=document.querySelector('[data-aiq-sms-text]')?.value.trim();if(!text)return toast('Enter a message first.','bad');busy=true;try{await sendSms(job.phone,text);}catch(err){toast(err.message||'Could not open SMS.','bad');}finally{busy=false;}}
 
-document.addEventListener('click',e=>{if(e.target.closest('[data-aiq-generate]')){e.preventDefault();generate();return;}if(e.target.closest('[data-aiq-save]')){e.preventDefault();saveOnly();return;}if(e.target.closest('[data-aiq-save-text]')){e.preventDefault();saveAndText();return;}if(e.target.closest('[data-aiq-text-customer]')){e.preventDefault();quickText();}},true);
+document.addEventListener('click',e=>{if(e.target.closest('[data-aiq-mic]')){e.preventDefault();startVoice();return;}if(e.target.closest('[data-aiq-generate]')){e.preventDefault();generate();return;}if(e.target.closest('[data-aiq-save]')){e.preventDefault();saveOnly();return;}if(e.target.closest('[data-aiq-save-text]')){e.preventDefault();saveAndText();return;}if(e.target.closest('[data-aiq-text-customer]')){e.preventDefault();quickText();}},true);
 new MutationObserver(()=>mount()).observe(document.documentElement,{childList:true,subtree:true});
-window.addEventListener('hashchange',()=>setTimeout(mount,80));
+window.addEventListener('hashchange',()=>{stopVoice();setTimeout(mount,80);});
 setTimeout(mount,700);
 })();
