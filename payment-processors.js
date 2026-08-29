@@ -19,6 +19,7 @@ async function connect(provider){if(busy||!visibleProviders.includes(provider))r
   throw new Error(`${names[provider]||provider} did not return a connection link.`);
 }catch(err){toast(err.message||'Could not connect payment processor.','bad');}finally{busy=false;}}
 async function setDefault(provider){if(busy||!visibleProviders.includes(provider))return;busy=true;try{await call('payment-processors',{action:'set_default',provider});toast(`${names[provider]} is now the default customer payment processor.`,'good');await renderProcessorList();}catch(err){toast(err.message||'Could not change the default processor.','bad');}finally{busy=false;}}
+async function disconnect(provider){if(busy||!visibleProviders.includes(provider))return;if(!confirm(`Disconnect ${names[provider]} from this shop? Customer payments through ${names[provider]} will stop until it is reconnected.`))return;busy=true;try{await call('payment-processors',{action:'disconnect',provider});toast(`${names[provider]} disconnected from this shop.`,'good');await renderProcessorList();}catch(err){toast(err.message||`Could not disconnect ${names[provider]}.`,'bad');}finally{busy=false;}}
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
 function removeOldTopPaymentUi(main){
   if(!main)return;
@@ -71,7 +72,7 @@ async function renderProcessorList(){
     body.innerHTML=visibleProviders.map(provider=>{
       const p=by[provider]||{provider,status:'not_connected',is_default:false};
       const connected=p.status==='connected';
-      return `<div class="list-item"><div class="list-icon">${provider==='stripe'?'$':'■'}</div><div class="list-main"><b>${esc(names[provider])} ${badge(p)} ${p.is_default?'<span class="badge green">Default</span>':''}</b><p>${esc(detail[provider])}</p><div class="list-actions"><button class="btn ${connected?'btn-soft':'btn-primary'}" data-processor-connect="${provider}">${connected?'Manage / Reconnect':'Connect '+esc(names[provider])}</button>${connected&&!p.is_default?`<button class="btn btn-soft" data-processor-default="${provider}">Make Default</button>`:''}</div>${p.last_error?`<p class="small red">${esc(p.last_error)}</p>`:''}</div></div>`;
+      return `<div class="list-item"><div class="list-icon">${provider==='stripe'?'$':'■'}</div><div class="list-main"><b>${esc(names[provider])} ${badge(p)} ${p.is_default?'<span class="badge green">Default</span>':''}</b><p>${esc(detail[provider])}</p><div class="list-actions"><button class="btn ${connected?'btn-soft':'btn-primary'}" data-processor-connect="${provider}">${connected?'Manage / Reconnect':'Connect '+esc(names[provider])}</button>${connected&&!p.is_default?`<button class="btn btn-soft" data-processor-default="${provider}">Make Default</button>`:''}${connected?`<button class="btn btn-danger" data-processor-disconnect="${provider}">Disconnect</button>`:''}</div>${p.last_error?`<p class="small red">${esc(p.last_error)}</p>`:''}</div></div>`;
     }).join('')+`<div class="divider"></div><p class="small muted">Each shop can choose Square or Stripe for its customer repair payments. You can change the default later.</p><button class="btn btn-soft" data-processor-refresh>Refresh Status</button>`;
   }catch(err){body.innerHTML=`<div class="alert bad">${esc(err.message||'Could not load payment processors.')}</div><button class="btn btn-soft" data-processor-refresh>Try Again</button>`;}
 }
@@ -81,6 +82,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest?.('[data-payment-back]')){e.preventDefault();backToSettings();return;}
   const c=e.target.closest?.('[data-processor-connect]');if(c){e.preventDefault();connect(c.dataset.processorConnect);return;}
   const d=e.target.closest?.('[data-processor-default]');if(d){e.preventDefault();setDefault(d.dataset.processorDefault);return;}
+  const x=e.target.closest?.('[data-processor-disconnect]');if(x){e.preventDefault();disconnect(x.dataset.processorDisconnect);return;}
   if(e.target.closest?.('[data-processor-refresh]')){e.preventDefault();renderProcessorList();}
 },true);
 new MutationObserver(()=>setTimeout(renderLauncher,0)).observe(document.documentElement,{childList:true,subtree:true});

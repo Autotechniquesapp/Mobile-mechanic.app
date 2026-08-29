@@ -46,7 +46,7 @@ async function connect(provider){if(busy)return;busy=true;try{
   else d=await invoke(row.connector,{provider,return_url:returnUrl()});
   if(d?.url){sessionStorage.setItem(REOPEN_KEY,'1');location.assign(d.url);return;}throw new Error(`${row.name} did not return an authorization link.`);
  }catch(err){toast(err.message||'Could not connect integration.','bad');}finally{busy=false;}}
-async function disconnect(provider){if(busy)return;busy=true;try{await invoke('business-integrations',{action:'disconnect',provider});toast('Integration disconnected.','good');await renderIntegrations();}catch(err){toast(err.message||'Could not disconnect integration.','bad');}finally{busy=false;}}
+async function disconnect(provider){if(busy)return;const status=await invoke('business-integrations',{action:'status'}).catch(()=>({integrations:[]})),row=(status.integrations||[]).find(x=>x.provider===provider),name=row?.name||provider;if(!confirm(`Disconnect ${name} from this shop? Automatic syncing through this service will stop until it is reconnected.`))return;busy=true;try{await invoke('business-integrations',{action:'disconnect',provider});toast(`${name} disconnected from this shop.`,'good');await renderIntegrations();}catch(err){toast(err.message||'Could not disconnect integration.','bad');}finally{busy=false;}}
 async function checkQuickBooks(){if(busy)return;busy=true;try{const d=await invoke('quickbooks-oauth',{action:'company'});toast(d.company?.CompanyName?`QuickBooks connected: ${d.company.CompanyName}`:'QuickBooks company connection is working.','good');}catch(err){toast(err.message||'Could not read QuickBooks company.','bad');}finally{busy=false;}}
 function back(){sessionStorage.removeItem(REOPEN_KEY);location.reload();}
 document.addEventListener('click',e=>{
