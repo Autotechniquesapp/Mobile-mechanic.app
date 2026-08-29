@@ -12,4 +12,12 @@ document.addEventListener('click',e=>{const share=e.target.closest?.('[data-acti
 new MutationObserver(()=>refreshLinkField()).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(refreshLinkField,30));
 setTimeout(refreshLinkField,300);
+
+function loadOnce(key,src){
+  if(window[key])return;
+  window[key]=true;
+  const s=document.createElement('script');s.src=src;document.head.appendChild(s);
+}
+loadOnce('__MMAIntakeSchedulingLoaded','intake-scheduling.js?v=20260829-0045');
+loadOnce('__MMASettingsEnhancementsLoaded','settings-enhancements.js?v=20260829-0045');
 })();
