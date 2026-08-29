@@ -1,12 +1,12 @@
 # Mobile Mechanic AI
 
-Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations. The production path uses GitHub → Netlify for the frontend and Supabase for authentication, tenant-isolated data, customer intake, and secure estimate approvals.
+Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations. The production path uses GitHub for source control, Supabase for authentication and tenant-isolated backend data, and a static frontend that is being prepared for Cloudflare hosting.
 
 ## Production deployment
 
 - Repository: `Autotechniquesapp/Mobile-mechanic.app`
 - Production branch: `main`
-- Netlify publishes the repository root using `netlify.toml`
+- Frontend: static web app, host-agnostic and being prepared for Cloudflare
 - Supabase provides Auth/Postgres/RLS and customer-facing Edge Functions
 
 ## Subscription pricing and trial policy
@@ -42,18 +42,21 @@ The core workflow—customer intake → job → diagnosis → estimate → custo
 - Internal scheduling blocks with labor + travel + buffer time
 - Staff invite records and queued email/SMS delivery
 - Technician feedback / feature-request collection with platform-admin review
-- Technician Help UI and protected server-side AI endpoint (requires OpenAI secret before live answers)
-- Stripe billing and signed webhook Edge Functions (requires Stripe secrets before live charges)
+- Technician Help UI and protected server-side AI endpoint
+- Stripe billing and signed webhook Edge Functions
 - GitHub Actions JavaScript/required-file validation
+- Free Leaflet/OpenStreetMap mapping
+- AI quote + SMS workflow with voice notes
 
 ## Production services still required or being completed
 
-1. Add Stripe secret key and webhook signing secret to activate live/test Stripe billing.
-2. Add OpenAI API key to activate Technician Help and production AI responses.
-3. Connect production email and SMS providers to deliver queued messages.
+1. Finalize Stripe live/test secrets and webhook signing secret.
+2. Finalize OpenAI API key usage for production AI responses.
+3. Connect production SMS/email providers for automatic sending; device SMS fallback remains available.
 4. Supabase Storage for photos, receipts, logos, and inspection evidence.
 5. Authorized CARFAX connection before any service record can be marked Submitted.
-6. Optional QuickBooks, paid VIN/plate, parts inventory/supplier, maps, calendar-provider, and legitimate service-data integrations.
+6. Optional QuickBooks, paid VIN/plate, supplier inventory, calendar-provider, and legitimate service-data integrations.
+7. Move the frontend/domain to Cloudflare hosting.
 
 ## Security
 
