@@ -9,7 +9,6 @@ Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mecha
 - Frontend hosting now: GitHub / GitHub Pages only
 - Domain: `mobile-mechanic.app`
 - Backend: Supabase Auth/Postgres/RLS, Storage, and Edge Functions
-- Netlify is not part of the current deployment
 - Cloudflare is a future migration only, after the app is finished and tested
 
 ## Subscription pricing and trial policy
