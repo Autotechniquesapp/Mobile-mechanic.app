@@ -1,0 +1,31 @@
+(() => {
+'use strict';
+const sb=window.MobileMechanicSupabase;
+const DBKEY='mobile_mechanic_ai_approved_v7';
+const IDENTIFIX_URL='https://dh.identifix.com/';
+const ALLDATA_URL='https://www.alldata.com/us/en/connect';
+let mounting=false;
+
+function cache(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
+function ctx(){const c=cache(),sid=c.session?.shopId,shop=sid?c.shops?.[sid]:null,jobId=c.session?.activeJobId,job=shop?.jobs?.find?.(j=>String(j.id)===String(jobId));return {c,sid,shop,job};}
+function esc(v=''){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function toast(msg,type=''){document.querySelector('.labor-source-toast')?.remove();const d=document.createElement('div');d.className=`toast labor-source-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3400);}
+function vehicleText(job){const v=job?.vehicle||{};return [v.year,v.make,v.model,v.trim||v.submodel,v.engine].filter(Boolean).join(' ');}
+
+async function rows(){const {sid}=ctx();if(!sb||!sid)return {};const {data,error}=await sb.from('shop_integrations').select('provider,status,display_name,public_settings').eq('shop_id',sid).in('provider',['identifix','alldata']);if(error)throw error;return Object.fromEntries((data||[]).map(x=>[x.provider,x]));}
+async function preferred(){const r=await rows();if(r.identifix?.public_settings?.preferred)return 'identifix';if(r.alldata?.public_settings?.preferred)return 'alldata';return localStorage.getItem('mma_labor_source')||'';}
+async function setPreferred(provider){const {sid}=ctx();if(!sb||!sid)return;const r=await rows();for(const p of ['identifix','alldata']){const current=r[p]?.public_settings||{};const {error}=await sb.from('shop_integrations').update({public_settings:{...current,preferred:p===provider},updated_at:new Date().toISOString()}).eq('shop_id',sid).eq('provider',p);if(error)throw error;}localStorage.setItem('mma_labor_source',provider);toast(`${provider==='identifix'?'Identifix Direct-Hit':'ALLDATA'} set as labor source.`,'good');mountSettings(true);mountJobButton(true);}
+function openProvider(provider){const {job}=ctx();const text=vehicleText(job);if(text&&navigator.clipboard?.writeText)navigator.clipboard.writeText(text).catch(()=>{});window.open(provider==='identifix'?IDENTIFIX_URL:ALLDATA_URL,'_blank','noopener');if(text)toast(`${text} copied. Open the labor guide and paste/search the vehicle.`,'good');}
+
+function settingsMarkup(r,pref){const id=r.identifix||{},ad=r.alldata||{};return `<section class="card card-pad" data-labor-data-panel style="margin-top:10px"><div class="card-title">LABOR DATA PROVIDERS</div><div class="section-note">Choose the shop's source for labor-time lookups. Labor times are never guessed or scraped.</div><div class="divider"></div>
+<div class="list-item"><div class="list-main"><b>Identifix Direct-Hit ${pref==='identifix'?'<span class="badge green">Preferred</span>':''}</b><p>MOTOR / Chilton / OE labor guides. Open your shop's Direct-Hit subscription now. Automatic import requires approved Identifix partner/API access.</p><div class="list-actions"><button class="btn btn-primary" type="button" data-labor-open="identifix">Open Direct-Hit</button><button class="btn btn-soft" type="button" data-labor-prefer="identifix">Use for Labor Times</button></div></div></div>
+<div class="list-item"><div class="list-main"><b>ALLDATA ${pref==='alldata'?'<span class="badge green">Preferred</span>':''}</b><p>OEM parts/labor and repair data. Automatic import can use ALLDATA Connect once API credentials/partner access are approved.</p><div class="list-actions"><button class="btn btn-soft" type="button" data-labor-open="alldata">ALLDATA Connect Info</button><button class="btn btn-soft" type="button" data-labor-prefer="alldata">Use for Labor Times</button></div></div></div>
+<p class="small muted" style="margin-top:9px">Current API state: Identifix ${esc(id.status||'not connected')} • ALLDATA ${esc(ad.status||'not connected')}. Manual lookup works independently through each shop's own subscription.</p></section>`;}
+async function mountSettings(force=false){if(force)document.querySelector('[data-labor-data-panel]')?.remove();if(mounting||document.querySelector('[data-labor-data-panel]'))return;const {c}=ctx();if(c.session?.role!=='shop')return;const title=document.querySelector('.page-title h2');if(!title||!/settings|integrations/i.test(title.textContent||''))return;const main=document.querySelector('.content');if(!main)return;mounting=true;try{const r=await rows(),pref=await preferred();main.insertAdjacentHTML('beforeend',settingsMarkup(r,pref));}catch(e){console.warn('labor data settings',e);}finally{mounting=false;}}
+async function mountJobButton(force=false){if(force)document.querySelector('[data-labor-guide-button]')?.remove();if(document.querySelector('[data-labor-guide-button]'))return;const {c,job}=ctx();if(c.session?.role!=='shop'||!job)return;const work=document.querySelector('[data-job-work-order]');if(!work)return;let pref='';try{pref=await preferred();}catch{}const label=pref==='alldata'?'ALLDATA Labor':'Identifix Labor';const btn=`<div data-labor-guide-button style="display:flex;justify-content:flex-end;margin:7px 0 0"><button type="button" class="btn btn-soft" data-labor-open="${pref==='alldata'?'alldata':'identifix'}" style="padding:6px 10px;min-height:32px;font-size:12px">⏱ ${label}</button></div>`;const complaint=work.querySelector('.jwo-complaint');(complaint||work).insertAdjacentHTML(complaint?'afterend':'beforeend',btn);}
+
+document.addEventListener('click',async e=>{const o=e.target.closest?.('[data-labor-open]');if(o){e.preventDefault();openProvider(o.dataset.laborOpen);return;}const p=e.target.closest?.('[data-labor-prefer]');if(p){e.preventDefault();try{await setPreferred(p.dataset.laborPrefer);}catch(err){toast(err?.message||'Could not save labor source.','bad');}}},true);
+new MutationObserver(()=>{setTimeout(mountSettings,0);setTimeout(mountJobButton,0);}).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener('hashchange',()=>{setTimeout(mountSettings,120);setTimeout(mountJobButton,180);});
+setTimeout(mountSettings,900);setTimeout(mountJobButton,1200);
+})();
