@@ -55,8 +55,16 @@ function mount(){
   if(!anchor)return;
   anchor.insertAdjacentHTML('beforebegin',markup());
 }
+function loadWorkOrder(){
+  if(document.querySelector('script[data-job-work-order-loader]'))return;
+  const s=document.createElement('script');
+  s.dataset.jobWorkOrderLoader='1';
+  s.src=`job-work-order.js?v=20260829-2018`;
+  document.body.appendChild(s);
+}
 document.addEventListener('click',e=>{const b=e.target.closest?.('[data-youtube-search]');if(!b)return;e.preventDefault();openSearch('');},true);
 new MutationObserver(()=>setTimeout(mount,0)).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(mount,100));
+loadWorkOrder();
 setTimeout(mount,700);
 })();
