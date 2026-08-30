@@ -57,9 +57,9 @@ function mount(){
 }
 function loadFeature(src,attr){
   if(document.querySelector(`script[${attr}]`))return;
-  const s=document.createElement('script');s.setAttribute(attr,'1');s.src=`${src}?v=20260829-2200`;document.body.appendChild(s);
+  const s=document.createElement('script');s.setAttribute(attr,'1');s.src=`${src}?v=20260829-2212`;document.body.appendChild(s);
 }
-function loadWorkOrder(){loadFeature('job-work-order.js','data-job-work-order-loader');loadFeature('next-invoice.js','data-next-invoice-loader');loadFeature('labor-data-integrations.js','data-labor-data-loader');loadFeature('identifix-labor-import.js','data-identifix-labor-import-loader');loadFeature('invoice-scope-separation.js','data-invoice-scope-separation-loader');}
+function loadWorkOrder(){loadFeature('job-work-order.js','data-job-work-order-loader');loadFeature('next-invoice.js','data-next-invoice-loader');loadFeature('labor-data-integrations.js','data-labor-data-loader');loadFeature('identifix-labor-import.js','data-identifix-labor-import-loader');loadFeature('invoice-scope-separation.js','data-invoice-scope-separation-loader');loadFeature('shop-job-payment.js','data-shop-job-payment-loader');}
 document.addEventListener('click',e=>{const b=e.target.closest?.('[data-youtube-search]');if(!b)return;e.preventDefault();openSearch('');},true);
 new MutationObserver(()=>setTimeout(mount,0)).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(mount,100));
