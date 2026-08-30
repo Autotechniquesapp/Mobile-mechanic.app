@@ -50,10 +50,10 @@ function financialMarkup(invoice,wo){
   return `<div class="jwo-fin"><div><b>${processor} Invoice ${invNo}</b><span>${money(total)} total • ${money(paid)} paid • <strong>${money(remaining)} remaining</strong>${esc(auth)}</span></div></div>`;
 }
 function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.customer_states||job?.complaint||'';const codes=row?.codes||job?.codes||'';return `<section class="jwo" data-job-work-order>
-  <div class="jwo-top"><div><div class="eyebrow">LIVE REPAIR WORK ORDER</div><h2>What I'm Doing on This Job</h2></div><span class="badge ${statusClass(job?.status==='Completed'?'completed':'in_progress')}">${esc(job?.status||'Job')}</span></div>
+  <div class="jwo-top"><div><div class="eyebrow">LIVE REPAIR WORK ORDER</div><h2>Repair Breakdown</h2></div><span class="badge ${statusClass(job?.status==='Completed'?'completed':'in_progress')}">${esc(job?.status||'Job')}</span></div>
   <div class="jwo-complaint"><b>Original Complaint</b><p>${esc(complaint||'No complaint entered.')}</p>${codes?`<small><b>Codes / scan notes:</b> ${esc(codes)}</small>`:''}</div>
   ${section('Parts Bought / Needed','parts',wo.parts,'Part')}
-  ${section('Work Being Done','work',wo.work,'Work Item')}
+  ${section('Work Being Done / Completed','work',wo.work,'Work Item')}
   ${section('Tests / Checks','tests',wo.tests,'Test')}
   ${financialMarkup(invoice,wo)}
   ${wo.authorization?.note?`<div class="jwo-auth"><b>Authorization:</b> ${esc(wo.authorization.note)}</div>`:''}
@@ -65,6 +65,32 @@ function css(){if(document.getElementById('job-work-order-style'))return;const s
 @media(max-width:620px){.jwo{padding:11px}.jwo-row{grid-template-columns:minmax(0,1fr) 108px}.jwo-price{grid-column:1}.jwo-row select{grid-column:2;grid-row:1 / span 2}.jwo-top h2{font-size:16px}}
 `;document.head.appendChild(s);}
 
+function simplifyLegacyUI(){
+  document.querySelectorAll('.work-card').forEach(card=>{
+    const h=(card.querySelector('h3')?.textContent||'').trim();
+    if(/Good\s*\/\s*Better\s*\/\s*Best/i.test(h)||/^Repair Videos\b/i.test(h))card.style.display='none';
+  });
+  document.querySelectorAll('[data-action="use-quote-example"]').forEach(b=>{
+    if(/Good,? Better,? and Best/i.test(b.dataset.example||b.textContent||''))b.remove();
+  });
+  const choiceHeading=[...document.querySelectorAll('.customer-card h3')].find(h=>/Choose Your Repair Option/i.test(h.textContent||''));
+  if(choiceHeading){
+    choiceHeading.textContent='Repair Estimate';
+    const card=choiceHeading.closest('.customer-card');
+    card?.querySelectorAll('.estimate-card').forEach(ec=>{ec.style.display=ec.classList.contains('best')?'block':'none';});
+    const best=card?.querySelector('.estimate-card.best');
+    if(best){
+      const radio=best.querySelector('input[name="customerOption"]');if(radio)radio.checked=true;
+      const title=best.querySelector('b');if(title)title.textContent='Repair Breakdown';
+    }
+    const alert=card?.querySelector('.customer-alert');if(alert)alert.textContent='This authorization covers the repair work listed above. If the price or scope changes, the shop will send a revised authorization.';
+    const approveLabel=[...document.querySelectorAll('.customer-card b')].find(b=>/I approve the selected repair option/i.test(b.textContent||''));if(approveLabel)approveLabel.textContent='I approve the repair work listed above';
+    const approveHelp=approveLabel?.parentElement?.querySelector('p');if(approveHelp)approveHelp.textContent='I authorize the listed repair scope and amount shown above.';
+    const approveBtn=document.querySelector('[data-action="approve-estimate"]');if(approveBtn)approveBtn.innerHTML='✓ Approve Repair';
+    const declineBtn=document.querySelector('[data-action="decline-estimate"]');if(declineBtn)declineBtn.textContent='Decline / Contact Shop';
+  }
+}
+
 async function save(){
   if(!sb||!currentState?.job?.id)return;
   try{
@@ -74,7 +100,7 @@ async function save(){
     toast('Work order updated.','good');
   }catch(err){toast(err?.message||'Could not save work order.','bad');}
 }
-function rerender(){const old=document.querySelector('[data-job-work-order]');if(!old||!currentState)return;old.outerHTML=markup(currentState);}
+function rerender(){const old=document.querySelector('[data-job-work-order]');if(!old||!currentState)return;old.outerHTML=markup(currentState);simplifyLegacyUI();}
 function add(type){
   if(!currentState)return;
   const labels={parts:'part',work:'work item',tests:'test / check'};const name=prompt(`Add ${labels[type]||'item'}:`);if(!name?.trim())return;
@@ -87,14 +113,16 @@ function bindGlobal(){
   document.addEventListener('click',e=>{const b=e.target.closest?.('[data-jwo-add]');if(!b)return;e.preventDefault();add(b.dataset.jwoAdd);},true);
 }
 async function mount(){
+  simplifyLegacyUI();
   if(mounting||document.querySelector('[data-job-work-order]'))return;
   const {db,job}=context();if(db.session?.role!=='shop'||!job)return;
   const title=document.querySelector('.page-title h2');if(!title||!/^AI Pre-Workup$/i.test(title.textContent.trim()))return;
   mounting=true;try{
     css();currentState=await load(job);
-    title.textContent='Job Work Order';const sub=title.parentElement?.querySelector('p');if(sub)sub.textContent='Parts, work performed, current progress, tests, authorization, and payment status.';
+    title.textContent='Job Work Order';const sub=title.parentElement?.querySelector('p');if(sub)sub.textContent='One repair breakdown: parts, work performed, current progress, tests, authorization, and payment status.';
     const banner=document.querySelector('.job-banner');if(!banner)return;
     banner.insertAdjacentHTML('afterend',markup(currentState));
+    simplifyLegacyUI();
     const ww=document.querySelector('.work-white');if(ww&&!ww.closest('.jwo-ai-wrap')){const d=document.createElement('details');d.className='jwo-ai-wrap';d.innerHTML='<summary>AI / Diagnostic Tools</summary>';ww.parentNode.insertBefore(d,ww);d.appendChild(ww);}
   }catch(err){console.error('work order mount',err);}finally{mounting=false;}
 }
