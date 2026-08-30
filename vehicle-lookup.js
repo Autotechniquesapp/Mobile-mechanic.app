@@ -3,6 +3,9 @@
 const sb=window.MobileMechanicSupabase;
 let busy=false;
 const modelCache=new Map();
+const DBKEY='mobile_mechanic_ai_approved_v7';
+const STATES=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+function isShopSession(){try{const d=JSON.parse(localStorage.getItem(DBKEY)||'{}');return d.session?.role==='shop'&&!!d.session?.shopId;}catch{return false;}}
 function toast(msg,type=''){document.querySelector('.vin-toast')?.remove();const d=document.createElement('div');d.className=`toast vin-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4500);}
 function setValue(form,name,value){if(value==null||value==='')return;const el=form.querySelector(`[name="${name}"]`);if(!el)return;const val=String(value);if(el.tagName==='SELECT'){
   let opt=[...el.options].find(o=>String(o.value).toLowerCase()===val.toLowerCase()||String(o.textContent).toLowerCase()===val.toLowerCase());
@@ -84,6 +87,24 @@ async function decode(btn){if(busy||!sb)return;const form=btn.closest('form')||d
  toast(`${v.year||''} ${v.make||''} ${v.model||''}`.trim()||'VIN decoded.','good');
 }catch(err){toast(err.message||'VIN lookup failed.','bad');}finally{busy=false;btn.disabled=false;btn.textContent=old;}}
 
+async function lookupPlate(btn){
+  if(busy||!sb)return;
+  const form=btn.closest('form')||document,plate=form.querySelector('[name="plate"]'),region=form.querySelector('[name="plateRegion"]');
+  const value=String(plate?.value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,''),state=String(region?.value||'').trim().toUpperCase();
+  if(value.length<2){toast('Enter a plate number first.','bad');return;}
+  if(state.length!==2){toast("Choose the plate's state.",'bad');return;}
+  busy=true;btn.disabled=true;const old=btn.textContent;btn.textContent='Looking up…';
+  try{
+    const {data,error}=await sb.functions.invoke('plate-lookup',{body:{plate:value,region:state}});
+    if(error)throw new Error(error.message||'Plate lookup failed.');if(data?.error)throw new Error(data.error);
+    const v=data.vehicle||{};setValue(form,'plate',v.plate||value);setValue(form,'vin',v.vin);setValue(form,'year',v.year);setValue(form,'make',v.make);
+    await loadModels(form,{preserve:false});setValue(form,'model',v.model);setValue(form,'trim',v.trim);setValue(form,'engine',v.engine);
+    const charge=Number(data.charged_cents||0),note=data.cached?'Saved lookup — no additional charge.':`Vehicle found • ${(charge/100).toFixed(2)} deducted from this shop.`;
+    toast(note,'good');
+  }catch(err){toast(err.message||'Plate lookup failed.','bad');}
+  finally{busy=false;btn.disabled=false;btn.textContent=old;}
+}
+
 function enhance(){
   document.querySelectorAll('form').forEach(form=>{
     const model=form.querySelector('[name="model"]');
@@ -95,6 +116,7 @@ function enhance(){
     }
   });
   document.querySelectorAll('input[name="vin"]').forEach(vin=>{if(vin.dataset.nhtsaLookup==='1')return;vin.dataset.nhtsaLookup='1';const wrap=document.createElement('div');wrap.className='vin-lookup-actions';wrap.style.marginTop='8px';wrap.innerHTML='<button type="button" class="btn btn-soft" data-decode-vin>Decode VIN</button><span class="small muted" style="margin-left:8px">NHTSA vehicle data</span>';vin.insertAdjacentElement('afterend',wrap);});
+  if(isShopSession())document.querySelectorAll('input[name="plate"]').forEach(plate=>{if(plate.dataset.plateLookup==='1')return;plate.dataset.plateLookup='1';const wrap=document.createElement('div');wrap.className='plate-lookup-actions';wrap.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px';const options=STATES.map(s=>`<option value="${s}">${s}</option>`).join('');wrap.innerHTML=`<select name="plateRegion" aria-label="Plate state" style="width:90px;background:#080c10;color:#f5f6f8;border:1px solid #303945;border-radius:8px;padding:9px 10px"><option value="">State</option>${options}</select><button type="button" class="btn btn-soft" data-lookup-plate>Look Up Plate</button><span class="small muted">$0.40 from this shop's prepaid balance</span>`;plate.insertAdjacentElement('afterend',wrap);});
 }
 
 document.addEventListener('change',e=>{
@@ -103,7 +125,7 @@ document.addEventListener('change',e=>{
   const form=el.closest('form');
   if(form?.querySelector('[name="model"]'))loadModels(form,{preserve:false});
 },true);
-document.addEventListener('click',e=>{const b=e.target.closest?.('[data-decode-vin]');if(b){e.preventDefault();decode(b);}},true);
+document.addEventListener('click',e=>{const b=e.target.closest?.('[data-decode-vin],[data-lookup-plate]');if(!b)return;e.preventDefault();if(b.matches('[data-lookup-plate]'))lookupPlate(b);else decode(b);},true);
 new MutationObserver(()=>enhance()).observe(document.documentElement,{childList:true,subtree:true});
 setTimeout(enhance,500);
 })();
