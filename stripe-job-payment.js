@@ -1,25 +1,26 @@
 (() => {
 'use strict';
-const sb=window.MobileMechanicSupabase;
-const DBKEY='mobile_mechanic_ai_approved_v7';
-let busy=false;
-function cache(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
-function ctx(){const c=cache(),sid=c.session?.shopId,shop=sid?c.shops?.[sid]:null,jobId=c.session?.activeJobId||null,job=shop?.jobs?.find?.(j=>j.id===jobId)||null;return {sid,shop,jobId,job};}
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function money(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0));}
-function toast(msg,type=''){document.querySelector('.stripe-job-toast')?.remove();const d=document.createElement('div');d.className=`toast stripe-job-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4500);}
-function approvedAmount(job){const key=job?.approval?.option;const opt=key&&job?.estimate?.[key];return opt?{key,title:opt.title||key,price:Number(opt.price||0)}:null;}
-async function invoiceForJob(jobId){const {data,error}=await sb.from('invoices').select('*').eq('job_id',jobId).order('created_at',{ascending:false}).limit(1).maybeSingle();if(error)throw error;return data;}
-async function ensureInvoice(){const {sid,jobId,job}=ctx();if(!sid||!jobId||!job)throw new Error('Open a job first.');let inv=await invoiceForJob(jobId);if(inv)return inv;const approved=approvedAmount(job);if(!approved||approved.price<=0)throw new Error('The customer must approve an estimate option before creating the payment invoice.');const vehicle=[job.vehicle?.year,job.vehicle?.make,job.vehicle?.model,job.vehicle?.engine].filter(Boolean).join(' ');const line=[{description:`${approved.title} repair — ${vehicle||'vehicle service'}`,quantity:1,total:approved.price}];const {data,error}=await sb.from('invoices').insert({shop_id:sid,job_id:jobId,estimate_id:null,status:'draft',line_items:line,subtotal:approved.price,tax:0,total:approved.price,payment_links:{}}).select('*').single();if(error)throw error;return data;}
-async function call(action,invoiceId){const {data,error}=await sb.functions.invoke('stripe-shop-invoice',{body:{action,invoice_id:invoiceId,days_until_due:7}});if(error)throw new Error(error.message||'Stripe invoice request failed.');if(data?.error)throw new Error(data.error);return data;}
-function shareLink(url){const {shop,job}=ctx();const text=`${shop?.name||'Your mechanic'} invoice for ${[job?.vehicle?.year,job?.vehicle?.make,job?.vehicle?.model].filter(Boolean).join(' ')}: ${url}`;if(navigator.share)return navigator.share({title:`Invoice from ${shop?.name||'your mechanic'}`,text,url}).catch(()=>{});return navigator.clipboard?.writeText(text).then(()=>toast('Invoice link copied.','good'));}
-function bodyHtml(inv,status){const approved=approvedAmount(ctx().job);const amount=status?.amount_due??inv?.total??approved?.price??0;const paid=status?.status==='paid'||inv?.status==='paid';const url=status?.hosted_invoice_url||inv?.stripe_hosted_invoice_url||inv?.payment_links?.stripe||'';return `<div class="list-item"><div class="list-main"><b>${paid?'Paid':'Customer payment'} — ${money(amount)}</b><p>${paid?'Stripe confirms this invoice is paid.':url?'Stripe payment page is ready to send to the customer.':'Create the Stripe invoice after the customer approves the repair.'}</p></div><span class="badge ${paid?'green':'red'}">${paid?'PAID':esc(status?.status||inv?.stripe_invoice_status||inv?.status||'draft')}</span></div><div class="btn-row" style="margin-top:8px">${!url&&!paid?'<button class="btn btn-primary" data-stripe-job-create>Create Stripe Invoice</button>':''}${url&&!paid?'<button class="btn btn-primary" data-stripe-job-open>Open Payment Page</button><button class="btn btn-soft" data-stripe-job-share>Share Payment Link</button><button class="btn btn-soft" data-stripe-job-email>Email Through Stripe</button>':''}${inv?.stripe_invoice_id?'<button class="btn btn-soft" data-stripe-job-refresh>Refresh Payment Status</button>':''}${status?.invoice_pdf||inv?.stripe_invoice_pdf?'<button class="btn btn-soft" data-stripe-job-pdf>Invoice PDF</button>':''}</div>`;}
-async function renderPanel(){const shell=document.querySelector('.shell'),banner=document.querySelector('.job-banner');const {sid,jobId,job}=ctx();if(!shell||!banner||!sid||!jobId||!job||!sb){document.querySelector('[data-stripe-job-panel]')?.remove();return;}if(document.querySelector('[data-stripe-job-panel]'))return;const panel=document.createElement('section');panel.className='card card-pad';panel.dataset.stripeJobPanel='1';panel.style.marginTop='10px';panel.innerHTML=`<div class="card-title">CUSTOMER PAYMENT / STRIPE INVOICE</div><div class="section-note">Repair payments go to this shop's connected Stripe account. Mobile Mechanic AI subscription billing stays separate.</div><div class="divider"></div><div data-stripe-job-body><span class="muted">Checking invoice…</span></div>`;const content=document.querySelector('.content');content?.appendChild(panel);try{const inv=await invoiceForJob(jobId);if(!inv){const a=approvedAmount(job);panel.querySelector('[data-stripe-job-body]').innerHTML=a?bodyHtml(null,{status:'ready',amount_due:a.price}):`<div class="alert">Customer authorization is required before a Stripe payment invoice can be created.</div>`;return;}let status=null;if(inv.stripe_invoice_id){try{status=await call('status',inv.id);}catch(e){console.warn('Stripe invoice status:',e);}}panel.querySelector('[data-stripe-job-body]').innerHTML=bodyHtml(inv,status);}catch(err){panel.querySelector('[data-stripe-job-body]').innerHTML=`<div class="alert bad">${esc(err.message||err)}</div>`;}}
-async function rerender(){document.querySelector('[data-stripe-job-panel]')?.remove();await renderPanel();}
-async function createInvoice(){if(busy)return;busy=true;try{const inv=await ensureInvoice();const data=await call('create',inv.id);toast('Stripe payment invoice created.','good');await rerender();if(data.hosted_invoice_url)shareLink(data.hosted_invoice_url);}catch(err){toast(err.message||'Could not create Stripe invoice.','bad');}finally{busy=false;}}
-async function refresh(){if(busy)return;busy=true;try{const {jobId}=ctx(),inv=await invoiceForJob(jobId);if(!inv)throw new Error('No invoice exists for this job yet.');await call('status',inv.id);await rerender();toast('Payment status refreshed.','good');}catch(err){toast(err.message||'Could not refresh payment status.','bad');}finally{busy=false;}}
-async function sendEmail(){if(busy)return;busy=true;try{const {jobId,job}=ctx(),inv=await invoiceForJob(jobId);if(!inv?.stripe_invoice_id)throw new Error('Create the Stripe invoice first.');if(!job?.email)throw new Error('This customer does not have an email address saved. Use Share Payment Link instead.');await call('send',inv.id);toast(`Stripe emailed the invoice to ${job.email}.`,'good');await rerender();}catch(err){toast(err.message||'Could not email Stripe invoice.','bad');}finally{busy=false;}}
-async function currentInvoice(){const {jobId}=ctx();return jobId?invoiceForJob(jobId):null;}
-document.addEventListener('click',async e=>{if(e.target.closest?.('[data-stripe-job-create]')){e.preventDefault();return createInvoice();}if(e.target.closest?.('[data-stripe-job-refresh]')){e.preventDefault();return refresh();}if(e.target.closest?.('[data-stripe-job-email]')){e.preventDefault();return sendEmail();}if(e.target.closest?.('[data-stripe-job-open]')){e.preventDefault();const inv=await currentInvoice();const u=inv?.stripe_hosted_invoice_url||inv?.payment_links?.stripe;if(u)window.open(u,'_blank','noopener');return;}if(e.target.closest?.('[data-stripe-job-share]')){e.preventDefault();const inv=await currentInvoice();const u=inv?.stripe_hosted_invoice_url||inv?.payment_links?.stripe;if(u)shareLink(u);return;}if(e.target.closest?.('[data-stripe-job-pdf]')){e.preventDefault();const inv=await currentInvoice();if(inv?.stripe_invoice_pdf)window.open(inv.stripe_invoice_pdf,'_blank','noopener');}},true);
-new MutationObserver(()=>setTimeout(renderPanel,0)).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('hashchange',()=>setTimeout(rerender,80));setTimeout(renderPanel,500);
+
+// Legacy filename retained only so older cached HTML cannot resurrect the old
+// Stripe-only repair-payment panel. Customer repair payments now follow the
+// shop's actual payment processor record (Square for Autotechniques).
+function removeLegacyRepairPaymentPanel(){
+  document.querySelectorAll('[data-stripe-job-panel], .stripe-job-toast').forEach(el=>el.remove());
+
+  // Defensive cleanup for a panel rendered by an older cached script before
+  // this cleanup file loads.
+  document.querySelectorAll('section.card, .card').forEach(el=>{
+    const text=(el.textContent||'').replace(/\s+/g,' ').trim();
+    if(/CUSTOMER PAYMENT\s*\/\s*STRIPE INVOICE/i.test(text) ||
+       /Create Stripe Invoice/i.test(text) ||
+       /Stripe payment page is ready/i.test(text)){
+      el.remove();
+    }
+  });
+}
+
+removeLegacyRepairPaymentPanel();
+new MutationObserver(removeLegacyRepairPaymentPanel).observe(document.documentElement,{childList:true,subtree:true});
+document.addEventListener('DOMContentLoaded',removeLegacyRepairPaymentPanel);
+window.addEventListener('hashchange',()=>setTimeout(removeLegacyRepairPaymentPanel,0));
 })();
