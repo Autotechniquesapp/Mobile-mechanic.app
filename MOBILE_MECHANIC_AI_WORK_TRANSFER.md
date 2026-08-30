@@ -2,7 +2,7 @@
 
 ## Core direction
 
-Build **Mobile Mechanic AI** as a low-cost, multi-shop automotive web application hosted at `mobile-mechanic.app` on Netlify. It is intended for independent mobile mechanics, repair shops, and eventually fleet/roadside operations. The app should be a practical technician assistant, not an overloaded traditional CRM.
+Build **Mobile Mechanic AI** as a low-cost, multi-shop automotive web application hosted at `mobile-mechanic.app` with GitHub Pages. It is intended for independent mobile mechanics, repair shops, and eventually fleet/roadside operations. The app should be a practical technician assistant, not an overloaded traditional CRM.
 
 ## Approved visual design is mandatory
 
@@ -609,25 +609,22 @@ Shop should be able to export its own:
 
 Shop owns its business records. It receives a license to use Mobile Mechanic AI while authorized but does not own/copy/resell the platform software.
 
-## Netlify / domain / cost strategy
+## Hosting / domain / cost strategy
 
 Current domain: `mobile-mechanic.app`
 
-Domain was obtained through WordPress/domain services and DNS points to Netlify. That arrangement can remain. Do not move DNS unnecessarily.
-
-Current testing can continue with Netlify Drop. GitHub is not required for manual testing.
+Production hosting and deployment use GitHub Pages from the `main` branch. DNS for `mobile-mechanic.app` must point only to the active GitHub Pages deployment. Do not add or restore another hosting provider.
 
 Keep operating costs minimal so subscriptions pay for the platform.
 
 Recommended lean production stack:
-- Netlify for hosting/functions
+- GitHub Pages for frontend hosting and Supabase Edge Functions for server-side operations
 - Supabase for auth/database/storage
 - Stripe for subscriptions
 - NHTSA vPIC for basic free VIN decode where sufficient
 - targeted YouTube search links rather than a paid video integration at first
 - paid AI/VIN/plate/SMS/CARFAX/parts APIs only when revenue justifies them
 
-The user does not want unnecessary Netlify extensions or subscriptions.
 
 ## Security rules
 
