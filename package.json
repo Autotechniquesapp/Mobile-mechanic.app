@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "serve": "python3 -m http.server 8888",
-    "check": "node --check app.js"
+    "check": "node --check app.js && node --check service-information.js && node --test test/service-information.test.js"
   }
 }

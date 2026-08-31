@@ -189,6 +189,7 @@ function dashboard(){
       <button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>
       <button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>
       <button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>
+      <button class="dash-action" data-route="service-info">${ic('book')}<div><b>SERVICE INFO</b><span>Procedures, specs, TSBs + diagrams</span></div></button>
       <button class="dash-action" data-route="fleet">${ic('truck')}<div><b>FLEET</b><span>Units + service</span></div></button>
       <button class="dash-action" data-route="roadside">${ic('tow')}<div><b>ROADSIDE</b><span>Tow handoff</span></div></button>
     </div>
@@ -273,7 +274,7 @@ function workup(jobId){
   <div class="work-card" style="margin-top:8px"><h3>Good / Better / Best — Technician Reviews Before Sending</h3><div class="estimate-options">${Object.entries(est).map(([k,o])=>`<div class="estimate-card ${k}"><b>${esc(o.title)}</b><strong>${money(o.price)}</strong><p>${esc(o.summary)}</p></div>`).join('')}</div><div class="btn-row" style="margin-top:9px"><button class="btn btn-primary" data-action="save-estimate" data-job="${j.id}">${ic('money')} Save Estimate Options</button><button class="btn btn-soft" data-action="send-estimate" data-job="${j.id}">${ic('send')} Send to Customer</button><button class="btn btn-soft" data-action="single-estimate" data-job="${j.id}">Send One Option Instead</button></div></div>
   <div class="work-card" style="margin-top:8px"><h3>Repair Videos — Exact Vehicle Context</h3><p class="muted" style="margin:0 0 8px">YouTube is a visual aid only. Verify procedures, torque specifications, safety information, and service data independently.</p><div class="video-list">${[['Exact vehicle + complaint',exactVideoQuery(j,'diagnosis repair')],['Repair procedure',exactVideoQuery(j,'repair procedure how to')],['Diagnostic code / testing',exactVideoQuery(j,`${j.codes||''} diagnosis testing`)]].slice(0,2).map(([t,q])=>`<button class="video-card" data-external="${esc(youtubeLink(q))}" style="text-align:left;color:inherit"><div class="video-thumb">${ic('play')}</div><div><b>${esc(t)}</b><span>${esc(q.slice(0,88))}</span></div></button>`).join('')}</div><div class="btn-row" style="margin-top:8px"><button class="btn btn-soft" data-external="${esc(youtubeLink(exactVideoQuery(j,'repair diagnosis')))}">${ic('play')} Find More YouTube Videos</button></div></div>
   </section>
-  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
+  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="service-info">${ic('book')} Service Information</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
   shopShell(content,'jobs');
 }
 
@@ -420,6 +421,12 @@ function exportData(){
   const content=`${pageTitle('Shop Data Export','A shop can export its customers, vehicles, jobs, invoices, and service records.')}
   <section class="card card-pad"><div class="card-title">${ic('upload')} EXPORT ${esc(s.name).toUpperCase()}</div><div class="section-note">The shop owns its business records. Subscription access does not transfer ownership of Mobile Mechanic AI software.</div><div class="divider"></div><button class="btn btn-primary" data-action="export-json">Download Shop Data (JSON)</button></section>`;
   shopShell(content,'more');
+}
+function serviceInfo(){
+  const s=currentShop(),j=jobById(db.session?.activeJobId)||s.jobs?.[0]||null;
+  const content=`${pageTitle('Service Information','Vehicle-specific procedures, specifications, bulletins, diagrams, and quick service.','dashboard')}<div id="serviceInformationRoot"></div>`;
+  shopShell(content,'more');
+  window.MobileMechanicServiceInformation?.render(document.getElementById('serviceInformationRoot'),{shop:s,job:j});
 }
 
 function platformAdmin(){
@@ -583,7 +590,7 @@ function render(route=hashRoute()){
   }
   if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
   if(db.session?.role!=='shop'||!currentShop())return login();
-  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,export:exportData};
+  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
   (routes[route]||dashboard)();
 }
 
