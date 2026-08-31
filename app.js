@@ -189,6 +189,7 @@ function dashboard(){
       <button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>
       <button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>
       <button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>
+      <button class="dash-action" type="button" data-open-invoices>${ic('money')}<div><b>OPEN INVOICES</b><span data-open-invoices-summary>View unpaid customer invoices</span></div></button>
       <button class="dash-action" data-route="service-info">${ic('book')}<div><b>SERVICE INFO</b><span>Procedures, specs, TSBs + diagrams</span></div></button>
       <button class="dash-action" data-route="fleet">${ic('truck')}<div><b>FLEET</b><span>Units + service</span></div></button>
       <button class="dash-action" data-route="roadside">${ic('tow')}<div><b>ROADSIDE</b><span>Tow handoff</span></div></button>
