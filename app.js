@@ -9,6 +9,31 @@ const plans = {
   shop: {name:'Shop', price:69.99, seats:5, label:'Small repair shop'},
   pro:  {name:'Pro / Fleet', price:129.99, seats:15, label:'Larger shop / fleet'}
 };
+const repairSpecialties = [
+  ['automotive','Automotive / Mobile Mechanic'],['diesel','Diesel & Heavy-Duty Truck'],['fleet','Fleet Maintenance'],
+  ['truck_trailer','Truck & Trailer'],['agriculture','Agricultural Equipment'],['construction','Construction / Heavy Equipment'],
+  ['rv','RV & Camper'],['powersports','Motorcycle / ATV / Powersports'],['marine','Marine / Boat'],
+  ['tow','Tow Truck'],['emergency','Fire Truck / Ambulance'],['small_engine','Small Engine / Outdoor Equipment'],
+  ['multi_location','Multi-Location / Enterprise'],['custom','Other / Custom Specialty']
+];
+const shopModules = [
+  ['work_orders','Work Orders'],['estimates','Estimates & Invoices'],['inventory','Parts Inventory'],
+  ['inspections','Digital Inspections'],['scheduling','Scheduling'],['reporting','Reporting'],
+  ['time_clock','Time Clock'],['customer_portal','Customer Portal'],['accounting','Accounting & Bookkeeping'],
+  ['ai','AI Diagnostics / Shop Coach']
+];
+const defaultSpecialties = ['automotive'];
+const defaultModules = shopModules.map(([code])=>code);
+function checkedCards(name,items,selected=[]){
+  return `<div class="plan-cards config-cards">${items.map(([code,label])=>`<label class="plan-card"><input type="checkbox" name="${name}" value="${code}" ${selected.includes(code)?'checked':''}><b>${esc(label)}</b></label>`).join('')}</div>`;
+}
+function ensureShopConfig(s){
+  s.specialties=Array.isArray(s.specialties)?s.specialties:[...defaultSpecialties];
+  s.modules=Array.isArray(s.modules)?s.modules:[...defaultModules];
+  s.customSpecialty=s.customSpecialty||'';
+  s.assetLabel=s.assetLabel||'Vehicle / Equipment';
+  return s;
+}
 
 const defaultDB = () => ({
   platformOwner: {id:'adm_owner',name:'Platform Owner', email:'master@mobile-mechanic.app', password:'MasterDemo2026!', role:'platform_owner', active:true},
@@ -72,6 +97,7 @@ function seedDemo(){
     plan:'pro', trialStarted:nowISO(), trialEnds:trialEnd, subscriptionStatus:'trialing', comped:false, setupComplete:true,
     logo:null, theme:{accent:'#ef2a31',background:'dark',style:'vibrant'},
     settings:{laborRate:75,taxRate:8.4,partsMarkup:25,travelFee:35,freeRadius:10,depositPercent:60},
+    specialties:['automotive','diesel','fleet'], modules:[...defaultModules], customSpecialty:'', assetLabel:'Vehicle / Equipment',
     terms:{version:TERMS_VERSION,acceptedAt:nowISO()},
     users:[
       {id:'usr_demo_owner',name:'Chris Anderson',email:'demo@mobile-mechanic.app',password:'DemoShop2026!',role:'owner',active:true},
@@ -147,7 +173,7 @@ function signup(){
 }
 
 function setup(){
-  const s=currentShop(); if(!s) return login();
+  const s=ensureShopConfig(currentShop()); if(!s) return login();
   const agreements=[
     ['AI tools provide suggestions, not answers.','AI tools in this app provide suggestions and information only. They are not a substitute for professional training, experience, or service information.','brain'],
     ['Use your own professional judgment.','I will use my own professional judgment to verify diagnoses, procedures, parts compatibility, labor times, specifications, and pricing before performing any work.','user'],
@@ -160,6 +186,7 @@ function setup(){
     <div class="setup-header"><div class="setup-brand">${logo(s)}<div><h1>Mobile<br><span>Mechanic</span> AI</h1><p>Work Smarter. Fix Faster. Get Paid.</p></div></div><div class="theme-compact">🎨 <span>Theme<br><b>Customize</b></span> ›</div></div>
     <div class="setup-grid"><div class="setup-main">
       <section class="card identity-card"><div class="identity-top"><div><div class="card-title">MAKE IT YOURS</div><div class="section-note">Add your business identity that will appear on estimates, invoices, and reports.</div></div><div class="logo-upload"><label class="upload-box">${ic('camera')}<input id="logoFile" type="file" accept="image/png,image/jpeg" hidden></label><div class="logo-upload-text"><b>Add Your Logo</b><p>PNG or JPG<br>Recommended 512×512</p><button class="btn btn-danger" type="button" data-action="trigger-logo">Upload Logo</button></div></div></div><div class="row2" style="margin-top:12px"><div class="field"><input id="setupShopName" value="${esc(s.name)}" placeholder="Business / Shop Name"></div><div class="field"><input id="setupTechName" value="${esc(currentUser()?.name||'')}" placeholder="Your Name (Technician)"></div><div class="field"><input id="setupPhone" value="${esc(s.phone||'')}" placeholder="Phone Number"></div><div class="field"><input id="setupEmail" value="${esc(s.email||'')}" placeholder="Email Address"></div></div></section>
+      <section class="card card-pad"><div class="card-title">WHAT DOES YOUR BUSINESS SERVICE?</div><div class="section-note">Choose any that apply. These choices can be changed later without deleting any records.</div><div class="divider"></div>${checkedCards('setupSpecialties',repairSpecialties,s.specialties)}<div class="row2" style="margin-top:10px"><div class="field"><label>Custom Specialty (optional)</label><input id="setupCustomSpecialty" value="${esc(s.customSpecialty)}" placeholder="Hydraulics, generators, industrial equipment…"></div><div class="field"><label>What should the app call each unit?</label><select id="setupAssetLabel">${['Vehicle / Equipment','Vehicle','Equipment','Unit','Machine','Asset'].map(x=>`<option ${s.assetLabel===x?'selected':''}>${x}</option>`).join('')}</select></div></div><div class="divider"></div><div class="card-title">TOOLS TO TURN ON</div><div class="section-note">Optional modules can also be changed later.</div>${checkedCards('setupModules',shopModules,s.modules)}</section>
       <section class="card agreements"><div class="card-title">${ic('shield')} PROFESSIONAL RESPONSIBILITY AGREEMENTS</div><div class="section-note red">You are the professional. You are in control.</div><div class="divider"></div>${agreements.map((a,i)=>`<label class="agreement-row"><input class="check-square agreement-check" type="checkbox" value="professional-${i}"><div><b>${a[0]}</b><p>${a[1]}</p></div><div class="agreement-art">${ic(a[2])}</div></label>`).join('')}</section>
       <section class="card agreements"><div class="card-title">${ic('report')} LEGAL & COPYRIGHT AGREEMENTS</div><div class="section-note red">Please review and acknowledge the following.</div><div class="divider"></div>
         ${[['I have read and agree to the','Terms of Service'],['I have read and agree to the','Privacy Policy'],['I agree to the','Data Collection & Use Policy'],['I agree that all content, features, and materials in this app, including AI outputs, are the property of Mobile Mechanic AI and are protected by applicable intellectual-property laws.',''],['I agree not to copy, reproduce, modify, distribute, sell, or reverse engineer any part of this app.','']].map((a,i)=>`<label class="legal-row"><input class="check-square agreement-check" type="checkbox" value="legal-${i}"><span>${a[0]} ${a[1]?`<span class="red">${a[1]}</span>`:''}</span><span class="chev">›</span></label>`).join('')}
@@ -368,8 +395,9 @@ function billing(blocked=false){
   shopShell(content,'more');
 }
 function settings(){
-  const s=currentShop();
+  const s=ensureShopConfig(currentShop());
   const content=`${pageTitle('Business Settings','Shop branding, pricing, travel, markup, deposit, and intake identity.','more')}
+  <form id="businessTypesForm"><section class="card card-pad"><div class="card-title">BUSINESS TYPES & TERMINOLOGY</div><div class="section-note">Change these at any time. Existing customers, jobs, invoices, and equipment are kept.</div><div class="divider"></div>${checkedCards('specialties',repairSpecialties,s.specialties)}<div class="row2" style="margin-top:10px"><div class="field"><label>Custom Specialty</label><input name="customSpecialty" value="${esc(s.customSpecialty)}" placeholder="Optional"></div><div class="field"><label>Unit Name</label><select name="assetLabel">${['Vehicle / Equipment','Vehicle','Equipment','Unit','Machine','Asset'].map(x=>`<option ${s.assetLabel===x?'selected':''}>${x}</option>`).join('')}</select></div></div></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">OPTIONAL MODULES</div><div class="section-note">Turning one off hides it; it does not erase its data.</div><div class="divider"></div>${checkedCards('modules',shopModules,s.modules)}<button class="btn btn-primary" style="margin-top:12px">Save Business Types & Tools</button></section></form>
   <form id="settingsForm"><section class="card card-pad"><div class="card-title">SHOP PROFILE</div><div class="divider"></div><div class="row2"><div class="field"><label>Shop Name</label><input name="name" value="${esc(s.name)}"></div><div class="field"><label>Public Phone</label><input name="phone" value="${esc(s.phone||'')}"></div></div><div class="row2"><div class="field"><label>Shop Slug</label><input name="slug" value="${esc(s.slug)}"></div><div class="field"><label>Primary Shop Email</label><input name="email" value="${esc(s.email||'')}"></div></div><div class="field"><label>Mobile Mechanic AI Shop Identity</label><input value="${esc(s.slug)}@mobile-mechanic.app" readonly><small>App identity/alias for routing and branding; not a paid mailbox unless email hosting is added later.</small></div></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">PRICING DEFAULTS</div><div class="divider"></div><div class="row3"><div class="field"><label>Labor Rate / hr</label><input name="laborRate" type="number" step=".01" value="${s.settings.laborRate}"></div><div class="field"><label>Tax %</label><input name="taxRate" type="number" step=".01" value="${s.settings.taxRate}"></div><div class="field"><label>Parts Markup %</label><input name="partsMarkup" type="number" step=".01" value="${s.settings.partsMarkup}"></div></div><div class="row3"><div class="field"><label>Travel Fee</label><input name="travelFee" type="number" step=".01" value="${s.settings.travelFee}"></div><div class="field"><label>Free Radius (mi)</label><input name="freeRadius" type="number" value="${s.settings.freeRadius}"></div><div class="field"><label>Default Deposit %</label><input name="depositPercent" type="number" value="${s.settings.depositPercent}"></div></div><button class="btn btn-primary">Save Shop Settings</button></section></form>
   <section class="card card-pad" style="margin-top:10px"><div class="card-title">SHOP INTAKE IDENTITY</div><div class="section-note">Customers use this shop-specific link: <span class="red">${esc(intakeUrl(s))}</span></div><div class="divider"></div><button class="btn btn-soft" data-route="send-intake">Manage / Share Intake Link</button></section>`;
   shopShell(content,'more');
@@ -474,7 +502,7 @@ function bind(){
     e.preventDefault(); const d=Object.fromEntries(new FormData(e.currentTarget));
     if(Object.values(db.shops).some(s=>s.users.some(u=>u.email.toLowerCase()===d.email.toLowerCase()))) return toast('That email is already in use.','bad');
     const id=uid('shop'), userId=uid('usr'), slugBase=slugify(d.shopName); let slug=slugBase,n=2; while(Object.values(db.shops).some(s=>s.slug===slug))slug=`${slugBase}-${n++}`;
-    db.shops[id]={id,slug,name:d.shopName,ownerName:d.ownerName,phone:d.phone,email:d.email,plan:d.plan,trialStarted:nowISO(),trialEnds:new Date(Date.now()+60*86400000).toISOString(),subscriptionStatus:'trialing',comped:false,setupComplete:false,logo:null,theme:{accent:'#ef2a31',background:'dark',style:'vibrant'},settings:{laborRate:75,taxRate:0,partsMarkup:25,travelFee:0,freeRadius:10,depositPercent:60},terms:null,users:[{id:userId,name:d.ownerName,email:d.email,password:d.password,role:'owner',active:true}],customers:[],jobs:[],inspections:[],warranties:[],declined:[],receipts:[],fleet:[]};
+    db.shops[id]={id,slug,name:d.shopName,ownerName:d.ownerName,phone:d.phone,email:d.email,plan:d.plan,trialStarted:nowISO(),trialEnds:new Date(Date.now()+60*86400000).toISOString(),subscriptionStatus:'trialing',comped:false,setupComplete:false,logo:null,theme:{accent:'#ef2a31',background:'dark',style:'vibrant'},settings:{laborRate:75,taxRate:0,partsMarkup:25,travelFee:0,freeRadius:10,depositPercent:60},specialties:[...defaultSpecialties],modules:[...defaultModules],customSpecialty:'',assetLabel:'Vehicle / Equipment',terms:null,users:[{id:userId,name:d.ownerName,email:d.email,password:d.password,role:'owner',active:true}],customers:[],jobs:[],inspections:[],warranties:[],declined:[],receipts:[],fleet:[]};
     db.session={role:'shop',shopId:id,userId,activeJobId:null};save();location.hash='#setup';setup();
   });
 
@@ -482,7 +510,7 @@ function bind(){
   document.getElementById('logoFile')?.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{currentShop().logo=r.result;save();setup();}; r.readAsDataURL(f); });
   document.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{currentShop().theme.accent=b.dataset.color;save();document.documentElement.style.setProperty('--red',b.dataset.color);document.querySelectorAll('[data-color]').forEach(x=>x.classList.toggle('active',x===b));});
   document.querySelector('[data-action="accept-all"]')?.addEventListener('click',()=>{
-    document.querySelectorAll('.agreement-check').forEach(c=>c.checked=true); const s=currentShop(); s.name=document.getElementById('setupShopName').value.trim()||s.name;s.phone=document.getElementById('setupPhone').value.trim();s.email=document.getElementById('setupEmail').value.trim()||s.email; const u=currentUser(); if(u)u.name=document.getElementById('setupTechName').value.trim()||u.name;s.setupComplete=true;s.terms={version:TERMS_VERSION,acceptedAt:nowISO(),userId:u?.id};save();toast('Agreements recorded for this prototype.','good');setTimeout(()=>go('dashboard'),450);
+    document.querySelectorAll('.agreement-check').forEach(c=>c.checked=true); const s=currentShop(); s.name=document.getElementById('setupShopName').value.trim()||s.name;s.phone=document.getElementById('setupPhone').value.trim();s.email=document.getElementById('setupEmail').value.trim()||s.email;s.specialties=[...document.querySelectorAll('input[name="setupSpecialties"]:checked')].map(x=>x.value);s.modules=[...document.querySelectorAll('input[name="setupModules"]:checked')].map(x=>x.value);s.customSpecialty=document.getElementById('setupCustomSpecialty')?.value.trim()||'';s.assetLabel=document.getElementById('setupAssetLabel')?.value||'Vehicle / Equipment';if(!s.specialties.length)return toast('Choose at least one business specialty.','bad'); const u=currentUser(); if(u)u.name=document.getElementById('setupTechName').value.trim()||u.name;s.setupComplete=true;s.terms={version:TERMS_VERSION,acceptedAt:nowISO(),userId:u?.id};save();toast('Shop setup saved. You can change it later in Settings.','good');setTimeout(()=>go('dashboard'),450);
   });
 
   document.getElementById('intakeForm')?.addEventListener('submit',e=>{
@@ -563,6 +591,7 @@ function bind(){
   document.getElementById('resetPassForm')?.addEventListener('submit',e=>{e.preventDefault();const u=currentShop().users.find(x=>x.id===e.currentTarget.dataset.user);u.password=new FormData(e.currentTarget).get('password');save();document.querySelector('.modal-backdrop')?.remove();toast('Temporary password updated.','good');});
 
   document.getElementById('settingsForm')?.addEventListener('submit',e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget)),s=currentShop();s.name=d.name.trim()||s.name;s.phone=d.phone.trim();s.email=d.email.trim();s.slug=slugify(d.slug)||s.slug;s.settings={...s.settings,laborRate:+d.laborRate||0,taxRate:+d.taxRate||0,partsMarkup:+d.partsMarkup||0,travelFee:+d.travelFee||0,freeRadius:+d.freeRadius||0,depositPercent:+d.depositPercent||0};save();toast('Shop settings saved.','good');settings();});
+  document.getElementById('businessTypesForm')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),s=currentShop(),specialties=fd.getAll('specialties');if(!specialties.length)return toast('Choose at least one business specialty.','bad');s.specialties=specialties;s.modules=fd.getAll('modules');s.customSpecialty=(fd.get('customSpecialty')||'').trim();s.assetLabel=fd.get('assetLabel')||'Vehicle / Equipment';save();toast('Business types updated. Existing records were kept.','good');settings();});
   document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>{const s=currentShop();s.plan=b.dataset.plan;s.subscriptionStatus='active';save();toast(`${plans[s.plan].name} selected for prototype. Production will open Stripe checkout.`, 'good');billing();});
 
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{const s=db.shops[b.dataset.shop];if(!s)return;if(b.dataset.admin==='open'&&platformCan('shops_open')){logAdmin('Opened shop workspace',s.id);const pu=platformUser();const owner=s.users.find(x=>x.role==='owner')||s.users[0];db.session={role:'shop',shopId:s.id,userId:owner.id,supportMode:true,platformReturn:{role:pu.role==='platform_owner'?'platform_owner':'platform_admin',adminId:pu.id}};save();return dashboard();}if(b.dataset.admin==='extend'&&platformCan('trial_extend')){s.trialEnds=new Date(Math.max(Date.now(),new Date(s.trialEnds).getTime())+30*86400000).toISOString();if(s.subscriptionStatus==='suspended')s.subscriptionStatus='trialing';logAdmin('Extended trial 30 days',s.id);toast('Trial extended 30 days.','good');platformAdmin();}if(b.dataset.admin==='comp'&&platformCan('comp')){s.comped=!s.comped;s.subscriptionStatus=s.comped?'active':'trialing';logAdmin(s.comped?'Comped shop account':'Removed comp',s.id);platformAdmin();}if(b.dataset.admin==='suspend'&&platformCan('suspend')){s.subscriptionStatus=s.subscriptionStatus==='suspended'?'trialing':'suspended';logAdmin(s.subscriptionStatus==='suspended'?'Suspended shop':'Reactivated shop',s.id);platformAdmin();}});
