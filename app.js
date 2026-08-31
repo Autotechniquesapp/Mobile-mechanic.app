@@ -41,7 +41,11 @@ function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON
 function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
 function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function toast(msg,type=''){ document.querySelector('.toast')?.remove(); const d=document.createElement('div'); d.className=`toast ${type}`; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2700); }
-function go(name, params={}){ location.hash = '#'+name; render(name,params); }
+function go(name){
+  const next='#'+name;
+  if(location.hash===next) return render(name);
+  location.hash=next;
+}
 function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
 function pathIntakeSlug(){
   const parts=location.pathname.split('/').filter(Boolean);
@@ -234,7 +238,7 @@ function jobs(){
   const s=currentShop();
   const content=`${pageTitle('Jobs','Intake → diagnosis → estimate → approval → invoice')}
   <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Intake</button><button class="btn btn-soft" data-route="quote">${ic('money')} Quick Quote</button></div>
-  <div class="list">${s.jobs.map(j=>`<button class="list-item" style="width:100%;color:inherit;text-align:left" data-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></button>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
+  <div class="list">${s.jobs.map(j=>`<div class="list-item job-list-item" role="button" tabindex="0" style="width:100%;color:inherit;text-align:left" data-open-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></div>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
   shopShell(content,'jobs');
 }
 
@@ -443,8 +447,6 @@ function addVehicle(customerId){
 function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close-modal">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); }
 
 function bind(){
-  document.querySelectorAll('[data-route]').forEach(el=>el.onclick=()=>go(el.dataset.route));
-  document.querySelectorAll('[data-job]').forEach(el=>el.onclick=()=>workup(el.dataset.job));
   document.querySelectorAll('[data-external]').forEach(el=>el.onclick=()=>window.open(el.dataset.external,'_blank','noopener'));
 
   document.querySelector('[data-action="login"]')?.addEventListener('click',()=>{
@@ -571,6 +573,29 @@ function bind(){
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
   document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
 }
+
+// Route and job navigation use delegation so controls injected after a render
+// (pricing, integrations, admin helpers, etc.) work without another bind pass.
+document.addEventListener('click',e=>{
+  const route=e.target.closest?.('[data-route]');
+  if(route){
+    e.preventDefault();
+    go(route.dataset.route);
+    return;
+  }
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && !e.target.closest?.('button,a,input,select,textarea')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
+document.addEventListener('keydown',e=>{
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && (e.key==='Enter'||e.key===' ')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
 
 function setupSpeech(selector,targetId){
   const b=document.querySelector(selector);if(!b)return;b.onclick=async()=>{const el=document.getElementById(targetId),SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){el?.focus();return toast('Browser voice is unavailable. Tap the microphone on your Android keyboard to dictate here.','bad');}try{if(navigator.mediaDevices?.getUserMedia){const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());}}catch(err){el?.focus();const blocked=err?.name==='NotAllowedError'||err?.name==='SecurityError';return toast(blocked?'Microphone permission was denied. Open this site’s permissions in Chrome and set Microphone to Allow.':'The phone microphone could not be opened. Close other apps using it and try again.','bad');}const r=new SR();let heard=false;r.lang='en-US';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;b.classList.add('listening');r.onresult=e=>{let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)final+=t;else interim+=t;}if(final.trim()){heard=true;el.value=(el.value?el.value+' ':'')+final.trim();el.dispatchEvent(new Event('input',{bubbles:true}));toast('Voice added.','good');}else if(interim.trim())toast(`Listening… ${interim.trim()}`);};r.onerror=e=>{b.classList.remove('listening');const messages={'not-allowed':'Microphone permission is blocked. Allow microphone access for this site, then try again.','service-not-allowed':'Android speech service is blocked. Enable Google voice typing or use the keyboard microphone.','no-speech':'I did not hear anything. Move closer and tap the microphone again.','audio-capture':'The phone microphone is unavailable or another app is using it.','network':'Android voice transcription could not reach its speech service. Check your connection or use the keyboard microphone.','aborted':'Voice input was stopped.'};el?.focus();toast(messages[e.error]||`Voice stopped (${e.error||'unknown'}). Use the Android keyboard microphone if it continues.`,'bad');};r.onend=()=>{b.classList.remove('listening');if(!heard)el?.focus();};try{r.start();toast('Listening… speak now.');}catch{b.classList.remove('listening');el?.focus();toast('Could not start voice. Tap the microphone on your Android keyboard.','bad');}};
