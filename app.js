@@ -448,7 +448,10 @@ function addVehicle(customerId){
   const s=currentShop(),c=s.customers.find(x=>x.id===customerId); if(!c)return;
   modal('Add Vehicle',`<form id="addVehicleForm" data-customer="${c.id}"><div class="row2"><div class="field"><label>Year</label><select name="year">${yearOptions()}</select></div><div class="field"><label>Make</label><input name="make" required></div></div><div class="row2"><div class="field"><label>Model</label><input name="model" required></div><div class="field"><label>Engine</label><input name="engine"></div></div><div class="field"><label>VIN</label><input name="vin" maxlength="17"></div><button class="btn btn-primary">Save Vehicle</button></form>`);
 }
-function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close-modal">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); }
+function closeModal(){ document.querySelector('.modal-backdrop')?.remove(); }
+function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" type="button" data-action="close-modal" aria-label="Close">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); }
+document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-backdrop');if(e.target.closest?.('[data-action="close-modal"]')||e.target===backdrop)closeModal();},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function bind(){
   document.querySelectorAll('[data-route]').forEach(el=>el.onclick=()=>go(el.dataset.route));
@@ -574,7 +577,7 @@ function bind(){
   document.querySelector('[data-action="export-json"]')?.addEventListener('click',()=>{const s=currentShop(),blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${s.slug}-mobile-mechanic-ai-export.json`;a.click();URL.revokeObjectURL(a.href);});
   document.querySelector('[data-action="save-ppi"]')?.addEventListener('click',()=>toast('PPI draft saved in prototype workflow.','good'));
   document.querySelectorAll('[data-action="not-connected"]').forEach(b=>b.onclick=()=>toast('This secure API is not connected in the static prototype.',''));
-  document.querySelector('[data-action="close-modal"]')?.addEventListener('click',()=>document.querySelector('.modal-backdrop')?.remove());
+  document.querySelector('[data-action="close-modal"]')?.addEventListener('click',closeModal);
   document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
   document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
