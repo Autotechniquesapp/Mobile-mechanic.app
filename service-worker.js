@@ -1,4 +1,4 @@
-const CACHE='mobile-mechanic-ai-shell-v8';
+const CACHE='mobile-mechanic-ai-shell-v9';
 const SHELL=['./','./index.html','./styles.css','./manifest.webmanifest','./app-icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).catch(()=>null));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});
@@ -16,7 +16,7 @@ self.addEventListener('fetch',event=>{
     event.respondWith(fetch(req).then(res=>{if(res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}return res;}).catch(()=>caches.match(req)));
     return;
   }
-  event.respondWith(caches.match(req).then(cached=>cached||fetch(req).then(res=>{if(res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}return res;})));
+  if(url.pathname.endsWith('.css')){event.respondWith(fetch(req).then(res=>{if(res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}return res;}).catch(()=>caches.match(req).then(cached=>cached||caches.match('./styles.css'))));return;} event.respondWith(caches.match(req).then(cached=>cached||fetch(req).then(res=>{if(res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}return res;})));
 });
 self.addEventListener('push',event=>{let data={};try{data=event.data?.json()||{};}catch{data={body:event.data?.text()||'New customer'};}const title=data.title||'Mobile Mechanic AI';const options={body:data.body||'New customer',icon:'./app-icon.svg',badge:'./app-icon.svg',tag:data.tag||'new-customer-intake',renotify:true,vibrate:[220,80,220],data:{url:data.url||'./#dashboard'}};event.waitUntil(self.registration.showNotification(title,options));});
 self.addEventListener('notificationclick',event=>{event.notification.close();const target=new URL(event.notification.data?.url||'./#dashboard',self.location.origin).href;event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows){if('navigate' in client)await client.navigate(target);if('focus' in client)return client.focus();}return self.clients.openWindow(target);})());});
