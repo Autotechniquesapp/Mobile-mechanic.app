@@ -124,13 +124,23 @@ function logo(s, cls=''){ return `<img class="${cls}" src="${esc(s?.logo || 'ass
 function topbar(s,active='dashboard'){
   const u=currentUser();
   return `<header class="topbar">
-    <button class="top-btn" data-action="toggle-menu" aria-label="Menu">${ic('more')}</button>
+    <button class="top-btn menu-toggle" data-action="toggle-menu" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
     <div class="brand" data-route="dashboard">${logo(s)}<div class="brand-copy"><div class="brand-title">Mobile <span class="red">Mechanic</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
     <div class="top-spacer"></div>
     ${db.session?.supportMode?`<button class="btn btn-soft" data-action="return-admin">Return to Admin</button>`:''}
     <div class="shop-pill">${ic('shield')}<span>${esc(s?.name||'Shop')}</span></div>
     <button class="top-btn" data-route="settings" aria-label="Settings">${ic('settings')}</button>
   </header>`;
+}
+function mobileDrawer(s,active){
+  const links=[
+    ['dashboard','home','Dashboard'],['jobs','wrench','Jobs'],['quote','brain','AI Quotes'],
+    ['customers','users','Customers'],['calendar','calendar','Schedule'],['time-clock','clock','Time Clock'],
+    ['reports','report','Reports'],['service-info','book','Resources'],['integrations','settings','Integrations'],
+    ['settings','settings','Settings']
+  ];
+  const role=currentUser()?.role==='owner'?'Shop Owner':currentUser()?.role||'Technician';
+  return `<div class="drawer-backdrop" data-action="close-menu" aria-hidden="true"></div><aside class="mobile-drawer" aria-hidden="true" aria-label="Main navigation"><div class="drawer-head">${logo(s)}<div><b>Mobile Mechanic AI</b><span>${esc(role)}</span></div><button data-action="close-menu" aria-label="Close navigation">×</button></div><nav>${links.map(([r,i,t])=>`<button class="drawer-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span><strong>›</strong></button>`).join('')}</nav><div class="drawer-account"><b>${esc(s.name)}</b><span>${esc(currentUser()?.name||'Technician')} · ${plans[s.plan]?.name||''}</span></div></aside>`;
 }
 function rail(s,active){
   const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']];
@@ -143,7 +153,7 @@ function bottomNav(active){
 function shopShell(content, active='dashboard'){
   const s=currentShop();
   if(!s) return login();
-  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
+  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}${mobileDrawer(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
   bind();
 }
 function pageTitle(title,sub='',back='dashboard'){
@@ -610,7 +620,18 @@ function bind(){
   document.querySelector('[data-action="close-modal"]')?.addEventListener('click',closeModal);
   document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
-  document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
+  document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>{
+    document.body.classList.add('drawer-open');
+    document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','false');
+    document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','false');
+    document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','true');
+  });
+  document.querySelectorAll('[data-action="close-menu"]').forEach(b=>b.addEventListener('click',()=>{
+    document.body.classList.remove('drawer-open');
+    document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','true');
+    document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','true');
+    document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','false');
+  }));
 }
 
 // Route and job navigation use delegation so controls injected after a render
