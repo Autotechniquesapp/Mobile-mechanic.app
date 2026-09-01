@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 30894)
-Total output lines: 680
-
 (() => {
 'use strict';
 
@@ -388,7 +385,24 @@ function timeClock(){
   const open=s.timeEntries.find(x=>x.userId===u.id&&!x.clockOut);
   const visible=roleCan('owner','manager')?s.timeEntries:s.timeEntries.filter(x=>x.userId===u.id);
   const rows=visible.slice().reverse().map(x=>{const tech=s.users.find(y=>y.id===x.userId),end=x.clockOut?new Date(x.clockOut):new Date(),hours=Math.max(0,(end-new Date(x.clockIn))/3600000);return `<div class="list-item"><div class="list-icon">${ic('clock')}</div><div class="list-main"><b>${esc(tech?.name||'Technician')} • ${hours.toFixed(2)} hours</b><p>${new Date(x.clockIn).toLocaleString()} — ${x.clockOut?new Date(x.clockOut).toLocaleString():'Clocked in now'}</p></div></div>`;}).join('');
-  const content=`${pageTitle('Time Clock',roleCan('owner','manager')?'Review team time or clock yourself in.':'Your personal time entries.','more')}<section class="card card-pad"><div class="card-title">${open?'CLOCKED IN':'READY TO CLOCK IN'}</div><div class="section-note">${open?`Started ${new Date(open.clockIn).toLocaleString()}`:'Time is kept separately for each technician.'}</div><div class="divider"></div><button class="btn ${open?'btn-soft':'btn-primary'} btn-wide" data-action="${open?'clock-out':'clock-in'}">${open?'Clock Out':'Clock In'}</button></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">${roleCan('owner','manager')?'TEAM TIME ENTRIES':'MY TIME ENTRIES'}</div><div class="divider"></div><div class="list">${r…894 tokens truncated….join('')||'<div class="muted">No add-ons available for this plan.</div>'}</div></section>`;
+  const content=`${pageTitle('Time Clock',roleCan('owner','manager')?'Review team time or clock yourself in.':'Your personal time entries.','more')}<section class="card card-pad"><div class="card-title">${open?'CLOCKED IN':'READY TO CLOCK IN'}</div><div class="section-note">${open?`Started ${new Date(open.clockIn).toLocaleString()}`:'Time is kept separately for each technician.'}</div><div class="divider"></div><button class="btn ${open?'btn-soft':'btn-primary'} btn-wide" data-action="${open?'clock-out':'clock-in'}">${open?'Clock Out':'Clock In'}</button></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">${roleCan('owner','manager')?'TEAM TIME ENTRIES':'MY TIME ENTRIES'}</div><div class="divider"></div><div class="list">${rows||'<p class="muted">No time entries yet.</p>'}</div></section>`;
+  shopShell(content,'more');
+}
+
+function billing(blocked=false){
+  const s=currentShop();
+  const addonFallback=[
+    {code:'youtube_lookup_pack',name:'YouTube Video Lookup Pack',description:'Adds 50 extra repair video lookups per month for Solo shops.',monthly_price:9.99,quantity:50,unit_label:'lookups/month',available_on_plans:['solo']},
+    {code:'extra_tech_seat',name:'Extra Technician Seat',description:'Adds one more staff login without moving up a full plan.',monthly_price:12,quantity:1,unit_label:'seat',available_on_plans:['solo','shop']},
+    {code:'sms_reminder_pack',name:'SMS Reminder Pack',description:'Adds 100 customer text reminders or updates per month.',monthly_price:14.99,quantity:100,unit_label:'texts/month',available_on_plans:['solo','shop','pro_fleet']},
+    {code:'photo_storage_pack',name:'Photo Storage Pack',description:'Adds more room for before/after photos, receipts, and inspection evidence.',monthly_price:7.99,quantity:5,unit_label:'GB/month',available_on_plans:['solo','shop']}
+  ];
+  const addons=(s.addonCatalog&&s.addonCatalog.length?s.addonCatalog:addonFallback).filter(a=>(a.available_on_plans||[]).includes(s.plan==='pro'?'pro_fleet':s.plan));
+  const activeAddons=s.addons||[];
+  const content=`${pageTitle('Subscription','Stripe billing, trials, plan changes, and add-ons.','more')}${blocked?'<div class="priority-strip">Feature access paused until subscription is active.</div>':''}
+  <div class="metric-grid"><div class="metric red"><b>${plans[s.plan].name}</b><span>Current Plan</span></div><div class="metric green"><b>${s.comped?'Comped':s.subscriptionStatus}</b><span>Status</span></div><div class="metric orange"><b>${trialDays(s)}</b><span>Trial Days</span></div><div class="metric blue"><b>${activeAddons.length}</b><span>Add-ons</span></div></div>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">${ic('money')} PLANS</div><div class="section-note">Stripe checkout is the next live provider connection. No charge is made from these buttons yet.</div><div class="divider"></div><div class="plan-cards">${Object.entries(plans).map(([k,p])=>`<label class="plan-card subscription-card"><input type="radio" name="billingPlan" value="${k}" ${s.plan===k?'checked':''}><h3>${p.name}</h3><div class="price">${money(p.price)}<small>/month</small></div><span>${p.label}<br>Up to ${p.seats} user${p.seats>1?'s':''}</span></label>`).join('')}</div><button class="btn btn-primary" data-action="not-connected">Connect Stripe Checkout</button></section>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">${ic('settings')} SOLO / PLAN ADD-ONS</div><div class="section-note">Add smaller upgrades without forcing a full plan jump. Stripe price IDs will attach here when billing is connected.</div><div class="divider"></div><div class="list">${addons.map(a=>{const active=activeAddons.includes(a.code);return `<div class="list-item"><div class="list-icon">${ic(a.code.includes('youtube')?'play':a.code.includes('sms')?'send':a.code.includes('seat')?'users':'camera')}</div><div class="list-main"><b>${esc(a.name)} ${active?'<span class="badge green">Active</span>':''}</b><p>${esc(a.description)}<br>${money(a.monthly_price)} / mo · ${a.quantity||''} ${esc(a.unit_label||'')}</p><div class="list-actions"><button class="btn ${active?'btn-soft':'btn-primary'}" data-action="toggle-addon" data-addon="${esc(a.code)}">${active?'Remove Add-on':'Add to Plan'}</button></div></div></div>`;}).join('')||'<div class="muted">No add-ons available for this plan.</div>'}</div></section>`;
   shopShell(content,'more');
 }
 function settings(){
