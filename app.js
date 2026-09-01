@@ -124,6 +124,7 @@ function logo(s, cls=''){ return `<img class="${cls}" src="${esc(s?.logo || 'ass
 function topbar(s,active='dashboard'){
   const u=currentUser();
   return `<header class="topbar">
+    <button class="top-btn menu-toggle" data-action="toggle-menu" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
     <div class="brand" data-route="dashboard">${logo(s,'brand-mark')}<div class="brand-copy"><div class="brand-title">MOBILE <span class="red">MECHANIC</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
     <div class="top-spacer"></div>
     ${db.session?.supportMode?`<button class="btn btn-soft" data-action="return-admin">Return to Admin</button>`:''}
