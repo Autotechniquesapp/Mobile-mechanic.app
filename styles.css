@@ -128,3 +128,47 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
   .topbar .brand-title{font-size:14px}
   .topbar .brand{gap:9px}
 }
+
+
+/* Collapsible hover sidebar — 2026-09-01 */
+@media(max-width:880px){
+  .shell{padding-left:68px}
+  .side-rail{
+    width:68px;
+    padding-left:7px;
+    padding-right:7px;
+    overflow:hidden;
+    transition:width .2s ease,box-shadow .2s ease;
+  }
+  .side-rail:hover,
+  .side-rail:focus-within{
+    width:238px;
+    box-shadow:18px 0 48px rgba(0,0,0,.58);
+  }
+  .side-rail .rail-link{
+    min-width:224px;
+    min-height:54px;
+    padding:9px 13px;
+    flex-direction:row;
+    justify-content:flex-start;
+    gap:15px;
+    text-align:left;
+    font-size:14px;
+    white-space:nowrap;
+  }
+  .side-rail .rail-link .svg-icon{
+    width:26px;
+    height:26px;
+    min-width:26px;
+  }
+  .side-rail .rail-link span{
+    opacity:0;
+    transform:translateX(-8px);
+    transition:opacity .14s ease,transform .18s ease;
+  }
+  .side-rail:hover .rail-link span,
+  .side-rail:focus-within .rail-link span{
+    opacity:1;
+    transform:translateX(0);
+  }
+}
