@@ -151,13 +151,7 @@ function pageTitle(title,sub='',back='dashboard'){
 }
 
 function login(){
-  ROOT.innerHTML = `<section class="auth-screen"><div class="auth-card"><div class="auth-logo">${logo(null)}<h1>Mobile <span class="red">Mechanic</span> AI</h1><p>Multi-shop automotive workflow platform</p></div>
-    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div>
-    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div>
-    <button class="btn btn-primary btn-wide" data-action="login">Log In</button>
-    <div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button>
-    <p class="small muted" style="margin:12px 0 0;text-align:center">Accounts are protected by secure Supabase authentication.</p>
-  </div></section>`;
+  ROOT.innerHTML = `<section class="hercules-landing"><header><div class="hercules-brand"><span>${ic('wrench')}</span><b>Mobile Mechanic AI</b></div><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button></header><main><div class="hercules-mark">${ic('wrench')}</div><h1>The AI-Powered<br>Mobile Mechanic Platform</h1><p>Customer sends their info. AI preps you before arrival. You verify onsite by voice. The app handles the rest.</p><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button><div class="hercules-features"><div>${ic('brain')}<span>AI Pre-Workup</span></div><div>${ic('shield')}<span>Customer Intake</span></div><div>${ic('wrench')}<span>Voice Findings</span></div><div>${ic('clock')}<span>Smart Scheduling</span></div></div></main><footer>© 2026 Mobile Mechanic AI — Built for professional technicians</footer><div class="landing-login" aria-hidden="true"><div class="auth-card"><button class="landing-close" data-action="hide-login" aria-label="Close">×</button><div class="auth-logo"><div class="hercules-mark">${ic('wrench')}</div><h2>Sign in</h2><p>Access your Mobile Mechanic AI shop</p></div><div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div><button class="btn btn-primary btn-wide" data-action="login">Sign In</button><div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button></div></div></section>`;
   bind();
 }
 
@@ -487,6 +481,8 @@ document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function bind(){
+  document.querySelectorAll('[data-action="show-login"]').forEach(b=>b.addEventListener('click',()=>{const m=document.querySelector('.landing-login');m?.classList.add('open');m?.setAttribute('aria-hidden','false');setTimeout(()=>document.getElementById('loginEmail')?.focus(),80);}));
+  document.querySelector('[data-action="hide-login"]')?.addEventListener('click',()=>{const m=document.querySelector('.landing-login');m?.classList.remove('open');m?.setAttribute('aria-hidden','true');});
   document.querySelectorAll('[data-external]').forEach(el=>el.onclick=()=>window.open(el.dataset.external,'_blank','noopener'));
 
   document.querySelector('[data-action="login"]')?.addEventListener('click',()=>{
