@@ -222,3 +222,21 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
 @media(min-width:881px){
   .menu-toggle{display:none}
 }
+
+
+/* Customer request-card contrast — 2026-09-01 */
+.customer-shell .list-item{
+  color:#f7f8fa;
+  background:#0b0f14;
+  border-color:#27313b;
+}
+.customer-shell .list-item .list-main b{
+  color:#ffffff;
+  font-weight:800;
+}
+.customer-shell .list-item .list-main p{
+  color:#c3cad3;
+}
+.customer-shell .list-item input[type="radio"]{
+  accent-color:#ef2a31;
+}
