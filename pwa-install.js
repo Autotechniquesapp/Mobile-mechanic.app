@@ -3,7 +3,10 @@
   let deferredPrompt=null;
   const isStandalone=()=>window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true;
   function register(){
-    if('serviceWorker' in navigator){navigator.serviceWorker.register('./service-worker.js').catch(err=>console.warn('Service worker registration failed',err));}
+    if(!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('./service-worker.js?v=10',{updateViaCache:'none'})
+      .then(reg=>reg.update())
+      .catch(err=>console.warn('Service worker registration failed',err));
   }
   function toast(msg){document.querySelector('.pwa-install-toast')?.remove();const d=document.createElement('div');d.className='toast pwa-install-toast good';d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);}
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;window.MobileMechanicInstallAvailable=true;});
