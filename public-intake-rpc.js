@@ -44,11 +44,6 @@
       });
       if(error) throw error;
 
-      if(data){
-        sb.functions.invoke('push-notifications',{body:{action:'notify_intake',intake_id:data}})
-          .catch(err=>console.warn('Background shop push notification failed',err));
-      }
-
       const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
       const body=document.querySelector('.customer-body');
       if(body) body.innerHTML=`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
