@@ -47,3 +47,66 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
 @media(max-width:560px){.topbar{padding-left:14px;padding-right:14px;min-height:64px}.topbar .brand img{width:52px;height:32px}.layout{padding:15px 14px calc(82px + var(--safeBottom))}.dashboard-grid{gap:11px}.mech-pro-actions .dash-action{min-height:132px;padding:15px 13px}.mech-pro-actions .dash-action b{font-size:12px}.mech-pro-actions .dash-action span{font-size:9px}.dashboard-panels{gap:11px}.dash-head{padding:5px 2px 16px}.dash-head h1{font-size:18px}.dash-head p{font-size:11px}.dash-logo{width:61px;height:38px}.circle-avatar{width:42px;height:42px}.dash-status{gap:9px}.status-box{padding:11px;border-radius:12px}.status-box small{font-size:9px}.status-box b{font-size:12px}.quick-row{gap:9px}.quick-tool{padding:10px 5px}.bottom-nav{padding-top:7px;border-top-color:#282e36}.bottom-nav button{min-height:56px}}
 @media(max-width:560px){.mmp-page-head h1{font-size:21px}.mmp-page-head .btn{min-height:38px;padding:8px 11px}.mmp-metrics{grid-template-columns:1fr 1fr}.mmp-metrics button:first-child{grid-column:1/3}.mmp-metrics button{min-height:82px}.mmp-metrics b{font-size:23px}.mmp-intake-link,.mmp-pending{padding:12px}.mmp-revenue-value{font-size:28px}}
 @media(max-width:560px){.hercules-landing>header{height:68px;padding:0 14px}.hercules-brand{font-size:15px}.hercules-brand>span{width:31px;height:31px}.hercules-landing>main{padding:48px 18px 34px}.hercules-mark{width:68px;height:68px}.hercules-mark .svg-icon{width:32px}.hercules-landing h1{font-size:32px;line-height:1.25;margin-top:27px}.hercules-landing>main>p{font-size:15px;margin-bottom:31px}.hercules-features{margin-top:45px;gap:12px}.hercules-features div{height:76px}.hercules-landing>footer{font-size:10px}}
+
+
+/* Mobile right navigation — 2026-09-01 */
+@media(max-width:880px){
+  .shell{padding-right:84px}
+  .layout{
+    display:block;
+    padding:14px 12px calc(24px + var(--safeBottom));
+  }
+  .content{width:100%;min-width:0}
+  .side-rail{
+    display:flex;
+    position:fixed;
+    z-index:48;
+    top:68px;
+    right:0;
+    bottom:0;
+    width:84px;
+    height:auto;
+    padding:10px 7px calc(10px + var(--safeBottom));
+    border-radius:0;
+    border-width:0 0 0 1px;
+    background:rgba(7,10,14,.98);
+    backdrop-filter:blur(18px);
+    box-shadow:-14px 0 36px rgba(0,0,0,.32);
+    flex-direction:column;
+  }
+  .side-rail .rail-brand,
+  .side-rail .rail-foot{display:none}
+  .side-rail .rail-nav{display:grid;gap:7px}
+  .side-rail .rail-link{
+    min-height:61px;
+    padding:8px 4px;
+    border:1px solid transparent;
+    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:5px;
+    text-align:center;
+    color:#87909c;
+    font-size:10px;
+  }
+  .side-rail .rail-link .svg-icon{width:22px;height:22px;color:currentColor}
+  .side-rail .rail-link.active{
+    color:#fff;
+    border-color:#ef4147;
+    background:linear-gradient(180deg,#ef343b,#bd171d);
+    box-shadow:0 7px 20px rgba(239,42,49,.25);
+  }
+  .bottom-nav{display:none!important}
+  .mobile-drawer,.drawer-backdrop{display:none}
+}
+@media(max-width:560px){
+  .shell{padding-right:76px}
+  .side-rail{width:76px}
+  .layout{padding:13px 10px calc(22px + var(--safeBottom))}
+  .mmp-page-head{align-items:flex-start}
+  .mmp-page-head h1{font-size:24px}
+  .mmp-page-head .btn{font-size:11px;padding:8px 10px}
+  .mmp-metrics{gap:8px}
+  .mmp-intake-link,.mmp-pending{min-height:64px}
+}
