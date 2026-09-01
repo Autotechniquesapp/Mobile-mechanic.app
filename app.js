@@ -66,7 +66,11 @@ function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON
 function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
 function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function toast(msg,type=''){ document.querySelector('.toast')?.remove(); const d=document.createElement('div'); d.className=`toast ${type}`; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2700); }
-function go(name, params={}){ location.hash = '#'+name; render(name,params); }
+function go(name){
+  const next='#'+name;
+  if(location.hash===next) return render(name);
+  location.hash=next;
+}
 function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
 function pathIntakeSlug(){
   const parts=location.pathname.split('/').filter(Boolean);
@@ -75,6 +79,7 @@ function pathIntakeSlug(){
 function staffInviteUrl(token){ return `${location.origin}/invite/${encodeURIComponent(token)}`; }
 function randomToken(){ const a=new Uint32Array(4); crypto.getRandomValues(a); return [...a].map(n=>n.toString(36)).join('-'); }
 function roleCan(...roles){ return roles.includes(currentUser()?.role) || db.session?.role==='platform_owner'; }
+function canViewShopFinancials(){ return roleCan('owner','manager','service_writer'); }
 const platformRoleLabels={platform_owner:'Platform Owner',billing_admin:'Billing Admin',support_admin:'Support Admin',operations_admin:'Operations Admin',technical_admin:'Technical Admin',read_only_admin:'Read-Only Admin'};
 const platformPerms={
   platform_owner:new Set(['shops_view','shops_open','trial_extend','comp','suspend','admins_manage','activity_view','billing_view','tech_view']),
@@ -263,7 +268,7 @@ function jobs(){
   const s=currentShop();
   const content=`${pageTitle('Jobs','Intake → diagnosis → estimate → approval → invoice')}
   <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Intake</button><button class="btn btn-soft" data-route="quote">${ic('money')} Quick Quote</button></div>
-  <div class="list">${s.jobs.map(j=>`<button class="list-item" style="width:100%;color:inherit;text-align:left" data-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></button>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
+  <div class="list">${s.jobs.map(j=>`<div class="list-item job-list-item" role="button" tabindex="0" style="width:100%;color:inherit;text-align:left" data-open-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></div>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
   shopShell(content,'jobs');
 }
 
@@ -378,6 +383,16 @@ function openTechProfile(userId){
   modal('Technician Profile',`<form id="techProfileForm" data-user="${u.id}"><div class="tech-profile-photo"><button type="button" class="tech-profile-avatar" data-action="choose-tech-photo">${u.photo?`<img id="techPhotoPreview" src="${esc(u.photo)}" alt="${esc(u.name)}">`:`<span id="techPhotoPreview">${ic('camera')}</span>`}</button><div><b>${esc(u.name)}</b><p class="small muted">Tap the picture to add or change it.</p></div><input id="techPhotoFile" type="file" accept="image/png,image/jpeg,image/webp" capture="user" hidden><input id="techPhotoData" type="hidden" value="${esc(u.photo||'')}"></div><div class="row2"><div class="field"><label>Name</label><input name="name" value="${esc(u.name)}" ${canEdit?'':'readonly'}></div><div class="field"><label>Phone</label><input name="phone" type="tel" value="${esc(u.phone||'')}" ${canEdit?'':'readonly'}></div></div><div class="row2"><div class="field"><label>Email</label><input name="email" type="email" value="${esc(u.email||'')}" ${canManage?'':'readonly'}></div><div class="field"><label>Role</label><select name="role" ${canManage?'':'disabled'}>${[['owner','Shop Owner'],['manager','Manager'],['technician','Technician'],['service_writer','Service Writer']].map(([v,n])=>`<option value="${v}" ${u.role===v?'selected':''}>${n}</option>`).join('')}</select></div></div><div class="field"><label>Specialties</label><input name="specialties" value="${esc(u.specialties||'')}" placeholder="Diagnostics, diesel, brakes, HVAC..." ${canEdit?'':'readonly'}></div><div class="field"><label>Certifications / Training</label><textarea name="certifications" placeholder="ASE areas, EPA 609, manufacturer training..." ${canEdit?'':'readonly'}>${esc(u.certifications||'')}</textarea></div><div class="field"><label>About This Technician</label><textarea name="bio" placeholder="Experience, services, or a short introduction..." ${canEdit?'':'readonly'}>${esc(u.bio||'')}</textarea></div>${canEdit?'<button class="btn btn-primary btn-wide">Save Technician Profile</button>':''}</form>`);
 }
 
+function timeClock(){
+  const s=currentShop(),u=currentUser();
+  s.timeEntries=Array.isArray(s.timeEntries)?s.timeEntries:[];
+  const open=s.timeEntries.find(x=>x.userId===u.id&&!x.clockOut);
+  const visible=roleCan('owner','manager')?s.timeEntries:s.timeEntries.filter(x=>x.userId===u.id);
+  const rows=visible.slice().reverse().map(x=>{const tech=s.users.find(y=>y.id===x.userId),end=x.clockOut?new Date(x.clockOut):new Date(),hours=Math.max(0,(end-new Date(x.clockIn))/3600000);return `<div class="list-item"><div class="list-icon">${ic('clock')}</div><div class="list-main"><b>${esc(tech?.name||'Technician')} • ${hours.toFixed(2)} hours</b><p>${new Date(x.clockIn).toLocaleString()} — ${x.clockOut?new Date(x.clockOut).toLocaleString():'Clocked in now'}</p></div></div>`;}).join('');
+  const content=`${pageTitle('Time Clock',roleCan('owner','manager')?'Review team time or clock yourself in.':'Your personal time entries.','more')}<section class="card card-pad"><div class="card-title">${open?'CLOCKED IN':'READY TO CLOCK IN'}</div><div class="section-note">${open?`Started ${new Date(open.clockIn).toLocaleString()}`:'Time is kept separately for each technician.'}</div><div class="divider"></div><button class="btn ${open?'btn-soft':'btn-primary'} btn-wide" data-action="${open?'clock-out':'clock-in'}">${open?'Clock Out':'Clock In'}</button></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">${roleCan('owner','manager')?'TEAM TIME ENTRIES':'MY TIME ENTRIES'}</div><div class="divider"></div><div class="list">${rows||'<p class="muted">No time entries yet.</p>'}</div></section>`;
+  shopShell(content,'more');
+}
+
 function billing(blocked=false){
   const s=currentShop();
   const addonFallback=[
@@ -405,7 +420,8 @@ function settings(){
 
 function more(){
   const s=currentShop();
-  const content=`${pageTitle('More','Shop administration and supporting tools','dashboard')}<div class="dashboard-grid"><button class="dash-action" data-route="team">${ic('users')}<div><b>TEAM LOGINS</b><span>${s.users.length}/${plans[s.plan].seats} seats</span></div></button><button class="dash-action" data-route="billing">${ic('money')}<div><b>SUBSCRIPTION</b><span>${plans[s.plan].name}</span></div></button><button class="dash-action" data-route="settings">${ic('settings')}<div><b>SHOP SETTINGS</b><span>Rates + branding</span></div></button><button class="dash-action" data-route="carfax">${ic('report')}<div><b>CARFAX</b><span>Service reporting</span></div></button><button class="dash-action" data-route="warranty">${ic('shield')}<div><b>WARRANTY</b><span>Comebacks + parts</span></div></button><button class="dash-action" data-route="templates">${ic('clipboard')}<div><b>TEMPLATES</b><span>Common services</span></div></button><button class="dash-action" data-route="training">${ic('book')}<div><b>TRAINING</b><span>ASE / 609 study</span></div></button><button class="dash-action" data-route="export">${ic('upload')}<div><b>DATA EXPORT</b><span>Shop records</span></div></button></div><div class="card card-pad" style="margin-top:10px"><button class="btn btn-soft btn-wide" data-action="logout">Log Out</button></div>`;
+  const billingTile=canViewShopFinancials()?`<button class="dash-action" data-route="billing">${ic('money')}<div><b>SUBSCRIPTION</b><span>${plans[s.plan].name}</span></div></button>`:'';
+  const content=`${pageTitle('More','Shop administration and supporting tools','dashboard')}<div class="dashboard-grid"><button class="dash-action" data-route="team">${ic('users')}<div><b>TEAM LOGINS</b><span>${s.users.length}/${plans[s.plan].seats} seats</span></div></button><button class="dash-action" data-route="time-clock">${ic('clock')}<div><b>TIME CLOCK</b><span>Clock in / out</span></div></button>${billingTile}<button class="dash-action" data-route="settings">${ic('settings')}<div><b>SHOP SETTINGS</b><span>Rates + branding</span></div></button><button class="dash-action" data-route="carfax">${ic('report')}<div><b>CARFAX</b><span>Service reporting</span></div></button><button class="dash-action" data-route="warranty">${ic('shield')}<div><b>WARRANTY</b><span>Comebacks + parts</span></div></button><button class="dash-action" data-route="templates">${ic('clipboard')}<div><b>TEMPLATES</b><span>Common services</span></div></button><button class="dash-action" data-route="training">${ic('book')}<div><b>TRAINING</b><span>ASE / 609 study</span></div></button><button class="dash-action" data-route="export">${ic('upload')}<div><b>DATA EXPORT</b><span>Shop records</span></div></button></div><div class="card card-pad" style="margin-top:10px"><button class="btn btn-soft btn-wide" data-action="logout">Log Out</button></div>`;
   shopShell(content,'more');
 }
 
@@ -482,8 +498,6 @@ document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function bind(){
-  document.querySelectorAll('[data-route]').forEach(el=>el.onclick=()=>go(el.dataset.route));
-  document.querySelectorAll('[data-job]').forEach(el=>el.onclick=()=>workup(el.dataset.job));
   document.querySelectorAll('[data-external]').forEach(el=>el.onclick=()=>window.open(el.dataset.external,'_blank','noopener'));
 
   document.querySelector('[data-action="login"]')?.addEventListener('click',()=>{
@@ -605,12 +619,37 @@ function bind(){
   document.querySelectorAll('[data-action="prepare-carfax"]').forEach(b=>b.onclick=()=>{const j=jobById(b.dataset.job);j.carfax={status:'Ready',preparedAt:nowISO(),record:{vin:j.vehicle.vin,mileage:j.vehicle.mileage,date:j.completedAt||nowISO(),services:j.findings||j.complaint,shop:currentShop().name}};save();toast('Service record prepared. Not submitted to CARFAX.','good');carfax();});
   document.querySelector('[data-action="export-json"]')?.addEventListener('click',()=>{const s=currentShop(),blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${s.slug}-mobile-mechanic-ai-export.json`;a.click();URL.revokeObjectURL(a.href);});
   document.querySelector('[data-action="save-ppi"]')?.addEventListener('click',()=>toast('PPI draft saved in prototype workflow.','good'));
+  document.querySelector('[data-action="clock-in"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser();s.timeEntries=Array.isArray(s.timeEntries)?s.timeEntries:[];if(!s.timeEntries.some(x=>x.userId===u.id&&!x.clockOut))s.timeEntries.push({id:uid('time'),userId:u.id,clockIn:nowISO(),clockOut:null});save();timeClock();toast('Clocked in.','good');});
+  document.querySelector('[data-action="clock-out"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser(),entry=(s.timeEntries||[]).find(x=>x.userId===u.id&&!x.clockOut);if(entry)entry.clockOut=nowISO();save();timeClock();toast('Clocked out.','good');});
   document.querySelectorAll('[data-action="not-connected"]').forEach(b=>b.onclick=()=>toast('This secure API is not connected in the static prototype.',''));
   document.querySelector('[data-action="close-modal"]')?.addEventListener('click',closeModal);
   document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
   document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
 }
+
+// Route and job navigation use delegation so controls injected after a render
+// (pricing, integrations, admin helpers, etc.) work without another bind pass.
+document.addEventListener('click',e=>{
+  const route=e.target.closest?.('[data-route]');
+  if(route){
+    e.preventDefault();
+    go(route.dataset.route);
+    return;
+  }
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && !e.target.closest?.('button,a,input,select,textarea')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
+document.addEventListener('keydown',e=>{
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && (e.key==='Enter'||e.key===' ')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
 
 function setupSpeech(selector,targetId){
   const b=document.querySelector(selector);if(!b)return;b.onclick=async()=>{const el=document.getElementById(targetId),SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){el?.focus();return toast('Browser voice is unavailable. Tap the microphone on your Android keyboard to dictate here.','bad');}try{if(navigator.mediaDevices?.getUserMedia){const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());}}catch(err){el?.focus();const blocked=err?.name==='NotAllowedError'||err?.name==='SecurityError';return toast(blocked?'Microphone permission was denied. Open this site’s permissions in Chrome and set Microphone to Allow.':'The phone microphone could not be opened. Close other apps using it and try again.','bad');}const r=new SR();let heard=false;r.lang='en-US';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;b.classList.add('listening');r.onresult=e=>{let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)final+=t;else interim+=t;}if(final.trim()){heard=true;el.value=(el.value?el.value+' ':'')+final.trim();el.dispatchEvent(new Event('input',{bubbles:true}));toast('Voice added.','good');}else if(interim.trim())toast(`Listening… ${interim.trim()}`);};r.onerror=e=>{b.classList.remove('listening');const messages={'not-allowed':'Microphone permission is blocked. Allow microphone access for this site, then try again.','service-not-allowed':'Android speech service is blocked. Enable Google voice typing or use the keyboard microphone.','no-speech':'I did not hear anything. Move closer and tap the microphone again.','audio-capture':'The phone microphone is unavailable or another app is using it.','network':'Android voice transcription could not reach its speech service. Check your connection or use the keyboard microphone.','aborted':'Voice input was stopped.'};el?.focus();toast(messages[e.error]||`Voice stopped (${e.error||'unknown'}). Use the Android keyboard microphone if it continues.`,'bad');};r.onend=()=>{b.classList.remove('listening');if(!heard)el?.focus();};try{r.start();toast('Listening… speak now.');}catch{b.classList.remove('listening');el?.focus();toast('Could not start voice. Tap the microphone on your Android keyboard.','bad');}};
@@ -623,7 +662,8 @@ function render(route=hashRoute()){
   }
   if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
   if(db.session?.role!=='shop'||!currentShop())return login();
-  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
+  if(['billing','settings','reports','export'].includes(route)&&!canViewShopFinancials())return more();
+  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,'time-clock':timeClock,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
   (routes[route]||dashboard)();
 }
 
