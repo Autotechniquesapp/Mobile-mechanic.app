@@ -172,3 +172,39 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
     transform:translateX(0);
   }
 }
+
+
+/* Fully hidden edge-hover sidebar — 2026-09-01 */
+@media(max-width:880px){
+  .shell{padding-left:0}
+  .side-rail{
+    width:10px;
+    padding-left:0;
+    padding-right:0;
+    border-right-color:transparent;
+    background:transparent;
+    box-shadow:none;
+    overflow:hidden;
+  }
+  .side-rail .rail-nav{
+    width:238px;
+    padding:10px 7px;
+    opacity:0;
+    pointer-events:none;
+    transform:translateX(-18px);
+    transition:opacity .12s ease,transform .2s ease;
+  }
+  .side-rail:hover,
+  .side-rail:focus-within{
+    width:238px;
+    padding:0;
+    border-right-color:#28313b;
+    background:rgba(7,10,14,.98);
+  }
+  .side-rail:hover .rail-nav,
+  .side-rail:focus-within .rail-nav{
+    opacity:1;
+    pointer-events:auto;
+    transform:translateX(0);
+  }
+}
