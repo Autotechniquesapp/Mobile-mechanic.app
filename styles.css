@@ -208,3 +208,17 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
     transform:translateX(0);
   }
 }
+
+
+/* Tap-to-open mobile menu — 2026-09-01 */
+@media(max-width:880px){
+  .shell{padding-left:0}
+  .side-rail{display:none}
+  .mobile-drawer{display:flex}
+  .drawer-backdrop{display:block}
+  .bottom-nav{display:none!important}
+  .menu-toggle{display:grid;flex:0 0 auto}
+}
+@media(min-width:881px){
+  .menu-toggle{display:none}
+}
