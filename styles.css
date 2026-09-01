@@ -49,9 +49,9 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
 @media(max-width:560px){.hercules-landing>header{height:68px;padding:0 14px}.hercules-brand{font-size:15px}.hercules-brand>span{width:31px;height:31px}.hercules-landing>main{padding:48px 18px 34px}.hercules-mark{width:68px;height:68px}.hercules-mark .svg-icon{width:32px}.hercules-landing h1{font-size:32px;line-height:1.25;margin-top:27px}.hercules-landing>main>p{font-size:15px;margin-bottom:31px}.hercules-features{margin-top:45px;gap:12px}.hercules-features div{height:76px}.hercules-landing>footer{font-size:10px}}
 
 
-/* Mobile right navigation — 2026-09-01 */
+/* Mobile left navigation — 2026-09-01 */
 @media(max-width:880px){
-  .shell{padding-right:84px}
+  .shell{padding-left:84px}
   .layout{
     display:block;
     padding:14px 12px calc(24px + var(--safeBottom));
@@ -62,16 +62,16 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
     position:fixed;
     z-index:48;
     top:68px;
-    right:0;
+    left:0;
     bottom:0;
     width:84px;
     height:auto;
     padding:10px 7px calc(10px + var(--safeBottom));
     border-radius:0;
-    border-width:0 0 0 1px;
+    border-width:0 1px 0 0;
     background:rgba(7,10,14,.98);
     backdrop-filter:blur(18px);
-    box-shadow:-14px 0 36px rgba(0,0,0,.32);
+    box-shadow:14px 0 36px rgba(0,0,0,.32);
     flex-direction:column;
   }
   .side-rail .rail-brand,
@@ -101,7 +101,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
   .mobile-drawer,.drawer-backdrop{display:none}
 }
 @media(max-width:560px){
-  .shell{padding-right:76px}
+  .shell{padding-left:76px}
   .side-rail{width:76px}
   .layout{padding:13px 10px calc(22px + var(--safeBottom))}
   .mmp-page-head{align-items:flex-start}
