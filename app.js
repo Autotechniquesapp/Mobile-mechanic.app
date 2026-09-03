@@ -17,9 +17,8 @@ const repairSpecialties = [
   ['multi_location','Multi-Location / Enterprise'],['custom','Other / Custom Specialty']
 ];
 const shopModules = [
-  ['work_orders','Work Orders'],['estimates','Estimates & Invoices'],['inventory','Parts Inventory'],
+  ['estimates','Estimates & Invoices'],['inventory','Parts Inventory'],
   ['inspections','Digital Inspections'],['scheduling','Scheduling'],['reporting','Reporting'],
-  ['time_clock','Time Clock'],['customer_portal','Customer Portal'],['accounting','Accounting & Bookkeeping'],
   ['ai','AI Diagnostics / Shop Coach']
 ];
 const defaultSpecialties = ['automotive'];
@@ -28,11 +27,22 @@ function checkedCards(name,items,selected=[]){
   return `<div class="plan-cards config-cards">${items.map(([code,label])=>`<label class="plan-card"><input type="checkbox" name="${name}" value="${code}" ${selected.includes(code)?'checked':''}><b>${esc(label)}</b></label>`).join('')}</div>`;
 }
 function ensureShopConfig(s){
+  if(!s) return null;
   s.specialties=Array.isArray(s.specialties)?s.specialties:[...defaultSpecialties];
   s.modules=Array.isArray(s.modules)?s.modules:[...defaultModules];
   s.customSpecialty=s.customSpecialty||'';
   s.assetLabel=s.assetLabel||'Vehicle / Equipment';
   return s;
+}
+const routeModules={quote:'estimates',inspection:'inspections',calendar:'scheduling',reports:'reporting',parts:'inventory','ai-second':'ai'};
+function moduleEnabled(code,s=currentShop()){ return !code || ensureShopConfig(s).modules.includes(code); }
+function routeEnabled(route,s=currentShop()){ return moduleEnabled(routeModules[route],s); }
+function assetTerm(s=currentShop()){ return ensureShopConfig(s)?.assetLabel||'Vehicle / Equipment'; }
+function assetTermLower(s=currentShop()){ return assetTerm(s).toLowerCase(); }
+function optionalRoute(route,html,s=currentShop()){ return routeEnabled(route,s)?html:''; }
+function applyModuleVisibility(s=currentShop()){
+  ROOT.querySelectorAll('[data-route]').forEach(el=>{ if(!routeEnabled(el.dataset.route,s)) el.remove(); });
+  ROOT.querySelectorAll('[data-module]').forEach(el=>{ if(!moduleEnabled(el.dataset.module,s)) el.remove(); });
 }
 
 const defaultDB = () => ({
@@ -116,6 +126,8 @@ function seedDemo(){
   save();
 }
 seedDemo();
+Object.values(db.shops).forEach(ensureShopConfig);
+save();
 
 function logo(s, cls=''){ return `<img class="${cls}" src="${esc(s?.logo || 'assets/mobile-mechanic-ai-logo.png')}" alt="Mobile Mechanic AI">`; }
 
@@ -131,17 +143,18 @@ function topbar(s,active='dashboard'){
   </header>`;
 }
 function rail(s,active){
-  const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']];
+  const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
   return `<aside class="side-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
 }
 function bottomNav(active){
-  const links=[['dashboard','home','Home'],['customers','users','Customers'],['calendar','calendar','Schedule'],['jobs','jobs','Jobs'],['more','more','More']];
+  const s=currentShop(),links=[['dashboard','home','Home'],['customers','users','Customers'],['calendar','calendar','Schedule'],['jobs','jobs','Jobs'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
   return `<nav class="bottom-nav">${links.map(([r,i,t])=>`<button class="${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</nav>`;
 }
 function shopShell(content, active='dashboard'){
   const s=currentShop();
   if(!s) return login();
   ROOT.innerHTML = `<div class="shell">${topbar(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
+  applyModuleVisibility(s);
   bind();
 }
 function pageTitle(title,sub='',back='dashboard'){
@@ -213,18 +226,18 @@ function dashboard(){
       <button class="dash-action" data-route="new-intake">${ic('user')}<div><b>NEW CUSTOMER</b><span>Intake + AI Workup</span></div></button>
       <button class="dash-action" data-route="send-intake">${ic('send')}<div><b>SEND INTAKE</b><span>Shop-linked form</span></div></button>
       <button class="dash-action" data-route="jobs">${ic('wrench')}<div><b>ACTIVE JOBS</b><span>Findings + quote</span></div></button>
-      <button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>
-      <button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>
-      <button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>
+      ${optionalRoute('inspection',`<button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>`,s)}
+      ${optionalRoute('ai-second',`<button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>`,s)}
+      ${optionalRoute('parts',`<button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>`,s)}
       <button class="dash-action" type="button" data-open-invoices>${ic('money')}<div><b>OPEN INVOICES</b><span data-open-invoices-summary>View unpaid customer invoices</span></div></button>
       <button class="dash-action" data-route="service-info">${ic('book')}<div><b>SERVICE INFO</b><span>Procedures, specs, TSBs + diagrams</span></div></button>
       <button class="dash-action" data-route="fleet">${ic('truck')}<div><b>FLEET</b><span>Units + service</span></div></button>
       <button class="dash-action" data-route="roadside">${ic('tow')}<div><b>ROADSIDE</b><span>Tow handoff</span></div></button>
     </div>
-    <div class="priority-strip">${ic('brain')}<b>AI Assistant</b><span data-route="jobs">Open a vehicle and ask about its complete history ›</span></div>
+    ${moduleEnabled('ai',s)?`<div class="priority-strip">${ic('brain')}<b>AI Assistant</b><span data-route="jobs">Open a ${esc(assetTermLower(s))} and ask about its complete history ›</span></div>`:''}
     <div class="dashboard-panels"><section class="card card-pad"><div class="card-title">TODAY'S WORK</div><div class="section-note">Jobs, approvals, and follow-ups</div><div class="divider"></div><div class="timeline">${today.length?today.map(j=>`<button class="timeline-row" style="border:0;background:transparent;color:inherit;text-align:left" data-job="${j.id}"><span class="timeline-dot"></span><div><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><time>${esc(j.status)}</time></button>`).join(''):`<div class="muted small">No active jobs yet.</div>`}</div></section>
     <section class="card card-pad"><div class="card-title">SHOP SNAPSHOT</div><div class="section-note">Current workspace</div><div class="divider"></div><div class="metric-grid" style="grid-template-columns:1fr 1fr"><div class="metric red"><b>${s.customers.length}</b><span>Customers</span></div><div class="metric orange"><b>${s.jobs.length}</b><span>Jobs</span></div><div class="metric green"><b>${s.jobs.filter(j=>j.approval?.status==='approved').length}</b><span>Approved</span></div><div class="metric blue"><b>${s.receipts?.length||0}</b><span>Receipts</span></div></div></section></div>
-    <div class="quick-row"><button class="quick-tool" data-route="quote">${ic('money')}Quick Quote</button><button class="quick-tool" data-route="team">${ic('users')}Team</button><button class="quick-tool" data-route="templates">${ic('clipboard')}Templates</button><button class="quick-tool" data-route="carfax">${ic('report')}CARFAX</button><button class="quick-tool" data-route="settings">${ic('settings')}Settings</button></div>`;
+    <div class="quick-row">${optionalRoute('quote',`<button class="quick-tool" data-route="quote">${ic('money')}Quick Quote</button>`,s)}<button class="quick-tool" data-route="team">${ic('users')}Team</button><button class="quick-tool" data-route="templates">${ic('clipboard')}Templates</button><button class="quick-tool" data-route="carfax">${ic('report')}CARFAX</button><button class="quick-tool" data-route="settings">${ic('settings')}Settings</button></div>`;
   shopShell(content,'dashboard');
 }
 
@@ -235,9 +248,9 @@ function shopIntake(s, publicMode=false){
   <div class="customer-alert">${ic('shield')}<div><b>Your request goes directly to ${esc(s.name)}.</b><br>The shop will use this information to review your vehicle request.</div></div>
   <form id="intakeForm" data-shop="${s.id}" data-public="${publicMode}">
     <section class="customer-card"><h3>1 • Customer Information</h3><div class="row2"><div class="field"><label>Name</label><input name="customerName" required placeholder="Full name"></div><div class="field"><label>Phone</label><input name="phone" type="tel" required placeholder="Phone"></div></div><div class="row2"><div class="field"><label>Email</label><input name="email" type="email" placeholder="Email"></div><div class="field"><label>Availability</label><input name="availability" placeholder="Date / time window"></div></div><div class="field"><label>Service Location</label><div class="field-inline"><input id="serviceLocation" name="location" placeholder="Address or current location"><button type="button" class="btn btn-soft" data-action="location">${ic('location')} Use Current</button></div></div></section>
-    <section class="customer-card"><h3>2 • Vehicle</h3><div class="row3"><div class="field"><label>Year</label><select name="year" required><option value="">Year</option>${yearOptions()}</select></div><div class="field"><label>Make</label><select name="make" required><option value="">Make</option>${vehMakes.map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>Model</label><input name="model" required placeholder="Model / Other"></div></div><div class="row3"><div class="field"><label>Submodel / Trim</label><input name="trim" placeholder="LT, XLE, Sport..."></div><div class="field"><label>Engine</label><input name="engine" placeholder="1.8L / 3.5L..."></div><div class="field"><label>Drive</label><select name="drive"><option>2WD</option><option>FWD</option><option>RWD</option><option>4WD</option><option>AWD</option><option>Other</option></select></div></div><div class="row2"><div class="field"><label>VIN</label><div class="field-inline"><input id="vinInput" name="vin" maxlength="17" placeholder="17-digit VIN"><button type="button" class="btn btn-soft" data-action="vin-decode">Decode</button></div></div><div class="field"><label>License Plate</label><input name="plate" placeholder="Plate (lookup API later)"></div></div><div class="row2"><div class="field"><label>Mileage</label><input name="mileage" type="number" placeholder="Current mileage"></div><div class="field"><label>VIN / Plate Scan</label><button type="button" class="btn btn-soft btn-wide" data-action="scan-placeholder">${ic('camera')} Camera Scan</button></div></div><div id="vinResult" class="small muted"></div></section>
-    <section class="customer-card"><h3>3 • Vehicle Concern</h3><div class="field"><label>What's going on with the vehicle?</label><textarea id="complaintInput" name="complaint" required placeholder="Describe the problem, symptoms, noises, warning lights, when it happens, etc."></textarea></div><div class="btn-row"><button type="button" class="btn btn-soft" data-action="voice-customer">${ic('mic')} Speak Concern</button><span class="badge">Voice transcription when supported by device</span></div></section>
-    <section class="customer-card"><h3>4 • Request Type</h3><div class="row2"><label class="list-item"><input type="radio" name="requestType" value="Repair / Diagnostic" checked><div class="list-main"><b>Repair / Diagnostic</b><p>Send your vehicle request to the shop.</p></div></label><label class="list-item"><input type="radio" name="requestType" value="Pre-Purchase Inspection"><div class="list-main"><b>Pre-Purchase Inspection</b><p>Vehicle inspection before purchase.</p></div></label></div></section>
+    <section class="customer-card"><h3>2 • ${esc(assetTerm(s))}</h3><div class="row3"><div class="field"><label>Year</label><select name="year" required><option value="">Year</option>${yearOptions()}</select></div><div class="field"><label>Make</label><select name="make" required><option value="">Make</option>${vehMakes.map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>Model</label><input name="model" required placeholder="Model / Other"></div></div><div class="row3"><div class="field"><label>Submodel / Trim</label><input name="trim" placeholder="LT, XLE, Sport..."></div><div class="field"><label>Engine</label><input name="engine" placeholder="1.8L / 3.5L..."></div><div class="field"><label>Drive</label><select name="drive"><option>2WD</option><option>FWD</option><option>RWD</option><option>4WD</option><option>AWD</option><option>Other</option></select></div></div><div class="row2"><div class="field"><label>VIN</label><div class="field-inline"><input id="vinInput" name="vin" maxlength="17" placeholder="17-digit VIN"><button type="button" class="btn btn-soft" data-action="vin-decode">Decode</button></div></div><div class="field"><label>License Plate</label><input name="plate" placeholder="Plate (lookup API later)"></div></div><div class="row2"><div class="field"><label>Mileage</label><input name="mileage" type="number" placeholder="Current mileage"></div><div class="field"><label>VIN / Plate Scan</label><button type="button" class="btn btn-soft btn-wide" data-action="scan-placeholder">${ic('camera')} Camera Scan</button></div></div><div id="vinResult" class="small muted"></div></section>
+    <section class="customer-card"><h3>3 • ${esc(assetTerm(s))} Concern</h3><div class="field"><label>What's going on with the ${esc(assetTermLower(s))}?</label><textarea id="complaintInput" name="complaint" required placeholder="Describe the problem, symptoms, noises, warning lights, when it happens, etc."></textarea></div><div class="btn-row"><button type="button" class="btn btn-soft" data-action="voice-customer">${ic('mic')} Speak Concern</button><span class="badge">Voice transcription when supported by device</span></div></section>
+    <section class="customer-card"><h3>4 • Request Type</h3><div class="row2"><label class="list-item"><input type="radio" name="requestType" value="Repair / Diagnostic" checked><div class="list-main"><b>Repair / Diagnostic</b><p>Send your ${esc(assetTermLower(s))} request to the shop.</p></div></label><label class="list-item"><input type="radio" name="requestType" value="Pre-Purchase Inspection"><div class="list-main"><b>Pre-Purchase Inspection</b><p>Vehicle inspection before purchase.</p></div></label></div></section>
   </form></div><div class="customer-footer"><button class="customer-submit" type="submit" form="intakeForm">SEND TO ${esc(s.name).toUpperCase()}</button><p class="tiny muted" style="text-align:center;margin:7px 0 0">Your information is sent securely to this shop.</p></div></div></section>`;
   bind();
 }
@@ -297,12 +310,12 @@ function workup(jobId){
   const causes=genericWorkup(j), est=estimateFromJob(j,s);
   const content=`${pageTitle('AI Pre-Workup','AI assists the technician; final diagnosis remains with the professional.','jobs')}
   <div class="job-banner"><div class="avatar">${esc(j.customerName.split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div><div class="job-banner-main"><b>${esc(j.customerName)} • ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><span class="badge red">${esc(j.status)}</span></div>
-  <section class="work-white"><div class="work-grid"><div class="work-card"><h3>Vehicle / Complaint</h3><p><b>${esc(vehicleText(j.vehicle))}</b><br>${esc(j.vehicle.engine||'Engine not entered')} • ${esc(j.vehicle.mileage||'—')} mi<br><br>${esc(j.complaint)}</p></div><div class="work-card"><h3>AI Status</h3><p><b>Structured demo workup</b><br>Production AI API is not connected yet. This screen is ready for secure server-side AI responses.</p></div></div>
+  <section class="work-white"><div class="work-grid"><div class="work-card"><h3>Vehicle / Complaint</h3><p><b>${esc(vehicleText(j.vehicle))}</b><br>${esc(j.vehicle.engine||'Engine not entered')} • ${esc(j.vehicle.mileage||'—')} mi<br><br>${esc(j.complaint)}</p></div><div class="work-card" data-module="ai"><h3>AI Status</h3><p><b>Structured demo workup</b><br>Production AI API is not connected yet. This screen is ready for secure server-side AI responses.</p></div></div>
   <div class="work-grid" style="margin-top:8px"><div class="work-card"><h3>Likely Areas to Check</h3><div class="cause-list">${causes.map(([t,p])=>`<div class="cause"><div><b>${esc(t)}</b><div class="confidence"><i style="width:${p}%"></i></div></div><strong>${p}%</strong></div>`).join('')}</div></div><div class="work-card"><h3>Diagnostic Path</h3>${['Confirm customer symptom and conditions','Scan all relevant modules and save codes/freeze-frame','Perform visual inspection and basic power/ground checks','Test the suspected system before replacing parts','Document measurements and compare to authoritative service data'].map(x=>`<label class="diag-check"><input type="checkbox">${esc(x)}</label>`).join('')}</div></div>
   <div class="work-card" style="margin-top:8px"><h3>Good / Better / Best — Technician Reviews Before Sending</h3><div class="estimate-options">${Object.entries(est).map(([k,o])=>`<div class="estimate-card ${k}"><b>${esc(o.title)}</b><strong>${money(o.price)}</strong><p>${esc(o.summary)}</p></div>`).join('')}</div><div class="btn-row" style="margin-top:9px"><button class="btn btn-primary" data-action="save-estimate" data-job="${j.id}">${ic('money')} Save Estimate Options</button><button class="btn btn-soft" data-action="send-estimate" data-job="${j.id}">${ic('send')} Send to Customer</button><button class="btn btn-soft" data-action="single-estimate" data-job="${j.id}">Send One Option Instead</button></div></div>
   <div class="work-card" style="margin-top:8px"><h3>Repair Videos — Exact Vehicle Context</h3><p class="muted" style="margin:0 0 8px">YouTube is a visual aid only. Verify procedures, torque specifications, safety information, and service data independently.</p><div class="video-list">${[['Exact vehicle + complaint',exactVideoQuery(j,'diagnosis repair')],['Repair procedure',exactVideoQuery(j,'repair procedure how to')],['Diagnostic code / testing',exactVideoQuery(j,`${j.codes||''} diagnosis testing`)]].slice(0,2).map(([t,q])=>`<button class="video-card" data-external="${esc(youtubeLink(q))}" style="text-align:left;color:inherit"><div class="video-thumb">${ic('play')}</div><div><b>${esc(t)}</b><span>${esc(q.slice(0,88))}</span></div></button>`).join('')}</div><div class="btn-row" style="margin-top:8px"><button class="btn btn-soft" data-external="${esc(youtubeLink(exactVideoQuery(j,'repair diagnosis')))}">${ic('play')} Find More YouTube Videos</button></div></div>
   </section>
-  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="service-info">${ic('book')} Service Information</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
+  <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="service-info">${ic('book')} Service Information</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-module="ai" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
   shopShell(content,'jobs');
 }
 
@@ -321,7 +334,7 @@ function findings(){
 function aiSecond(){
   const s=currentShop(), j=jobById(db.session.activeJobId)||s.jobs[0];
   const content=`${pageTitle('AI Second Opinion','Challenge the first diagnosis before replacing expensive parts.','jobs')}
-  <section class="card card-pad"><div class="card-title">${ic('brain')} SECOND OPINION</div><div class="section-note red">Ask what could be overlooked, misdiagnosed, or proven with a better test.</div><div class="divider"></div>${j?`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div></div>`:''}<div class="field" style="margin-top:10px"><label>Question for AI</label><textarea id="secondQuestion">What could I be overlooking, and what tests should I perform before replacing the suspected part?</textarea></div><button class="btn btn-primary" data-action="second-opinion">${ic('brain')} Generate Challenge Checklist</button><div id="secondResult" style="margin-top:10px"></div></section>`;
+  <section class="card card-pad"><div class="card-title">${ic('brain')} SECOND OPINION</div><div class="section-note red">Ask what could be overlooked, misdiagnosed, or proven with a better test.</div><div class="divider"></div>${j?`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div></div>`:''}<div class="field" style="margin-top:10px"><label>Question for AI</label><textarea id="secondQuestion">What could I be overlooking, and what tests should I perform before replacing the suspected part?</textarea></div><button class="btn btn-primary" data-module="ai" data-action="second-opinion">${ic('brain')} Generate Challenge Checklist</button><div id="secondResult" style="margin-top:10px"></div></section>`;
   shopShell(content,'jobs');
 }
 
@@ -562,9 +575,9 @@ function bind(){
   document.querySelector('[data-action="before-replace"]')?.addEventListener('click',()=>modal('Before You Replace It',`<div class="list">${[['check','Confirm the symptom independently','Reproduce it and compare commanded vs. actual data.'],['shield','Check power, ground, connectors','Rule out wiring, voltage drop, network, and connector faults.'],['brain','Look upstream','Ask what could make the component look bad even if it is good.'],['wrench','Use a definitive test','Choose the safest test that can prove or disprove the theory before replacement.']].map(x=>`<div class="list-item"><div class="list-icon">${ic(x[0])}</div><div class="list-main"><b>${x[1]}</b><p>${x[2]}</p></div></div>`).join('')}</div>`));
   document.querySelector('[data-action="to-estimate"]')?.addEventListener('click',e=>workup(e.currentTarget.dataset.job));
   document.querySelector('[data-action="complete-job"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.status='Completed';j.completedAt=nowISO();j.carfax={status:'Ready'};save();toast('Job marked completed; service record is CARFAX-ready.','good');findings();});
-  document.querySelector('[data-action="ask-vehicle"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);modal('Ask Mobile Mechanic AI About This Vehicle',`<p class="muted small">Production AI will automatically receive this vehicle's complaint, mileage, prior repairs, codes, findings, and current job context.</p><div class="field"><textarea placeholder="Ask about this vehicle...">What should I verify next on this ${esc(vehicleText(j.vehicle))}?</textarea></div><button class="btn btn-primary" data-action="not-connected">Ask AI</button>`);});
+  document.querySelector('[data-module="ai" data-action="ask-vehicle"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);modal('Ask Mobile Mechanic AI About This Vehicle',`<p class="muted small">Production AI will automatically receive this vehicle's complaint, mileage, prior repairs, codes, findings, and current job context.</p><div class="field"><textarea placeholder="Ask about this vehicle...">What should I verify next on this ${esc(vehicleText(j.vehicle))}?</textarea></div><button class="btn btn-primary" data-action="not-connected">Ask AI</button>`);});
 
-  document.querySelector('[data-action="second-opinion"]')?.addEventListener('click',()=>{const out=document.getElementById('secondResult');out.innerHTML=`<div class="list">${[['brain','Challenge the leading theory','What condition could produce the same symptom without the suspected component being bad?'],['wrench','Prove the failure','Identify the test that most directly proves or disproves the suspected component.'],['shield','Check basics first','Confirm power, ground, connector integrity, fluid/pressure conditions, and related inputs.'],['report','Compare authoritative data','Verify specs and procedures against official service information before final repair.']].map(x=>`<div class="list-item"><div class="list-icon">${ic(x[0])}</div><div class="list-main"><b>${x[1]}</b><p>${x[2]}</p></div></div>`).join('')}</div><p class="small muted">This is a rule-based prototype response. Secure production AI is not connected yet.</p>`;});
+  document.querySelector('[data-module="ai" data-action="second-opinion"]')?.addEventListener('click',()=>{const out=document.getElementById('secondResult');out.innerHTML=`<div class="list">${[['brain','Challenge the leading theory','What condition could produce the same symptom without the suspected component being bad?'],['wrench','Prove the failure','Identify the test that most directly proves or disproves the suspected component.'],['shield','Check basics first','Confirm power, ground, connector integrity, fluid/pressure conditions, and related inputs.'],['report','Compare authoritative data','Verify specs and procedures against official service information before final repair.']].map(x=>`<div class="list-item"><div class="list-icon">${ic(x[0])}</div><div class="list-main"><b>${x[1]}</b><p>${x[2]}</p></div></div>`).join('')}</div><p class="small muted">This is a rule-based prototype response. Secure production AI is not connected yet.</p>`;});
 
   document.querySelector('[data-action="quote-help"]')?.addEventListener('click',()=>modal('What can I say?',`<div class="list">${['Replace front brake pads and rotors.','Parts cost $280 with a 30% markup.','Charge three hours labor at $120 per hour.','Add a $50 mobile service fee.','Add diagnosis for $120.','Customer supplied the alternator.','Require the parts cost as the deposit.','Include a 12-month parts and labor warranty.','Make Good, Better, and Best options.','Change labor to four hours.','Remove the diagnostic fee.'].map(x=>`<button class="list-item" type="button" data-action="use-quote-example" data-example="${esc(x)}"><div class="list-main"><b>${esc(x)}</b><p>Tap to use this example.</p></div></button>`).join('')}</div>`));
   document.querySelectorAll('[data-action="use-quote-example"]').forEach(b=>b.onclick=()=>{const q=document.getElementById('qVoice');if(q)q.value=[q.value,b.dataset.example].filter(Boolean).join(' ');document.querySelector('.modal-backdrop')?.remove();});
@@ -623,6 +636,8 @@ function render(route=hashRoute()){
   }
   if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
   if(db.session?.role!=='shop'||!currentShop())return login();
+  ensureShopConfig(currentShop());
+  if(!routeEnabled(route)){ toast('That tool is turned off in Shop Settings.','bad'); location.hash='#dashboard'; return dashboard(); }
   const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
   (routes[route]||dashboard)();
 }
