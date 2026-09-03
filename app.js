@@ -19,6 +19,7 @@ const repairSpecialties = [
 const shopModules = [
   ['estimates','Estimates & Invoices'],['inventory','Parts Inventory'],
   ['inspections','Digital Inspections'],['scheduling','Scheduling'],['reporting','Reporting'],
+  ['time_clock','Time Clock'],
   ['ai','AI Diagnostics / Shop Coach']
 ];
 const defaultSpecialties = ['automotive'];
@@ -34,23 +35,19 @@ function ensureShopConfig(s){
   s.assetLabel=s.assetLabel||'Vehicle / Equipment';
   return s;
 }
-const routeModules={quote:'estimates',inspection:'inspections',calendar:'scheduling',reports:'reporting',parts:'inventory','ai-second':'ai'};
+const routeModules={quote:'estimates',inspection:'inspections',calendar:'scheduling',reports:'reporting',parts:'inventory','time-clock':'time_clock','ai-second':'ai'};
 function moduleEnabled(code,s=currentShop()){ return !code || ensureShopConfig(s).modules.includes(code); }
 function routeEnabled(route,s=currentShop()){ return moduleEnabled(routeModules[route],s); }
 function assetTerm(s=currentShop()){ return ensureShopConfig(s)?.assetLabel||'Vehicle / Equipment'; }
 function assetTermLower(s=currentShop()){ return assetTerm(s).toLowerCase(); }
-function optionalRoute(route,html,s=currentShop()){ return routeEnabled(route,s)?html:''; }
 function applyModuleVisibility(s=currentShop()){
-  ROOT.querySelectorAll('[data-route]').forEach(el=>{ if(!routeEnabled(el.dataset.route,s)) el.remove(); });
-  ROOT.querySelectorAll('[data-module]').forEach(el=>{ if(!moduleEnabled(el.dataset.module,s)) el.remove(); });
+  ROOT.querySelectorAll(`[data-route]`).forEach(el=>{ if(!routeEnabled(el.dataset.route,s)) el.remove(); });
+  ROOT.querySelectorAll(`[data-module]`).forEach(el=>{ if(!moduleEnabled(el.dataset.module,s)) el.remove(); });
 }
 
 const defaultDB = () => ({
-  platformOwner: {id:'adm_owner',name:'Platform Owner', email:'master@mobile-mechanic.app', password:'MasterDemo2026!', role:'platform_owner', active:true},
-  platformAdmins: [
-    {id:'adm_billing',name:'Demo Billing Admin',email:'billing-admin@mobile-mechanic.app',password:'BillingDemo2026!',role:'billing_admin',active:true},
-    {id:'adm_support',name:'Demo Support Admin',email:'support-admin@mobile-mechanic.app',password:'SupportDemo2026!',role:'support_admin',active:true}
-  ],
+  platformOwner: {id:'disabled',name:'Production Admin',email:'disabled@invalid.local',role:'platform_owner',active:false},
+  platformAdmins: [],
   adminActivity: [],
   session: null,
   shops: {},
@@ -76,7 +73,11 @@ function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON
 function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
 function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function toast(msg,type=''){ document.querySelector('.toast')?.remove(); const d=document.createElement('div'); d.className=`toast ${type}`; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2700); }
-function go(name, params={}){ location.hash = '#'+name; render(name,params); }
+function go(name){
+  const next='#'+name;
+  if(location.hash===next) return render(name);
+  location.hash=next;
+}
 function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
 function pathIntakeSlug(){
   const parts=location.pathname.split('/').filter(Boolean);
@@ -85,6 +86,7 @@ function pathIntakeSlug(){
 function staffInviteUrl(token){ return `${location.origin}/invite/${encodeURIComponent(token)}`; }
 function randomToken(){ const a=new Uint32Array(4); crypto.getRandomValues(a); return [...a].map(n=>n.toString(36)).join('-'); }
 function roleCan(...roles){ return roles.includes(currentUser()?.role) || db.session?.role==='platform_owner'; }
+function canViewShopFinancials(){ return roleCan('owner','manager','service_writer'); }
 const platformRoleLabels={platform_owner:'Platform Owner',billing_admin:'Billing Admin',support_admin:'Support Admin',operations_admin:'Operations Admin',technical_admin:'Technical Admin',read_only_admin:'Read-Only Admin'};
 const platformPerms={
   platform_owner:new Set(['shops_view','shops_open','trial_extend','comp','suspend','admins_manage','activity_view','billing_view','tech_view']),
@@ -110,8 +112,8 @@ function seedDemo(){
     specialties:['automotive','diesel','fleet'], modules:[...defaultModules], customSpecialty:'', assetLabel:'Vehicle / Equipment',
     terms:{version:TERMS_VERSION,acceptedAt:nowISO()},
     users:[
-      {id:'usr_demo_owner',name:'Chris Anderson',email:'demo@mobile-mechanic.app',password:'DemoShop2026!',role:'owner',active:true},
-      {id:'usr_demo_tech',name:'Mike Technician',email:'tech@mobile-mechanic.app',password:'TechDemo2026!',role:'technician',active:true}
+      {id:'usr_demo_owner',name:'Demo Shop Owner',email:'disabled-owner@invalid.local',role:'owner',active:false},
+      {id:'usr_demo_tech',name:'Demo Technician',email:'disabled-tech@invalid.local',role:'technician',active:false}
     ],
     customers:[
       {id:'cus_jane',name:'Jane Cooper',phone:'928-555-0192',email:'jane@example.com',address:'Yuma, AZ',vehicles:[{id:'veh_1',year:'2016',make:'Chevrolet',model:'Sonic',trim:'LT',engine:'1.8L',drive:'FWD',vin:'',plate:'',mileage:'124860'}]},
@@ -134,13 +136,23 @@ function logo(s, cls=''){ return `<img class="${cls}" src="${esc(s?.logo || 'ass
 function topbar(s,active='dashboard'){
   const u=currentUser();
   return `<header class="topbar">
-    <button class="top-btn" data-action="toggle-menu" aria-label="Menu">${ic('more')}</button>
-    <div class="brand" data-route="dashboard">${logo(s)}<div class="brand-copy"><div class="brand-title">Mobile <span class="red">Mechanic</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
+    <button class="top-btn menu-toggle" data-action="toggle-menu" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="brand" data-route="dashboard">${logo(s,'brand-mark')}<div class="brand-copy"><div class="brand-title">MOBILE <span class="red">MECHANIC</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
     <div class="top-spacer"></div>
     ${db.session?.supportMode?`<button class="btn btn-soft" data-action="return-admin">Return to Admin</button>`:''}
     <div class="shop-pill">${ic('shield')}<span>${esc(s?.name||'Shop')}</span></div>
     <button class="top-btn" data-route="settings" aria-label="Settings">${ic('settings')}</button>
   </header>`;
+}
+function mobileDrawer(s,active){
+  const links=[
+    ['dashboard','home','Dashboard'],['jobs','wrench','Jobs'],['quote','brain','AI Quotes'],
+    ['customers','users','Customers'],['calendar','calendar','Schedule'],['time-clock','clock','Time Clock'],
+    ['reports','report','Reports'],['service-info','book','Resources'],['integrations','settings','Integrations'],
+    ['settings','settings','Settings']
+  ].filter(([route])=>routeEnabled(route,s));
+  const role=currentUser()?.role==='owner'?'Shop Owner':currentUser()?.role||'Technician';
+  return `<div class="drawer-backdrop" data-action="close-menu" aria-hidden="true"></div><aside class="mobile-drawer" aria-hidden="true" aria-label="Main navigation"><div class="drawer-head">${logo(s)}<div><b>Mobile Mechanic AI</b><span>${esc(role)}</span></div><button data-action="close-menu" aria-label="Close navigation">×</button></div><nav>${links.map(([r,i,t])=>`<button class="drawer-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span><strong>›</strong></button>`).join('')}</nav><div class="drawer-account"><b>${esc(s.name)}</b><span>${esc(currentUser()?.name||'Technician')} · ${plans[s.plan]?.name||''}</span></div></aside>`;
 }
 function rail(s,active){
   const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
@@ -153,7 +165,7 @@ function bottomNav(active){
 function shopShell(content, active='dashboard'){
   const s=currentShop();
   if(!s) return login();
-  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
+  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}${mobileDrawer(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
   applyModuleVisibility(s);
   bind();
 }
@@ -162,14 +174,7 @@ function pageTitle(title,sub='',back='dashboard'){
 }
 
 function login(){
-  ROOT.innerHTML = `<section class="auth-screen"><div class="auth-card"><div class="auth-logo">${logo(null)}<h1>Mobile <span class="red">Mechanic</span> AI</h1><p>Multi-shop automotive workflow platform</p></div>
-    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div>
-    <div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div>
-    <button class="btn btn-primary btn-wide" data-action="login">Log In</button>
-    <div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button>
-    <div class="divider"></div><div class="demo-box"><b>Demo logins for this prototype</b><br>Shop Owner: demo@mobile-mechanic.app / DemoShop2026!<br>Technician: tech@mobile-mechanic.app / TechDemo2026!<br>Platform Owner: master@mobile-mechanic.app / MasterDemo2026!<br>Billing Admin: billing-admin@mobile-mechanic.app / BillingDemo2026!<br>Support Admin: support-admin@mobile-mechanic.app / SupportDemo2026!</div>
-    <p class="small muted" style="margin:12px 0 0;text-align:center">Production login will be moved to secure backend authentication before accepting real shops.</p>
-  </div></section>`;
+  ROOT.innerHTML = `<section class="hercules-landing"><header><div class="hercules-brand"><span>${ic('wrench')}</span><b>Mobile Mechanic AI</b></div><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button></header><main><div class="hercules-mark">${ic('wrench')}</div><h1>The AI-Powered<br>Mobile Mechanic Platform</h1><p>Customer sends their info. AI preps you before arrival. You verify onsite by voice. The app handles the rest.</p><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button><div class="hercules-features"><div>${ic('brain')}<span>AI Pre-Workup</span></div><div>${ic('shield')}<span>Customer Intake</span></div><div>${ic('wrench')}<span>Voice Findings</span></div><div>${ic('clock')}<span>Smart Scheduling</span></div></div></main><footer>© 2026 Mobile Mechanic AI — Built for professional technicians</footer><div class="landing-login" aria-hidden="true"><div class="auth-card"><button class="landing-close" data-action="hide-login" aria-label="Close">×</button><div class="auth-logo"><div class="hercules-mark">${ic('wrench')}</div><h2>Sign in</h2><p>Access your Mobile Mechanic AI shop</p></div><div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div><button class="btn btn-primary btn-wide" data-action="login">Sign In</button><div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button></div></div></section>`;
   bind();
 }
 
@@ -219,25 +224,18 @@ function dashboard(){
   if(!s.setupComplete) return setup();
   if(!subscriptionOK(s)) return billing(true);
   const today=s.jobs.filter(j=>['Scheduled','In Progress','AI Pre-Workup'].includes(j.status)).slice(0,4);
-  const content=`<div class="dash-head">${logo(s,'dash-logo')}<div class="dash-head-main"><div class="eyebrow">${esc(s.name)}</div><h1>${esc(s.name)} <span>Mechanic AI</span></h1><p>${currentUser()?.role==='owner'?'Shop Owner':esc(currentUser()?.role||'Technician')} • ${plans[s.plan].name}</p></div><div class="circle-avatar">${esc((currentUser()?.name||'U').split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div></div>
-    <div class="dash-status"><div class="status-box"><small>Subscription</small><b class="green">${s.subscriptionStatus==='active'?'ACTIVE':`${trialDays(s)} DAYS TRIAL`}</b></div><div class="status-box"><small>Today's Jobs</small><b>${today.length}</b></div><div class="status-box"><small>Pending Approval</small><b class="orange">${s.jobs.filter(j=>j.status==='Awaiting Approval').length}</b></div><div class="status-box"><small>Technicians</small><b>${s.users.filter(u=>u.active).length}/${plans[s.plan].seats}</b></div></div>
+  const pending=s.jobs.filter(j=>j.status==='Awaiting Approval').length;
+  const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)).length;
+  const revenue=s.jobs.filter(j=>j.status==='Completed').reduce((sum,j)=>sum+Number(j.invoice?.total||j.estimate?.better?.price||0),0);
+  const content=`<div class="mmp-page-head"><div><h1>Dashboard</h1><p>${new Date().toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div>
+    <button class="mmp-intake-link" data-route="send-intake"><span>${ic('send')}<b>Share Intake Link</b><small>Send customers your shop intake form</small></span><strong>›</strong></button>
+    ${pending?`<button class="mmp-pending" data-route="jobs">${ic('alert')}<span><b>${pending} job${pending===1?'':'s'} waiting for approval</b><small>Review pending work</small></span><strong>View ›</strong></button>`:''}
+    <div class="mmp-metrics"><button data-route="reports"><small>Revenue MTD</small><b>${money(revenue)}</b></button><button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${s.customers.length}</b></button></div>
     ${trialDays(s)<=10 && s.subscriptionStatus!=='active'?`<div class="priority-strip">${ic('alert')}<b>Your free trial ends in ${trialDays(s)} days</b><span data-route="billing">Manage Plan ›</span></div>`:''}
-    <div class="dashboard-grid">
-      <button class="dash-action" data-route="new-intake">${ic('user')}<div><b>NEW CUSTOMER</b><span>Intake + AI Workup</span></div></button>
-      <button class="dash-action" data-route="send-intake">${ic('send')}<div><b>SEND INTAKE</b><span>Shop-linked form</span></div></button>
-      <button class="dash-action" data-route="jobs">${ic('wrench')}<div><b>ACTIVE JOBS</b><span>Findings + quote</span></div></button>
-      ${optionalRoute('inspection',`<button class="dash-action" data-route="inspection">${ic('clipboard')}<div><b>PRE-PURCHASE</b><span>Inspection report</span></div></button>`,s)}
-      ${optionalRoute('ai-second',`<button class="dash-action" data-route="ai-second">${ic('brain')}<div><b>AI 2ND OPINION</b><span>Challenge diagnosis</span></div></button>`,s)}
-      ${optionalRoute('parts',`<button class="dash-action" data-route="parts">${ic('search')}<div><b>PARTS</b><span>Source + receipts</span></div></button>`,s)}
-      <button class="dash-action" type="button" data-open-invoices>${ic('money')}<div><b>OPEN INVOICES</b><span data-open-invoices-summary>View unpaid customer invoices</span></div></button>
-      <button class="dash-action" data-route="service-info">${ic('book')}<div><b>SERVICE INFO</b><span>Procedures, specs, TSBs + diagrams</span></div></button>
-      <button class="dash-action" data-route="fleet">${ic('truck')}<div><b>FLEET</b><span>Units + service</span></div></button>
-      <button class="dash-action" data-route="roadside">${ic('tow')}<div><b>ROADSIDE</b><span>Tow handoff</span></div></button>
-    </div>
-    ${moduleEnabled('ai',s)?`<div class="priority-strip">${ic('brain')}<b>AI Assistant</b><span data-route="jobs">Open a ${esc(assetTermLower(s))} and ask about its complete history ›</span></div>`:''}
-    <div class="dashboard-panels"><section class="card card-pad"><div class="card-title">TODAY'S WORK</div><div class="section-note">Jobs, approvals, and follow-ups</div><div class="divider"></div><div class="timeline">${today.length?today.map(j=>`<button class="timeline-row" style="border:0;background:transparent;color:inherit;text-align:left" data-job="${j.id}"><span class="timeline-dot"></span><div><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><time>${esc(j.status)}</time></button>`).join(''):`<div class="muted small">No active jobs yet.</div>`}</div></section>
-    <section class="card card-pad"><div class="card-title">SHOP SNAPSHOT</div><div class="section-note">Current workspace</div><div class="divider"></div><div class="metric-grid" style="grid-template-columns:1fr 1fr"><div class="metric red"><b>${s.customers.length}</b><span>Customers</span></div><div class="metric orange"><b>${s.jobs.length}</b><span>Jobs</span></div><div class="metric green"><b>${s.jobs.filter(j=>j.approval?.status==='approved').length}</b><span>Approved</span></div><div class="metric blue"><b>${s.receipts?.length||0}</b><span>Receipts</span></div></div></section></div>
-    <div class="quick-row">${optionalRoute('quote',`<button class="quick-tool" data-route="quote">${ic('money')}Quick Quote</button>`,s)}<button class="quick-tool" data-route="team">${ic('users')}Team</button><button class="quick-tool" data-route="templates">${ic('clipboard')}Templates</button><button class="quick-tool" data-route="carfax">${ic('report')}CARFAX</button><button class="quick-tool" data-route="settings">${ic('settings')}Settings</button></div>`;
+    <section class="card card-pad mmp-revenue"><div class="mmp-section-head"><b>REVENUE — THIS MONTH</b><button data-route="reports">View reports</button></div><div class="mmp-revenue-value">${money(revenue)}</div><div class="mmp-revenue-track"><i style="width:${Math.min(100,Math.max(8,revenue/100))}%"></i></div></section>
+    <section class="card card-pad mmp-quick"><div class="mmp-section-head"><b>QUICK ACTIONS</b></div><div><button data-route="new-intake">${ic('wrench')}<span>New Job</span></button><button data-route="jobs">${ic('clipboard')}<span>View Intakes</span>${pending?`<em>${pending}</em>`:''}</button><button type="button" data-open-invoices>${ic('money')}<span><b>OPEN INVOICES</b><small data-open-invoices-summary>Billing</small></span></button><button data-route="customers">${ic('users')}<span>Customers</span></button></div></section>
+    <section class="card card-pad mmp-list"><div class="mmp-section-head"><b>TODAY'S SCHEDULE</b><button data-route="calendar">View all</button></div>${today.length?today.map(j=>`<button class="mmp-job-row" data-job="${j.id}"><span class="timeline-dot"></span><div><b>${esc(j.customerName)}</b><small>${esc(vehicleText(j.vehicle))} · ${esc(scheduleWindow(j))}</small></div><em>${esc(j.status)}</em></button>`).join(''):`<div class="mmp-empty">No jobs scheduled today.</div>`}</section>
+    <section class="card card-pad mmp-list"><div class="mmp-section-head"><b>ACTIVE JOBS</b><button data-route="jobs">View all</button></div>${s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)).slice(0,4).map(j=>`<button class="mmp-job-row" data-job="${j.id}"><div><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><small>${esc(j.complaint)}</small></div><em>${esc(j.status)}</em></button>`).join('')||`<div class="mmp-empty">No active jobs.</div>`}<button class="mmp-service-link" data-route="service-info">${ic('book')} Service Information</button></section>`;
   shopShell(content,'dashboard');
 }
 
@@ -276,7 +274,7 @@ function jobs(){
   const s=currentShop();
   const content=`${pageTitle('Jobs','Intake → diagnosis → estimate → approval → invoice')}
   <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Intake</button><button class="btn btn-soft" data-route="quote">${ic('money')} Quick Quote</button></div>
-  <div class="list">${s.jobs.map(j=>`<button class="list-item" style="width:100%;color:inherit;text-align:left" data-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></button>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
+  <div class="list">${s.jobs.map(j=>`<div class="list-item job-list-item" role="button" tabindex="0" style="width:100%;color:inherit;text-align:left" data-open-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></div>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
   shopShell(content,'jobs');
 }
 
@@ -391,6 +389,16 @@ function openTechProfile(userId){
   modal('Technician Profile',`<form id="techProfileForm" data-user="${u.id}"><div class="tech-profile-photo"><button type="button" class="tech-profile-avatar" data-action="choose-tech-photo">${u.photo?`<img id="techPhotoPreview" src="${esc(u.photo)}" alt="${esc(u.name)}">`:`<span id="techPhotoPreview">${ic('camera')}</span>`}</button><div><b>${esc(u.name)}</b><p class="small muted">Tap the picture to add or change it.</p></div><input id="techPhotoFile" type="file" accept="image/png,image/jpeg,image/webp" capture="user" hidden><input id="techPhotoData" type="hidden" value="${esc(u.photo||'')}"></div><div class="row2"><div class="field"><label>Name</label><input name="name" value="${esc(u.name)}" ${canEdit?'':'readonly'}></div><div class="field"><label>Phone</label><input name="phone" type="tel" value="${esc(u.phone||'')}" ${canEdit?'':'readonly'}></div></div><div class="row2"><div class="field"><label>Email</label><input name="email" type="email" value="${esc(u.email||'')}" ${canManage?'':'readonly'}></div><div class="field"><label>Role</label><select name="role" ${canManage?'':'disabled'}>${[['owner','Shop Owner'],['manager','Manager'],['technician','Technician'],['service_writer','Service Writer']].map(([v,n])=>`<option value="${v}" ${u.role===v?'selected':''}>${n}</option>`).join('')}</select></div></div><div class="field"><label>Specialties</label><input name="specialties" value="${esc(u.specialties||'')}" placeholder="Diagnostics, diesel, brakes, HVAC..." ${canEdit?'':'readonly'}></div><div class="field"><label>Certifications / Training</label><textarea name="certifications" placeholder="ASE areas, EPA 609, manufacturer training..." ${canEdit?'':'readonly'}>${esc(u.certifications||'')}</textarea></div><div class="field"><label>About This Technician</label><textarea name="bio" placeholder="Experience, services, or a short introduction..." ${canEdit?'':'readonly'}>${esc(u.bio||'')}</textarea></div>${canEdit?'<button class="btn btn-primary btn-wide">Save Technician Profile</button>':''}</form>`);
 }
 
+function timeClock(){
+  const s=currentShop(),u=currentUser();
+  s.timeEntries=Array.isArray(s.timeEntries)?s.timeEntries:[];
+  const open=s.timeEntries.find(x=>x.userId===u.id&&!x.clockOut);
+  const visible=roleCan('owner','manager')?s.timeEntries:s.timeEntries.filter(x=>x.userId===u.id);
+  const rows=visible.slice().reverse().map(x=>{const tech=s.users.find(y=>y.id===x.userId),end=x.clockOut?new Date(x.clockOut):new Date(),hours=Math.max(0,(end-new Date(x.clockIn))/3600000);return `<div class="list-item"><div class="list-icon">${ic('clock')}</div><div class="list-main"><b>${esc(tech?.name||'Technician')} • ${hours.toFixed(2)} hours</b><p>${new Date(x.clockIn).toLocaleString()} — ${x.clockOut?new Date(x.clockOut).toLocaleString():'Clocked in now'}</p></div></div>`;}).join('');
+  const content=`${pageTitle('Time Clock',roleCan('owner','manager')?'Review team time or clock yourself in.':'Your personal time entries.','more')}<section class="card card-pad"><div class="card-title">${open?'CLOCKED IN':'READY TO CLOCK IN'}</div><div class="section-note">${open?`Started ${new Date(open.clockIn).toLocaleString()}`:'Time is kept separately for each technician.'}</div><div class="divider"></div><button class="btn ${open?'btn-soft':'btn-primary'} btn-wide" data-action="${open?'clock-out':'clock-in'}">${open?'Clock Out':'Clock In'}</button></section><section class="card card-pad" style="margin-top:10px"><div class="card-title">${roleCan('owner','manager')?'TEAM TIME ENTRIES':'MY TIME ENTRIES'}</div><div class="divider"></div><div class="list">${rows||'<p class="muted">No time entries yet.</p>'}</div></section>`;
+  shopShell(content,'more');
+}
+
 function billing(blocked=false){
   const s=currentShop();
   const addonFallback=[
@@ -418,7 +426,8 @@ function settings(){
 
 function more(){
   const s=currentShop();
-  const content=`${pageTitle('More','Shop administration and supporting tools','dashboard')}<div class="dashboard-grid"><button class="dash-action" data-route="team">${ic('users')}<div><b>TEAM LOGINS</b><span>${s.users.length}/${plans[s.plan].seats} seats</span></div></button><button class="dash-action" data-route="billing">${ic('money')}<div><b>SUBSCRIPTION</b><span>${plans[s.plan].name}</span></div></button><button class="dash-action" data-route="settings">${ic('settings')}<div><b>SHOP SETTINGS</b><span>Rates + branding</span></div></button><button class="dash-action" data-route="carfax">${ic('report')}<div><b>CARFAX</b><span>Service reporting</span></div></button><button class="dash-action" data-route="warranty">${ic('shield')}<div><b>WARRANTY</b><span>Comebacks + parts</span></div></button><button class="dash-action" data-route="templates">${ic('clipboard')}<div><b>TEMPLATES</b><span>Common services</span></div></button><button class="dash-action" data-route="training">${ic('book')}<div><b>TRAINING</b><span>ASE / 609 study</span></div></button><button class="dash-action" data-route="export">${ic('upload')}<div><b>DATA EXPORT</b><span>Shop records</span></div></button></div><div class="card card-pad" style="margin-top:10px"><button class="btn btn-soft btn-wide" data-action="logout">Log Out</button></div>`;
+  const billingTile=canViewShopFinancials()?`<button class="dash-action" data-route="billing">${ic('money')}<div><b>SUBSCRIPTION</b><span>${plans[s.plan].name}</span></div></button>`:'';
+  const content=`${pageTitle('More','Shop administration and supporting tools','dashboard')}<div class="dashboard-grid"><button class="dash-action" data-route="team">${ic('users')}<div><b>TEAM LOGINS</b><span>${s.users.length}/${plans[s.plan].seats} seats</span></div></button><button class="dash-action" data-route="time-clock">${ic('clock')}<div><b>TIME CLOCK</b><span>Clock in / out</span></div></button>${billingTile}<button class="dash-action" data-route="settings">${ic('settings')}<div><b>SHOP SETTINGS</b><span>Rates + branding</span></div></button><button class="dash-action" data-route="carfax">${ic('report')}<div><b>CARFAX</b><span>Service reporting</span></div></button><button class="dash-action" data-route="warranty">${ic('shield')}<div><b>WARRANTY</b><span>Comebacks + parts</span></div></button><button class="dash-action" data-route="templates">${ic('clipboard')}<div><b>TEMPLATES</b><span>Common services</span></div></button><button class="dash-action" data-route="training">${ic('book')}<div><b>TRAINING</b><span>ASE / 609 study</span></div></button><button class="dash-action" data-route="export">${ic('upload')}<div><b>DATA EXPORT</b><span>Shop records</span></div></button></div><div class="card card-pad" style="margin-top:10px"><button class="btn btn-soft btn-wide" data-action="logout">Log Out</button></div>`;
   shopShell(content,'more');
 }
 
@@ -495,8 +504,8 @@ document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function bind(){
-  document.querySelectorAll('[data-route]').forEach(el=>el.onclick=()=>go(el.dataset.route));
-  document.querySelectorAll('[data-job]').forEach(el=>el.onclick=()=>workup(el.dataset.job));
+  document.querySelectorAll('[data-action="show-login"]').forEach(b=>b.addEventListener('click',()=>{const m=document.querySelector('.landing-login');m?.classList.add('open');m?.setAttribute('aria-hidden','false');setTimeout(()=>document.getElementById('loginEmail')?.focus(),80);}));
+  document.querySelector('[data-action="hide-login"]')?.addEventListener('click',()=>{const m=document.querySelector('.landing-login');m?.classList.remove('open');m?.setAttribute('aria-hidden','true');});
   document.querySelectorAll('[data-external]').forEach(el=>el.onclick=()=>window.open(el.dataset.external,'_blank','noopener'));
 
   document.querySelector('[data-action="login"]')?.addEventListener('click',()=>{
@@ -618,12 +627,48 @@ function bind(){
   document.querySelectorAll('[data-action="prepare-carfax"]').forEach(b=>b.onclick=()=>{const j=jobById(b.dataset.job);j.carfax={status:'Ready',preparedAt:nowISO(),record:{vin:j.vehicle.vin,mileage:j.vehicle.mileage,date:j.completedAt||nowISO(),services:j.findings||j.complaint,shop:currentShop().name}};save();toast('Service record prepared. Not submitted to CARFAX.','good');carfax();});
   document.querySelector('[data-action="export-json"]')?.addEventListener('click',()=>{const s=currentShop(),blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${s.slug}-mobile-mechanic-ai-export.json`;a.click();URL.revokeObjectURL(a.href);});
   document.querySelector('[data-action="save-ppi"]')?.addEventListener('click',()=>toast('PPI draft saved in prototype workflow.','good'));
+  document.querySelector('[data-action="clock-in"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser();s.timeEntries=Array.isArray(s.timeEntries)?s.timeEntries:[];if(!s.timeEntries.some(x=>x.userId===u.id&&!x.clockOut))s.timeEntries.push({id:uid('time'),userId:u.id,clockIn:nowISO(),clockOut:null});save();timeClock();toast('Clocked in.','good');});
+  document.querySelector('[data-action="clock-out"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser(),entry=(s.timeEntries||[]).find(x=>x.userId===u.id&&!x.clockOut);if(entry)entry.clockOut=nowISO();save();timeClock();toast('Clocked out.','good');});
   document.querySelectorAll('[data-action="not-connected"]').forEach(b=>b.onclick=()=>toast('This secure API is not connected in the static prototype.',''));
   document.querySelector('[data-action="close-modal"]')?.addEventListener('click',closeModal);
   document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
-  document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>go('more'));
+  document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>{
+    document.body.classList.add('drawer-open');
+    document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','false');
+    document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','false');
+    document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','true');
+  });
+  document.querySelectorAll('[data-action="close-menu"]').forEach(b=>b.addEventListener('click',()=>{
+    document.body.classList.remove('drawer-open');
+    document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','true');
+    document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','true');
+    document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','false');
+  }));
 }
+
+// Route and job navigation use delegation so controls injected after a render
+// (pricing, integrations, admin helpers, etc.) work without another bind pass.
+document.addEventListener('click',e=>{
+  const route=e.target.closest?.('[data-route]');
+  if(route){
+    e.preventDefault();
+    go(route.dataset.route);
+    return;
+  }
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && !e.target.closest?.('button,a,input,select,textarea')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
+document.addEventListener('keydown',e=>{
+  const job=e.target.closest?.('[data-open-job]');
+  if(job && (e.key==='Enter'||e.key===' ')){
+    e.preventDefault();
+    workup(job.dataset.openJob);
+  }
+});
 
 function setupSpeech(selector,targetId){
   const b=document.querySelector(selector);if(!b)return;b.onclick=async()=>{const el=document.getElementById(targetId),SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){el?.focus();return toast('Browser voice is unavailable. Tap the microphone on your Android keyboard to dictate here.','bad');}try{if(navigator.mediaDevices?.getUserMedia){const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());}}catch(err){el?.focus();const blocked=err?.name==='NotAllowedError'||err?.name==='SecurityError';return toast(blocked?'Microphone permission was denied. Open this site’s permissions in Chrome and set Microphone to Allow.':'The phone microphone could not be opened. Close other apps using it and try again.','bad');}const r=new SR();let heard=false;r.lang='en-US';r.continuous=false;r.interimResults=true;r.maxAlternatives=1;b.classList.add('listening');r.onresult=e=>{let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)final+=t;else interim+=t;}if(final.trim()){heard=true;el.value=(el.value?el.value+' ':'')+final.trim();el.dispatchEvent(new Event('input',{bubbles:true}));toast('Voice added.','good');}else if(interim.trim())toast(`Listening… ${interim.trim()}`);};r.onerror=e=>{b.classList.remove('listening');const messages={'not-allowed':'Microphone permission is blocked. Allow microphone access for this site, then try again.','service-not-allowed':'Android speech service is blocked. Enable Google voice typing or use the keyboard microphone.','no-speech':'I did not hear anything. Move closer and tap the microphone again.','audio-capture':'The phone microphone is unavailable or another app is using it.','network':'Android voice transcription could not reach its speech service. Check your connection or use the keyboard microphone.','aborted':'Voice input was stopped.'};el?.focus();toast(messages[e.error]||`Voice stopped (${e.error||'unknown'}). Use the Android keyboard microphone if it continues.`,'bad');};r.onend=()=>{b.classList.remove('listening');if(!heard)el?.focus();};try{r.start();toast('Listening… speak now.');}catch{b.classList.remove('listening');el?.focus();toast('Could not start voice. Tap the microphone on your Android keyboard.','bad');}};
@@ -637,8 +682,9 @@ function render(route=hashRoute()){
   if(route==='login')return login();if(route==='signup')return signup();if(route==='admin'){if(db.session?.role==='platform_owner'||db.session?.role==='platform_admin')return platformAdmin();return login();}
   if(db.session?.role!=='shop'||!currentShop())return login();
   ensureShopConfig(currentShop());
+  if(['billing','settings','reports','export'].includes(route)&&!canViewShopFinancials())return more();
   if(!routeEnabled(route)){ toast('That tool is turned off in Shop Settings.','bad'); location.hash='#dashboard'; return dashboard(); }
-  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
+  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,'time-clock':timeClock,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
   (routes[route]||dashboard)();
 }
 

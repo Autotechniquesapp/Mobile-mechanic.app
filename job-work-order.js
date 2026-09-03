@@ -7,6 +7,7 @@ let currentState=null;
 
 function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function context(){const db=read(),sid=db.session?.shopId,shop=sid?db.shops?.[sid]:null,job=shop?.jobs?.find(j=>String(j.id)===String(db.session?.activeJobId));return {db,shop,job};}
+function canSeeFinancials(){const {db,shop}=context(),user=shop?.users?.find(u=>u.id===db.session?.userId);return ['owner','manager','service_writer'].includes(user?.role);}
 function esc(v=''){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function money(v){if(v===null||v===undefined||v==='')return '';return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0));}
 function toast(msg,type=''){document.querySelector('.workorder-toast')?.remove();const d=document.createElement('div');d.className=`toast workorder-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3200);}
@@ -38,7 +39,7 @@ function rowMarkup(item,type,index){
   const task=type!=='parts';
   const options=task?taskOptions(item.status):partOptions(item.status);
   const detail=item.note||item.purpose||item.source||'';
-  return `<div class="jwo-row"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}</div>${item.price!==null&&item.price!==undefined?`<span class="jwo-price">${money(item.price)}</span>`:''}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
+  return `<div class="jwo-row"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}</div>${canSeeFinancials()&&item.price!==null&&item.price!==undefined?`<span class="jwo-price">${money(item.price)}</span>`:''}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
 }
 function section(title,type,items,button){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3><button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button></div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
 function financialMarkup(invoice,wo){
@@ -55,7 +56,7 @@ function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.cus
   ${section('Parts Bought / Needed','parts',wo.parts,'Part')}
   ${section('Work Being Done / Completed','work',wo.work,'Work Item')}
   ${section('Tests / Checks','tests',wo.tests,'Test')}
-  ${financialMarkup(invoice,wo)}
+  ${canSeeFinancials()?financialMarkup(invoice,wo):''}
   ${wo.authorization?.note?`<div class="jwo-auth"><b>Authorization:</b> ${esc(wo.authorization.note)}</div>`:''}
 </section>`;}
 

@@ -118,7 +118,7 @@ async function loadWorkspace(user, allowCreate=true){
     sb.from('shops').select('*').eq('shop_id',sid).single(),
     sb.from('customers').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('vehicles').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
-    sb.from('jobs').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
+    sb.rpc('get_my_shop_jobs'),
     sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid),
     sb.from('addon_catalog').select('code,name,description,monthly_price,quantity,unit_label,available_on_plans').eq('active',true).order('sort_order'),
     sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active')
