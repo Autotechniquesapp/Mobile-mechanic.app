@@ -23,3 +23,16 @@ test('older shops receive non-destructive configuration defaults', () => {
   assert.match(source, /Array\.isArray\(s\.specialties\)/);
   assert.match(source, /Array\.isArray\(s\.modules\)/);
 });
+
+test('optional modules control navigation and direct routes', () => {
+  assert.match(source, /const routeModules=/);
+  assert.match(source, /filter\(\(\[route\]\)=>routeEnabled\(route,s\)\)/);
+  assert.match(source, /if\(!routeEnabled\(route\)\)/);
+  assert.match(source, /That tool is turned off in Shop Settings/);
+});
+
+test('editable asset terminology is rendered in customer intake', () => {
+  assert.match(source, /function assetTerm\(/);
+  assert.match(source, /2 • \$\{esc\(assetTerm\(s\)\)\}/);
+  assert.match(source, /assetTermLower\(s\)/);
+});
