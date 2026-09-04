@@ -172,9 +172,10 @@ async function refreshWorkspace(route='#dashboard',activeJobId=null){
 
 async function submitPublicIntake(form,d){
   const vehicle={year:d.year?Number(d.year):null,make:d.make||null,model:d.model||null,submodel:d.trim||null,engine:d.engine||null,drivetrain:d.drive||null,vin:(d.vin||'').trim().toUpperCase()||null,license_plate:(d.plate||'').trim()||null,mileage:d.mileage?Number(d.mileage):null,request_type:d.requestType||'Repair / Diagnostic'};
-  const {error}=await sb.from('intake_submissions').insert({
-    shop_id:form.dataset.shop,customer_name:d.customerName,phone:d.phone||null,email:d.email||null,address:d.location||null,
-    preferred_contact:null,availability:d.availability||null,current_location:d.location?{raw:d.location}:null,vehicle,customer_states:d.complaint||null
+  const {error}=await sb.rpc('submit_public_intake',{
+    p_shop_id:form.dataset.shop,p_customer_name:d.customerName,p_phone:d.phone||null,p_email:d.email||null,
+    p_address:d.location||null,p_availability:d.availability||null,p_current_location:d.location?{raw:d.location}:null,
+    p_vehicle:vehicle,p_customer_states:d.complaint||''
   });
   if(error) throw error;
   const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
