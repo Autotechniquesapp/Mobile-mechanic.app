@@ -38,11 +38,14 @@ function renderSettingsControl(){
   if(!shopId()||route()!=='settings'){removeSettingsCard();return;}
   const main=document.querySelector('main.content');
   if(!main)return;
-  removeSettingsCard();
   const state=notificationState();
+  const existing=main.querySelector('[data-push-settings-card]');
+  if(existing?.dataset.pushState===state.key){bindEnableButton(existing);return;}
+  removeSettingsCard();
   const enabled=state.key==='enabled',blocked=state.key==='blocked',unsupported=state.key==='unsupported';
   const card=document.createElement('section');
   card.dataset.pushSettingsCard='1';
+  card.dataset.pushState=state.key;
   card.className='card card-pad';
   card.style.marginTop='10px';
   card.innerHTML=`<div class="card-title">🔔 NOTIFICATIONS</div><div class="divider"></div><div class="list-item" style="align-items:center"><div class="list-icon">🔔</div><div class="list-main"><b>${state.label}</b><p>${state.detail}</p><div class="list-actions"><button type="button" class="btn ${enabled?'btn-soft':'btn-primary'}" data-enable-phone-alerts ${enabled||blocked||unsupported?'disabled':''}>${enabled?'✓ PHONE ALERTS ENABLED':blocked?'NOTIFICATIONS BLOCKED':unsupported?'NOT SUPPORTED':'ENABLE PHONE ALERTS'}</button></div>${blocked?'<p class="small muted" style="margin:8px 0 0">Open your phone Settings → Apps/Browser → Notifications, allow Mobile Mechanic AI, then reopen the app.</p>':''}</div></div>`;

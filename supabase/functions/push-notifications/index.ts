@@ -1,11 +1,21 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.4";
 import webpush from "npm:web-push@3.6.7";
 
-const cors={"Access-Control-Allow-Origin":"https://mobile-mechanic.app","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
+const allowedOrigins=new Set(["https://mobile-mechanic.app","https://www.mobile-mechanic.app"]);
+function corsFor(req:Request){
+  const origin=req.headers.get("Origin")||"https://mobile-mechanic.app";
+  return {
+    "Access-Control-Allow-Origin":allowedOrigins.has(origin)?origin:"https://mobile-mechanic.app",
+    "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods":"POST, OPTIONS",
+    "Vary":"Origin"
+  };
+}
 function envKey(jsonName:string,legacyName:string){try{const p=JSON.parse(Deno.env.get(jsonName)||"{}");if(p?.default)return p.default;}catch{}return Deno.env.get(legacyName)||"";}
 
 Deno.serve(async(req)=>{
+  const cors=corsFor(req);
+  const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
   if(req.method!=="POST")return json({error:"Method not allowed"},405);
   const url=Deno.env.get("SUPABASE_URL")!;
@@ -90,4 +100,3 @@ Deno.serve(async(req)=>{
     return json({error:"Unknown action."},400);
   }catch(err){console.error(err);return json({error:err instanceof Error?err.message:"Push notification failed."},500);}
 });
-

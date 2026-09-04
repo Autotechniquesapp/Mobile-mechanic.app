@@ -25,6 +25,13 @@ test('navigation is delegated for dynamically inserted controls', () => {
   assert.doesNotMatch(source, /querySelectorAll\('\[data-route\]'\)\.forEach/);
 });
 
+test('customer intake link buttons use delegated handlers', () => {
+  assert.match(source, /closest\?\.\('\[data-action="share-intake"\],\[data-action="copy-intake"\],\[data-action="preview-intake"\]'\)/);
+  for (const action of ['share-intake', 'copy-intake', 'preview-intake']) {
+    assert.match(source, new RegExp(`data-action="${action}"`));
+  }
+});
+
 test('job rows do not nest an action button inside another button', () => {
   assert.match(source, /class="list-item job-list-item" role="button"/);
   assert.doesNotMatch(source, /<button class="list-item"[^`]*data-job=/);
