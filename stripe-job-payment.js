@@ -2,8 +2,8 @@
 'use strict';
 
 // Legacy filename retained only so older cached HTML cannot resurrect the old
-// Stripe-only repair-payment panel. Customer repair payments now follow the
-// shop's actual payment processor record (Square for Autotechniques).
+// Stripe-only repair-payment panel. Customer repair payments now follow each
+// shop's configured payment processor record.
 function removeLegacyRepairPaymentPanel(){
   document.querySelectorAll('[data-stripe-job-panel], .stripe-job-toast').forEach(el=>el.remove());
 
