@@ -219,6 +219,15 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app-root{min-he
   .bottom-nav{display:none!important}
   .menu-toggle{display:grid;flex:0 0 auto}
 }
+
+/* Keep the closed drawer from intercepting taps; keep every open menu item reachable. */
+.drawer-backdrop{pointer-events:none}
+.mobile-drawer{visibility:hidden;pointer-events:none}
+.drawer-open .drawer-backdrop{pointer-events:auto}
+.drawer-open .mobile-drawer{visibility:visible;pointer-events:auto}
+.mobile-drawer nav{flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+.drawer-link{touch-action:manipulation}
+.drawer-account{margin-top:0}
 @media(min-width:881px){
   .menu-toggle{display:none}
 }

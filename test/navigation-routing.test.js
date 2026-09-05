@@ -25,6 +25,11 @@ test('navigation is delegated for dynamically inserted controls', () => {
   assert.doesNotMatch(source, /querySelectorAll\('\[data-route\]'\)\.forEach/);
 });
 
+test('mobile drawer closes before route navigation', () => {
+  assert.match(source, /function closeDrawer\(\)/);
+  assert.match(source, /const route=e\.target\.closest\?\.\('\[data-route\]'\);[\s\S]*?closeDrawer\(\);[\s\S]*?go\(route\.dataset\.route\)/);
+});
+
 test('customer intake link buttons use delegated handlers', () => {
   assert.match(source, /closest\?\.\('\[data-action="share-intake"\],\[data-action="copy-intake"\],\[data-action="preview-intake"\]'\)/);
   for (const action of ['share-intake', 'copy-intake', 'preview-intake']) {

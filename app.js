@@ -78,6 +78,12 @@ function go(name){
   if(location.hash===next) return render(name);
   location.hash=next;
 }
+function closeDrawer(){
+  document.body.classList.remove('drawer-open');
+  document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','true');
+  document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','true');
+  document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','false');
+}
 function hashRoute(){ return (location.hash||'#login').slice(1).split('?')[0]; }
 function pathIntakeSlug(){
   const parts=location.pathname.split('/').filter(Boolean);
@@ -641,10 +647,7 @@ function bind(){
     document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','true');
   });
   document.querySelectorAll('[data-action="close-menu"]').forEach(b=>b.addEventListener('click',()=>{
-    document.body.classList.remove('drawer-open');
-    document.querySelector('.mobile-drawer')?.setAttribute('aria-hidden','true');
-    document.querySelector('.drawer-backdrop')?.setAttribute('aria-hidden','true');
-    document.querySelector('[data-action="toggle-menu"]')?.setAttribute('aria-expanded','false');
+    closeDrawer();
   }));
 }
 
@@ -669,6 +672,7 @@ document.addEventListener('click',e=>{
   const route=e.target.closest?.('[data-route]');
   if(route){
     e.preventDefault();
+    closeDrawer();
     go(route.dataset.route);
     return;
   }
