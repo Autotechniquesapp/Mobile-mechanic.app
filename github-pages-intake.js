@@ -51,7 +51,7 @@ async function shareStable() {
     const db = JSON.parse(localStorage.getItem('mobile_mechanic_ai_approved_v7') || '{}');
     shopName = db.shops?.[db.session?.shopId]?.name || shopName;
   } catch {}
-  const text = `Please fill out this vehicle intake for ${shopName}: ${url}`;
+  const text = `Please fill out this vehicle intake for ${shopName}.`;
   if (navigator.share) {
     try { await navigator.share({ title: `${shopName} Customer Intake`, text, url }); return; } catch (e) {
       if (e?.name === 'AbortError') return;
