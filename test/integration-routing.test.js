@@ -28,6 +28,8 @@ test('platform admin integration health is read-only and exposes errors', () => 
   assert.match(admin, /Read-only provider status and problems/);
   assert.match(admin, /i\.last_error\|\|'No reported error'/);
   assert.doesNotMatch(admin, /data-admin-integration-(?:enable|disable)/);
-  assert.match(costs, /<details class="integration-row">/);
+  assert.match(costs, /<details class="integration-row"/);
   assert.match(costs, /<b>Problem:<\/b>/);
+  assert.match(costs, /waitForList\.disconnect\(\)/);
+  assert.match(costs, /lastOpenProvider===i\.provider\?'open':''/);
 });
