@@ -11,7 +11,7 @@ test('every literal data-route has a registered destination', () => {
     'login', 'signup', 'admin', 'setup', 'dashboard', 'new-intake',
     'send-intake', 'customers', 'jobs', 'findings', 'ai-second', 'quote',
     'inspection', 'team', 'time-clock', 'billing', 'settings', 'more', 'calendar',
-    'reports', 'parts', 'fleet', 'roadside', 'warranty', 'templates',
+    'reports', 'parts', 'fleet', 'roadside', 'warranty', 'templates', 'integrations',
     'training', 'carfax', 'service-info', 'export'
   ]);
   assert.ok(routeBlock, 'route registry should remain discoverable');
