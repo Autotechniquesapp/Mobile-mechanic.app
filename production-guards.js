@@ -1,15 +1,6 @@
 (() => {
 'use strict';
 
-function notice(message){
-  document.querySelector('.production-guard-notice')?.remove();
-  const d=document.createElement('div');
-  d.className='toast production-guard-notice';
-  d.textContent=message;
-  document.body.appendChild(d);
-  setTimeout(()=>d.remove(),4200);
-}
-
 function removeMechanicIntakeModules(){
   ['fleet','roadside','inspection'].forEach(route=>{
     document.querySelectorAll(`[data-route="${route}"]`).forEach(el=>{
@@ -82,7 +73,6 @@ function enhanceCustomerIntake(){
   const {customer,vehicle,request}=intakeCards(form);
   if(!request) return;
 
-  // Put the choice immediately after customer information, before any vehicle questions.
   if(customer && customer.nextElementSibling!==request) customer.insertAdjacentElement('afterend',request);
 
   const customerTitle=customer?.querySelector('h3');
@@ -90,7 +80,6 @@ function enhanceCustomerIntake(){
   const requestTitle=request.querySelector('h3');
   if(requestTitle) requestTitle.textContent='2 • What do you need?';
 
-  // Only the two approved choices for now.
   form.querySelectorAll('input[name="requestType"][value="Fleet Service"],input[name="requestType"][value="Tow / Roadside"]').forEach(input=>input.closest('label')?.remove());
 
   const repair=form.querySelector('input[name="requestType"][value="Repair / Diagnostic"]')?.closest('label');
@@ -128,14 +117,6 @@ function appendPpiDetails(form){
   complaint.required=false;
   complaint.value=lines.join('\n');
 }
-
-document.addEventListener('click',e=>{
-  const plan=e.target.closest('[data-plan]');
-  if(!plan)return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  notice('Stripe billing is not connected yet. No subscription was charged or activated.');
-},true);
 
 document.addEventListener('submit',e=>{
   if(e.target?.id==='intakeForm') appendPpiDetails(e.target);
