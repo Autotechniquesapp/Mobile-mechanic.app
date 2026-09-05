@@ -26,13 +26,25 @@ function makeSlots(){
   return out;
 }
 
+function clearAsap(wrap){
+  const asap=wrap.querySelector('[data-asap]');
+  if(!asap)return;
+  asap.classList.remove('selected','btn-primary');
+  asap.classList.add('btn-soft');
+}
+
 function setAvailability(wrap){
   const hidden=wrap.querySelector('input[name="availability"]');
-  const date=wrap.querySelector('[data-intake-date]')?.value||'';
-  const selected=wrap.querySelector('[data-time-slot].selected');
+  const schedule=wrap.querySelector('[data-intake-schedule]');
+  const asap=schedule?.querySelector('[data-asap].selected');
+  const date=schedule?.querySelector('[data-intake-date]')?.value||'';
+  const selected=schedule?.querySelector('[data-time-slot].selected');
   const time=selected?.dataset.timeSlot||'';
   if(!hidden)return;
-  if(date&&time){
+  if(asap){
+    hidden.value='As soon as possible';
+    hidden.dataset.iso='';
+  }else if(date&&time){
     hidden.value=`${displayDate(date)} at ${selected.textContent.trim()}`;
     hidden.dataset.iso=`${date}T${time}:00`;
   }else if(date){
@@ -58,6 +70,8 @@ function buildAvailability(field){
   wrap.dataset.intakeSchedule='1';
   wrap.innerHTML=`
     <label>Preferred Date & Time</label>
+    <button type="button" class="btn btn-soft" data-asap style="width:100%;margin:0 0 10px;padding:11px 12px;font-weight:700">As soon as possible</button>
+    <div class="small muted" style="margin:0 0 8px">Or choose a preferred date and arrival time below.</div>
     <div class="field"><input type="date" data-intake-date min="${localISODate(today)}" max="${localISODate(max)}" aria-label="Preferred appointment date"></div>
     <div class="small muted" style="margin:6px 0 8px">Choose a preferred arrival time. The shop will confirm the appointment.</div>
     <div data-time-slots style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px">
@@ -67,13 +81,24 @@ function buildAvailability(field){
   old.insertAdjacentElement('afterend',wrap);
 
   const dateInput=wrap.querySelector('[data-intake-date]');
+  const asapBtn=wrap.querySelector('[data-asap]');
+  asapBtn.addEventListener('click',()=>{
+    wrap.querySelectorAll('[data-time-slot]').forEach(b=>{b.classList.remove('selected','btn-primary');b.classList.add('btn-soft');});
+    dateInput.value='';
+    asapBtn.classList.add('selected','btn-primary');
+    asapBtn.classList.remove('btn-soft');
+    setAvailability(field);
+    wrap.querySelector('[data-selected-time]').textContent='Requested: As soon as possible. The shop will confirm availability.';
+  });
   dateInput.addEventListener('change',()=>{
+    clearAsap(wrap);
     setAvailability(field);
     const msg=wrap.querySelector('[data-selected-time]');
     const sel=wrap.querySelector('[data-time-slot].selected');
     msg.textContent=dateInput.value?(sel?`Requested: ${displayDate(dateInput.value)} at ${sel.textContent.trim()}`:`Choose a time for ${displayDate(dateInput.value)}.`):'';
   });
   wrap.querySelectorAll('[data-time-slot]').forEach(btn=>btn.addEventListener('click',()=>{
+    clearAsap(wrap);
     wrap.querySelectorAll('[data-time-slot]').forEach(b=>{b.classList.remove('selected','btn-primary');b.classList.add('btn-soft');});
     btn.classList.add('selected','btn-primary');btn.classList.remove('btn-soft');
     setAvailability(field);
