@@ -109,7 +109,7 @@ Do not delete customer/shop records if payment stops. Restrict paid functionalit
 - branding
 - expanded reporting/integrations
 
-### Pro / Fleet — $129.99/month
+### Pro — $129.99/month
 - up to 15 users
 - everything in Shop
 - fleet
@@ -549,7 +549,7 @@ Keep it optional/configurable per shop.
 
 ## Fleet / roadside
 
-Pro/Fleet supports:
+Pro supports:
 - fleet customers
 - multiple units
 - unit numbers
