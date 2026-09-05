@@ -423,6 +423,10 @@ function settings(){
   <section class="card card-pad" style="margin-top:10px"><div class="card-title">SHOP INTAKE IDENTITY</div><div class="section-note">Customers use this shop-specific link: <span class="red">${esc(intakeUrl(s))}</span></div><div class="divider"></div><button class="btn btn-soft" data-route="send-intake">Manage / Share Intake Link</button></section>`;
   shopShell(content,'more');
 }
+function integrations(){
+  settings();
+  setTimeout(()=>window.MobileMechanicOpenBusinessIntegrations?.(),0);
+}
 
 function more(){
   const s=currentShop();
@@ -696,7 +700,7 @@ function render(route=hashRoute()){
   ensureShopConfig(currentShop());
   if(['billing','settings','reports','export'].includes(route)&&!canViewShopFinancials())return more();
   if(!routeEnabled(route)){ toast('That tool is turned off in Shop Settings.','bad'); location.hash='#dashboard'; return dashboard(); }
-  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,'time-clock':timeClock,billing,settings,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
+  const routes={setup,dashboard,'new-intake':newIntake,'send-intake':sendIntake,customers,jobs,findings,'ai-second':aiSecond,quote,inspection,team,'time-clock':timeClock,billing,settings,integrations,more,calendar,reports,parts,fleet,roadside,warranty,templates,training,carfax,'service-info':serviceInfo,export:exportData};
   (routes[route]||dashboard)();
 }
 
