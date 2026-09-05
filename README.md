@@ -11,15 +11,18 @@ Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mecha
 - Backend: Supabase Auth/Postgres/RLS, Storage, and Edge Functions
 - Cloudflare is a future migration only, after the app is finished and tested
 
-## Subscription pricing and trial policy
+## Subscription pricing and launch offer
 
-New shops receive a 60-day trial of the plan they select.
+The **first 100 eligible outside businesses** that create a Mobile Mechanic AI shop account receive a 60-day free launch trial of the plan they select. Permanent owner/demo accounts do not consume launch-offer slots. After all 100 launch slots are claimed, new shops use normal paid onboarding with no automatic 60-day trial.
+
+For an eligible first-100 launch shop:
 
 - **Days 1–30:** completely free. No subscription card is required, requested, or collected.
-- **Days 31–60:** the trial remains free, but the shop is asked to add a subscription card for uninterrupted service.
-- **After day 60:** recurring monthly billing begins automatically if a card/subscription was set up. A shop may cancel before paid billing begins.
-- Stripe checkout is server-enforced so a new shop cannot be sent to subscription card collection during the first 30 days.
-- Each new trial shop receives **$5 promotional AI credit**. AI credit purchases are separate one-time payments and do not start or shorten the free subscription trial.
+- **Days 31–60:** the launch trial remains free, but the shop may add a subscription card for uninterrupted service.
+- **After day 60:** recurring monthly billing begins if a subscription was set up. A shop may cancel before paid billing begins.
+- Stripe checkout is server-enforced so only eligible first-100 launch shops are blocked from subscription card collection during their first 30 days.
+- Only eligible launch shops may receive a Stripe subscription trial end based on the 60-day launch offer.
+- Each qualifying launch shop receives **$5 promotional AI credit**. AI credit purchases are separate one-time payments and do not start or shorten the free subscription trial.
 - Shops can add prepaid AI balance in **$5 / $10 / $25 / $50** amounts. AI usage is metered per shop and debited from promotional credit first, then purchased credit.
 
 Plans:
@@ -34,8 +37,8 @@ The core workflow—customer intake → job → diagnosis → estimate → custo
 
 - Supabase Auth signup/login/logout
 - Multi-shop tenant isolation with immutable `shop_id`
-- 60-day trials and plan catalog
-- First-30-days no-card enforcement for subscription checkout
+- First-100 launch-offer eligibility and slot assignment in the production database
+- First-30-days no-card enforcement for eligible launch shops
 - Shop-specific customer intake links
 - Secure intake queue and conversion into customer/vehicle/job records
 - Technician findings saved to Supabase
@@ -49,7 +52,7 @@ The core workflow—customer intake → job → diagnosis → estimate → custo
 - Technician Help UI and protected server-side AI endpoint
 - Stripe subscription billing and signed webhook Edge Functions
 - Separate Stripe AI-credit top-up checkout and webhook handling
-- Per-shop AI usage ledger, model-cost table, promotional/purchased credit buckets, and automatic new-shop trial credit
+- Per-shop AI usage ledger, model-cost table, promotional/purchased credit buckets, and automatic qualifying-shop launch credit
 - GitHub Actions JavaScript/required-file validation
 - Free Leaflet/OpenStreetMap mapping and nearby parts-store location lookup
 - Free NHTSA vPIC VIN/model lookup
