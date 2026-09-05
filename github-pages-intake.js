@@ -51,7 +51,7 @@ async function shareStable() {
     const db = JSON.parse(localStorage.getItem('mobile_mechanic_ai_approved_v7') || '{}');
     shopName = db.shops?.[db.session?.shopId]?.name || shopName;
   } catch {}
-  const text = `Please fill out this vehicle intake for ${shopName}: ${url}`;
+  const text = `Please fill out this vehicle intake for ${shopName}`;
   if (navigator.share) {
     try { await navigator.share({ title: `${shopName} Customer Intake`, text, url }); return; } catch (e) {
       if (e?.name === 'AbortError') return;
@@ -81,4 +81,11 @@ new MutationObserver(normalizeDisplayedLink).observe(document.documentElement, {
 window.addEventListener('hashchange', () => setTimeout(normalizeDisplayedLink, 30));
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', normalizeDisplayedLink);
 else normalizeDisplayedLink();
+
+if (!window.__MMADashboardWorkflowLoaded) {
+  window.__MMADashboardWorkflowLoaded = true;
+  const s = document.createElement('script');
+  s.src = 'dashboard-workflow.js?v=20260905-1';
+  document.head.appendChild(s);
+}
 })();
