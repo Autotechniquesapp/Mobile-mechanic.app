@@ -17,7 +17,7 @@ styles();new MutationObserver(()=>{if(document.querySelector('.side-stack'))setT
 (() => {
   if (document.querySelector('script[data-admin-costs-loader]')) return;
   const s=document.createElement('script');
-  s.src='admin-costs.js?v=20260905-clickable';
+  s.src='admin-costs.js?v=20260905-tapfix';
   s.dataset.adminCostsLoader='1';
   document.body.appendChild(s);
 })();
