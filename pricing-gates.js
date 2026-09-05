@@ -5,7 +5,7 @@ const DBKEY = 'mobile_mechanic_ai_approved_v7';
 const FALLBACK = {
   solo:{code:'solo',name:'Solo',price:29.99,seats:1,description:'Independent mobile mechanic',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','youtube_video_lookup_limited']},
   shop:{code:'shop',name:'Shop',price:69.99,seats:5,description:'Growing mobile mechanic or repair shop',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training','youtube_video_lookup']},
-  pro:{code:'pro_fleet',name:'Pro / Fleet',price:129.99,seats:15,description:'Larger shop, fleet, and roadside operations',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training','fleet','roadside','advanced_reports','priority_support','youtube_video_lookup']}
+  pro:{code:'pro_fleet',name:'Pro',price:129.99,seats:15,description:'Larger shops and advanced operations',features:['customer_intake','customers_vehicles','jobs','basic_ai_workup','good_better_best','secure_estimate_approval','voice_notes','quick_quote','calendar','basic_reports','data_export','ai_second_opinion','prepurchase_inspection','parts_tools','warranty_comebacks','templates','team_accounts','carfax_ready','training','fleet','roadside','advanced_reports','priority_support','youtube_video_lookup']}
 };
 
 const routeFeatures = {
@@ -25,7 +25,7 @@ const actionFeatures = {
   'prepare-carfax':'carfax_ready'
 };
 const requiredPlan = {
-  ai_second_opinion:'Shop',prepurchase_inspection:'Shop',parts_tools:'Shop',warranty_comebacks:'Shop',templates:'Shop',team_accounts:'Shop',carfax_ready:'Shop',training:'Shop',fleet:'Pro / Fleet',roadside:'Pro / Fleet',advanced_reports:'Pro / Fleet',priority_support:'Pro / Fleet'
+  ai_second_opinion:'Shop',prepurchase_inspection:'Shop',parts_tools:'Shop',warranty_comebacks:'Shop',templates:'Shop',team_accounts:'Shop',carfax_ready:'Shop',training:'Shop',fleet:'Pro',roadside:'Pro',advanced_reports:'Pro',priority_support:'Pro'
 };
 
 let catalog = structuredClone(FALLBACK);
