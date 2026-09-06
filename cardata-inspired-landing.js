@@ -27,7 +27,7 @@ function heroMarkup(){
       <div class="mma-public-nav-actions">
         <button type="button" class="mma-nav-link" data-mma-scroll="features">Features</button>
         <button type="button" class="mma-nav-link" data-mma-scroll="pricing">Pricing</button>
-        <button type="button" class="mma-nav-login" data-mma-scroll="login">Log In</button>
+        <button type="button" class="mma-nav-login" data-mma-login>Log In</button>
       </div>
     </nav>
 
@@ -46,7 +46,17 @@ function heroMarkup(){
           <span>✓ Your shop owns its records</span>
         </div>
       </div>
-      <div class="mma-login-slot" data-mma-login-slot></div>
+      <aside class="mma-product-preview" aria-label="Mobile Mechanic AI workflow preview">
+        <div class="mma-preview-top"><span>SHOP WORKFLOW</span><b>LIVE</b></div>
+        <div class="mma-preview-vehicle"><small>CURRENT JOB</small><strong>2017 Toyota Camry</strong><span>Customer intake received</span></div>
+        <div class="mma-preview-stack">
+          <div><b>01</b><span><strong>Customer Intake</strong><small>Concern, vehicle, location</small></span><em>✓</em></div>
+          <div><b>02</b><span><strong>Diagnosis & Findings</strong><small>Codes, tests, technician notes</small></span><em>›</em></div>
+          <div><b>03</b><span><strong>Estimate & Approval</strong><small>Repair plan sent to customer</small></span><em>›</em></div>
+          <div><b>04</b><span><strong>Repair & Invoice</strong><small>Track work through completion</small></span><em>›</em></div>
+        </div>
+        <button type="button" class="mma-preview-login" data-mma-login>OPEN SHOP LOGIN</button>
+      </aside>
     </section>
 
     <section class="mma-proof-strip">
@@ -94,13 +104,26 @@ function heroMarkup(){
   </main>`;
 }
 
-function wire(home){
+function openLogin(overlay){
+  if(!overlay)return;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden','false');
+  setTimeout(()=>overlay.querySelector('#loginEmail')?.focus(),50);
+}
+function closeLogin(overlay){
+  if(!overlay)return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden','true');
+}
+
+function wire(home,overlay){
   home.querySelectorAll('[data-mma-go="signup"]').forEach(btn=>btn.addEventListener('click',()=>{ location.hash='#signup'; }));
+  home.querySelectorAll('[data-mma-login]').forEach(btn=>btn.addEventListener('click',()=>openLogin(overlay)));
   home.querySelectorAll('[data-mma-scroll]').forEach(btn=>btn.addEventListener('click',()=>{
-    const target=btn.dataset.mmaScroll;
-    if(target==='login') home.querySelector('[data-mma-login-slot]')?.scrollIntoView({behavior:'smooth',block:'center'});
-    else home.querySelector(`[data-mma-section="${target}"]`)?.scrollIntoView({behavior:'smooth',block:'start'});
+    home.querySelector(`[data-mma-section="${btn.dataset.mmaScroll}"]`)?.scrollIntoView({behavior:'smooth',block:'start'});
   }));
+  overlay?.querySelector('.landing-close')?.addEventListener('click',()=>closeLogin(overlay));
+  overlay?.addEventListener('click',e=>{if(e.target===overlay)closeLogin(overlay);});
 }
 
 function mount(){
@@ -109,21 +132,21 @@ function mount(){
     document.body.classList.remove('mma-cardata-page');
     return;
   }
-  if(document.querySelector('.customer-shell')) return;
-  const wrap=document.querySelector('.login-wrap');
-  const card=wrap?.querySelector('.login-card');
-  if(!wrap||!card||wrap.dataset.cardataMounted==='1') return;
+  if(document.querySelector('.customer-shell'))return;
 
-  wrap.dataset.cardataMounted='1';
+  const landing=document.querySelector('.hercules-landing');
+  const overlay=landing?.querySelector('.landing-login');
+  if(!landing||!overlay||landing.dataset.cardataMounted==='1')return;
+
+  landing.dataset.cardataMounted='1';
+  landing.classList.add('mma-cardata-mounted');
   document.body.classList.add('mma-cardata-page');
+
   const holder=document.createElement('div');
   holder.innerHTML=heroMarkup();
   const home=holder.firstElementChild;
-  const slot=home.querySelector('[data-mma-login-slot]');
-  slot.appendChild(card);
-  wrap.replaceChildren(home);
-  card.classList.add('mma-cardata-login-card');
-  wire(home);
+  landing.replaceChildren(home,overlay);
+  wire(home,overlay);
 }
 
 new MutationObserver(()=>requestAnimationFrame(mount)).observe(document.documentElement,{childList:true,subtree:true});
