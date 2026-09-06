@@ -3,6 +3,8 @@
 
 const DBKEY = 'mobile_mechanic_ai_approved_v7';
 const TERMS_VERSION = '2026-08-v3';
+const PRIVACY_VERSION = '2026-09-v1';
+const DATA_USE_VERSION = '2026-09-v1';
 const TERMS_SHA256 = '89ce4120351d943e4c00f81aab95202b1a6fa8fbe18692ace9b887d6dcdd1e3a';
 
 function readCache(){
@@ -19,6 +21,10 @@ function notice(message,type=''){
   setTimeout(()=>d.remove(),4600);
 }
 
+function legalLinks(){
+  return `<a href="/terms" target="_blank" rel="noopener">Terms of Use</a>, <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, and <a href="/data-use" target="_blank" rel="noopener">Data Collection & Use Policy</a>`;
+}
+
 function decorateAcceptance(){
   const btn=document.querySelector('[data-action="accept-all"]');
   if(!btn||document.getElementById('mmaLegalAcceptance'))return;
@@ -29,10 +35,29 @@ function decorateAcceptance(){
   wrap.innerHTML=`
     <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
       <input id="mmaLegalAgree" type="checkbox" style="margin-top:4px" />
-      <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener" style="color:#ff5a60;text-decoration:underline">Mobile Mechanic AI Terms of Use</a> (version ${TERMS_VERSION}). I understand AI, repair, accounting, and tax outputs are advisory/estimates only, and I remain responsible for my shop's decisions, repairs, taxes, compliance, and customer communications.</span>
+      <span>I have read and agree to the ${legalLinks()}. Current versions: Terms ${TERMS_VERSION}, Privacy ${PRIVACY_VERSION}, Data Use ${DATA_USE_VERSION}. I understand AI, repair, accounting, and tax outputs are advisory or estimates only, and I remain responsible for my shop's decisions, repairs, taxes, compliance, and customer communications.</span>
     </label>
-    <p class="small muted" style="margin:10px 0 0">By checking this box and clicking the acceptance button, you are entering a binding agreement on behalf of the business account.</p>`;
+    <p class="small muted" style="margin:10px 0 0">By checking this box and clicking the acceptance button, you are entering these agreements on behalf of the business account. The accepted document versions and timestamp are recorded with the shop account.</p>`;
+  wrap.querySelectorAll('a').forEach(a=>a.style.cssText='color:#ff5a60;text-decoration:underline');
   btn.parentNode?.insertBefore(wrap,btn);
+}
+
+function decorateSignupLegal(){
+  const form=document.getElementById('signupForm');
+  const check=form?.querySelector('input[name="terms"]');
+  const main=check?.closest('.list-item')?.querySelector('.list-main');
+  if(!main||main.dataset.mmaLegalSignup==='1')return;
+  main.dataset.mmaLegalSignup='1';
+  main.innerHTML=`<b>Subscription, privacy & platform terms</b><p>I have reviewed the ${legalLinks()}. I understand billing is recurring after the trial when activated, payments are generally non-refundable except where required by law, and AI is an assistive tool only. Formal acceptance versions are recorded when shop setup is completed.</p>`;
+  main.querySelectorAll('a').forEach(a=>a.style.cssText='color:#ff5a60;text-decoration:underline');
+}
+
+function decorateLandingLegal(){
+  const footer=document.querySelector('.hercules-landing footer');
+  if(!footer||footer.dataset.mmaLegalFooter==='1')return;
+  footer.dataset.mmaLegalFooter='1';
+  footer.insertAdjacentHTML('beforeend',`<div style="margin-top:8px;font-size:12px"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/data-use">Data Use</a></div>`);
+  footer.querySelectorAll('a').forEach(a=>a.style.cssText='color:#ff6d72;text-decoration:none');
 }
 
 function decorateTaxPlanning(){
@@ -47,7 +72,14 @@ function decorateTaxPlanning(){
   });
 }
 
-const observer=new MutationObserver(()=>{decorateAcceptance();decorateTaxPlanning();});
+function decorateLegalUi(){
+  decorateAcceptance();
+  decorateSignupLegal();
+  decorateLandingLegal();
+  decorateTaxPlanning();
+}
+
+const observer=new MutationObserver(decorateLegalUi);
 observer.observe(document.documentElement,{childList:true,subtree:true});
 
 // Register before the production bridge so acceptance is recorded atomically with setup completion.
@@ -59,7 +91,7 @@ document.addEventListener('click',async e=>{
 
   const agree=document.getElementById('mmaLegalAgree');
   if(!agree?.checked){
-    notice('Read the Terms of Use and check the agreement box before continuing.','bad');
+    notice('Read the Terms, Privacy Policy, and Data Use Policy and check the agreement box before continuing.','bad');
     return;
   }
 
@@ -76,14 +108,21 @@ document.addEventListener('click',async e=>{
       shop_id:sid,
       terms_version:TERMS_VERSION,
       document_sha256:TERMS_SHA256,
+      privacy_version:PRIVACY_VERSION,
+      data_use_version:DATA_USE_VERSION,
       user_agent:String(navigator.userAgent||'').slice(0,500)
     });
     if(acceptError)throw acceptError;
 
+    const acceptedAt=new Date().toISOString();
     const patch={
       setup_complete:true,
       terms_version:TERMS_VERSION,
-      terms_accepted_at:new Date().toISOString()
+      terms_accepted_at:acceptedAt,
+      privacy_version:PRIVACY_VERSION,
+      privacy_accepted_at:acceptedAt,
+      data_use_version:DATA_USE_VERSION,
+      data_use_accepted_at:acceptedAt
     };
     const name=document.getElementById('setupShopName')?.value?.trim();
     const phone=document.getElementById('setupPhone')?.value?.trim();
@@ -95,14 +134,20 @@ document.addEventListener('click',async e=>{
     const db=readCache();
     if(db.shops?.[sid]){
       db.shops[sid].setupComplete=true;
-      db.shops[sid].terms={version:TERMS_VERSION,acceptedAt:patch.terms_accepted_at,userId:session.user.id};
+      db.shops[sid].terms={
+        version:TERMS_VERSION,
+        acceptedAt,
+        userId:session.user.id,
+        privacyVersion:PRIVACY_VERSION,
+        dataUseVersion:DATA_USE_VERSION
+      };
       writeCache(db);
     }
     location.hash='#dashboard';
     location.reload();
   }catch(err){
     btn.disabled=false;
-    notice(err?.message||'Could not record Terms acceptance.','bad');
+    notice(err?.message||'Could not record legal acceptance.','bad');
   }
 },true);
 
@@ -111,19 +156,40 @@ window.MobileMechanicLegalEnforce=async function(){
     await (window.MobileMechanicBootstrap||Promise.resolve());
     const db=readCache(),sid=db.session?.shopId,shop=sid?db.shops?.[sid]:null;
     if(!shop)return;
-    if(shop.terms?.version!==TERMS_VERSION){
+
+    let termsVersion=shop.terms?.version||null;
+    let privacyVersion=shop.terms?.privacyVersion||null;
+    let dataUseVersion=shop.terms?.dataUseVersion||null;
+    const sb=window.MobileMechanicSupabase;
+    if(sb&&sid){
+      const {data,error}=await sb.from('shops').select('terms_version,privacy_version,data_use_version').eq('shop_id',sid).single();
+      if(!error&&data){
+        termsVersion=data.terms_version||null;
+        privacyVersion=data.privacy_version||null;
+        dataUseVersion=data.data_use_version||null;
+        shop.terms={...(shop.terms||{}),version:termsVersion,privacyVersion,dataUseVersion};
+        db.shops[sid]=shop;
+        writeCache(db);
+      }
+    }
+
+    if(termsVersion!==TERMS_VERSION||privacyVersion!==PRIVACY_VERSION||dataUseVersion!==DATA_USE_VERSION){
       shop.setupComplete=false;
       db.shops[sid]=shop;
       writeCache(db);
       if(!['#login','#signup','#setup'].includes(location.hash))location.hash='#setup';
     }
   }finally{
-    decorateAcceptance();
-    decorateTaxPlanning();
+    decorateLegalUi();
   }
 };
 
-window.MobileMechanicLegal={version:TERMS_VERSION,sha256:TERMS_SHA256};
+window.MobileMechanicLegal={
+  termsVersion:TERMS_VERSION,
+  privacyVersion:PRIVACY_VERSION,
+  dataUseVersion:DATA_USE_VERSION,
+  termsSha256:TERMS_SHA256
+};
 })();
 
 // Public customer intake must be intercepted before supabase-production.js registers its
