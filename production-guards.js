@@ -1,6 +1,23 @@
 (() => {
 'use strict';
 
+function ensureMarketingAssets(){
+  if(!document.querySelector('link[data-mma-cardata-style]')){
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='cardata-inspired-landing.css?v=20260906-1';
+    link.dataset.mmaCardataStyle='1';
+    document.head.appendChild(link);
+  }
+  if(!document.querySelector('script[data-mma-cardata-script]')){
+    const script=document.createElement('script');
+    script.src='cardata-inspired-landing.js?v=20260906-1';
+    script.dataset.mmaCardataScript='1';
+    document.head.appendChild(script);
+  }
+}
+ensureMarketingAssets();
+
 function notice(message){
   document.querySelector('.production-guard-notice')?.remove();
   const d=document.createElement('div');
