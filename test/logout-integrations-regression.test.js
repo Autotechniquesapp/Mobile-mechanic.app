@@ -23,6 +23,12 @@ test('logout signs out remotely and clears local workspace session', () => {
   assert.match(logout, /data-cancel-logout/);
 });
 
+test('shop navigation removes the legacy bottom bar and keeps drawer logout', () => {
+  assert.match(logout, /removeBottomNavigation\(\)/);
+  assert.match(logout, /querySelectorAll\('\.bottom-nav'\)/);
+  assert.match(logout, /addDrawerLogout\(\)/);
+});
+
 test('Dropbox is not part of the supported backup flow', () => {
   assert.doesNotMatch(automation, /dropbox/i);
   assert.doesNotMatch(health, /dropbox/i);
