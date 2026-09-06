@@ -89,8 +89,13 @@ function addDrawerLogout(){
   account.appendChild(button);
 }
 
+function removeBottomNavigation(){
+  document.querySelectorAll('.bottom-nav').forEach(nav=>nav.remove());
+}
+
 function enhance(){
   if(logoutOpen)return;
+  removeBottomNavigation();
   addDrawerLogout();
   document.querySelectorAll('[data-action="logout"]').forEach(button=>{
     if(!button.dataset.logoutLabelFixed){
