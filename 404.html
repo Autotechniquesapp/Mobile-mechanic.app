@@ -21,6 +21,14 @@
         location.replace(`${location.origin}/terms.html`);
         return;
       }
+      if (parts[0] === 'privacy') {
+        location.replace(`${location.origin}/privacy.html`);
+        return;
+      }
+      if (parts[0] === 'data-use' || parts[0] === 'data') {
+        location.replace(`${location.origin}/data-use.html`);
+        return;
+      }
     })();
   </script>
   <style>
