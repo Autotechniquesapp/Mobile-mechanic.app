@@ -60,8 +60,28 @@ async function shareStable() {
   await copyStable();
 }
 
-// Capture before app.js' older /intake/... handler.
+function openCustomerNavigation(locationText='') {
+  const destination = String(locationText || '').trim();
+  if (!destination) return false;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving&dir_action=navigate`;
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) location.href = url;
+  return true;
+}
+
+// Capture before app.js' older handlers so the stable intake link and Maps navigation win.
 document.addEventListener('click', e => {
+  const maps = e.target.closest?.('[data-action="open-maps"]');
+  if (maps) {
+    const destination = maps.dataset.location || '';
+    if (destination) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openCustomerNavigation(destination);
+    }
+    return;
+  }
+
   const share = e.target.closest?.('[data-action="share-intake"]');
   if (share) {
     e.preventDefault();
