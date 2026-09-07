@@ -82,6 +82,13 @@ window.addEventListener('hashchange', () => setTimeout(normalizeDisplayedLink, 3
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', normalizeDisplayedLink);
 else normalizeDisplayedLink();
 
+if (!window.__MMAIntakeSchedulingLoaded) {
+  window.__MMAIntakeSchedulingLoaded = true;
+  const s = document.createElement('script');
+  s.src = 'intake-scheduling.js?v=20260907-1';
+  document.head.appendChild(s);
+}
+
 if (!window.__MMADashboardWorkflowLoaded) {
   window.__MMADashboardWorkflowLoaded = true;
   const s = document.createElement('script');
