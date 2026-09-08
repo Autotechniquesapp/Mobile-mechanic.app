@@ -6,6 +6,8 @@ const production=fs.readFileSync('supabase-production.js','utf8');
 const queue=fs.readFileSync('intake-queue.js','utf8');
 const edge=fs.readFileSync('supabase/functions/intake-ai-workup/index.ts','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260908070000_scope_jobs_to_selected_shop.sql','utf8');
+const square=fs.readFileSync('supabase/functions/square-invoice/index.ts','utf8');
+const customerEstimate=fs.readFileSync('supabase/functions/customer-estimate/index.ts','utf8');
 
 test('selected shop id is sent to the server-scoped jobs RPC',()=>{
   assert.match(production,/rpc\('get_my_shop_jobs',\{p_shop_id:sid\}\)/);
@@ -22,4 +24,17 @@ test('built-in workup preserves and displays the paid AI failure',()=>{
   assert.match(queue,/Built-in fallback:/);
   assert.match(queue,/Paid AI did not run/);
   assert.match(queue,/i\.ai_error/);
+});
+
+
+test('Square invoice authorization follows the invoice shop, not the oldest membership',()=>{
+  assert.match(square,/eq\("shop_id",invoice\.shop_id\)/);
+  assert.doesNotMatch(square,/eq\("status","active"\)\.limit\(1\)\.maybeSingle\(\)/);
+  assert.match(square,/Invoice not found/);
+});
+
+test('public estimate backend is tracked for approval-flow review',()=>{
+  assert.match(customerEstimate,/submit_customer_estimate_decision/);
+  assert.match(customerEstimate,/p_customer_name/);
+  assert.match(customerEstimate,/decision !== "approved" && decision !== "declined"/);
 });
