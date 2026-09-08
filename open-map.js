@@ -172,10 +172,10 @@
 
   async function openFullMap(panel) {
     const state=panels.get(panel); const p=state?.point || await ensurePoint(panel);
-    if(p) window.open(`https://www.openstreetmap.org/?mlat=${encodeURIComponent(p.lat)}&mlon=${encodeURIComponent(p.lng)}#map=15/${encodeURIComponent(p.lat)}/${encodeURIComponent(p.lng)}`,'_blank','noopener');
+    if(p) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.lat},${p.lng}`)}`,'_blank','noopener');
     else {
       const raw=state?.input?.value||panel.querySelector('.mma-map-location')?.value||'';
-      if(raw)window.open(`https://www.openstreetmap.org/search?query=${encodeURIComponent(raw)}`,'_blank','noopener');
+      if(raw)window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(raw)}`,'_blank','noopener');
     }
   }
 
@@ -211,7 +211,8 @@
       const loc=mapBtn.dataset.location||'';if(!loc)return;
       e.preventDefault();e.stopImmediatePropagation();
       const p=coordFromText(loc);
-      const url=p?`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=15/${p.lat}/${p.lng}`:`https://www.openstreetmap.org/search?query=${encodeURIComponent(loc)}`;
+      const query=p?`${p.lat},${p.lng}`:loc;
+      const url=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
       window.open(url,'_blank','noopener');
     }
   },true);
