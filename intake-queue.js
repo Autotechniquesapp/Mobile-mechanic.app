@@ -95,10 +95,35 @@ function stopVisiblePolling(){
 }
 
 function aiList(items=[]){return Array.isArray(items)&&items.length?`<ul style="margin:6px 0 0;padding-left:18px">${items.slice(0,6).map(x=>`<li style="margin:3px 0">${esc(typeof x==='string'?x:(x?.cause||x?.test||''))}</li>`).join('')}</ul>`:'';}
-function partsSuggestions(workup={}){
+function partSearchTerm(part,vehicle={}){
+  const base=[vehicle.year,vehicle.make,vehicle.model,vehicle.submodel,vehicle.engine,part].filter(Boolean).join(' ');
+  return base.trim()||part;
+}
+function partsLookupLinks(part,vehicle={}){
+  const q=encodeURIComponent(partSearchTerm(part,vehicle));
+  const links=[
+    ['AutoZone Pro',`https://www.autozonepro.com/searchresult?searchText=${q}`],
+    ["O'Reilly First Call",`https://www.firstcallonline.com/FirstCallOnline/search.html?search=${q}`],
+    ['NAPA PROLink',`https://www.napaprolink.com/search?text=${q}`],
+    ['Advance / Carquest',`https://my.advancepro.com/shop/search?searchTerm=${q}`],
+    ['Google local availability',`https://www.google.com/search?q=${q}+near+me+available+today`]
+  ];
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px">${links.map(([name,url])=>`<a class="btn btn-soft" style="padding:6px 8px;font-size:12px" href="${esc(url)}" target="_blank" rel="noopener">Check ${esc(name)}</a>`).join('')}</div>`;
+}
+function actionableParts(rows=[]){
+  const text=rows.map(x=>typeof x==='string'?x:(x?.name||x?.part||x?.cause||'')).join(' ').toLowerCase();
+  const out=[];
+  if(/starter|starting motor|solenoid/.test(text))out.push('Starter assembly');
+  if(/battery/.test(text))out.push('Battery');
+  if(/terminal|cable/.test(text))out.push('Battery cable / terminal');
+  if(/relay/.test(text))out.push('Starter relay');
+  return [...new Set(out)];
+}
+function partsSuggestions(workup={},vehicle={}){
   const rows=Array.isArray(workup.parts_candidates)?workup.parts_candidates.slice(0,8):[];
   if(!rows.length)return'';
-  return `<div style="margin-top:9px;padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px"><b>🔧 Parts to inspect / may be needed</b>${aiList(rows)}<p class="small muted" style="margin:7px 0 0">Do not order parts until testing confirms the failed component and the vehicle-specific fitment.</p></div>`;
+  const lookupParts=actionableParts(rows);
+  return `<div style="margin-top:9px;padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px"><b>Parts to inspect / may be needed</b>${aiList(rows)}${lookupParts.length?`<div style="margin-top:9px"><b>Parts availability search</b><p class="small muted" style="margin:4px 0 0">Open the supplier links, confirm fitment by VIN/engine, then quote the store price and availability.</p>${lookupParts.map(part=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #26303a"><b>${esc(partSearchTerm(part,vehicle))}</b>${partsLookupLinks(part,vehicle)}</div>`).join('')}</div>`:''}<p class="small muted" style="margin:7px 0 0">Do not order parts until testing confirms the failed component and the vehicle-specific fitment.</p></div>`;
 }
 function laborSuggestions(workup={}){
   const rows=Array.isArray(workup.labor_suggestions)?workup.labor_suggestions.slice(0,8):[];
@@ -119,7 +144,7 @@ function aiWorkupMarkup(i){
       ${Array.isArray(w.first_checks)&&w.first_checks.length?`<div style="margin-top:7px"><b>First checks</b>${aiList(w.first_checks)}</div>`:''}
       ${tests.length?`<div style="margin-top:7px"><b>Confirmation tests</b><ul style="margin:5px 0 0;padding-left:18px">${tests.map(t=>`<li style="margin:4px 0"><b>${esc(t.test||'Test')}</b>${t.what_to_watch?` — watch for ${esc(t.what_to_watch)}`:''}${t.meaning?` <span class="muted">(${esc(t.meaning)})</span>`:''}</li>`).join('')}</ul></div>`:''}
       ${Array.isArray(w.do_not_overlook)&&w.do_not_overlook.length?`<div style="margin-top:7px"><b>Do not overlook</b>${aiList(w.do_not_overlook)}</div>`:''}
-      ${partsSuggestions(w)}
+      ${partsSuggestions(w,i.vehicle||{})}
       ${laborSuggestions(w)}
       ${safety.note?`<div style="margin-top:8px;padding:7px 8px;border-left:3px solid #ef2a31;background:#1a1012;border-radius:6px"><b>Safety — ${esc(safety.level||'check')}:</b> ${esc(safety.note)}</div>`:''}
       <p class="small muted" style="margin:8px 0 0">AI pre-workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
