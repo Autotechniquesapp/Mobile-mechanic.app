@@ -138,7 +138,7 @@ function aiWorkupMarkup(i){
     const tests=Array.isArray(w.diagnostic_tests)?w.diagnostic_tests.slice(0,5):[];
     const safety=w.safety||{};
     return `<div style="margin-top:10px;border:1px solid #5c2227;background:#11161c;border-radius:10px;padding:10px">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><b style="color:#ff6b70">🤖 AI PRE-WORKUP</b><span class="badge red">PRELIMINARY</span></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><b style="color:#ff6b70">PRELIMINARY WORKUP</b><span class="badge red">PRELIMINARY</span></div>
       <p style="margin:7px 0 0"><b>Assessment:</b> ${esc(w.summary||'Preliminary assessment ready.')}</p>
       ${causes.length?`<div style="margin-top:7px"><b>Likely causes</b><ul style="margin:5px 0 0;padding-left:18px">${causes.map(c=>`<li style="margin:4px 0"><b>${esc(c.cause||'Possible cause')}</b>${c.likelihood?` <span class="muted">(${esc(c.likelihood)})</span>`:''}${c.why?` — ${esc(c.why)}`:''}</li>`).join('')}</ul></div>`:''}
       ${Array.isArray(w.first_checks)&&w.first_checks.length?`<div style="margin-top:7px"><b>First checks</b>${aiList(w.first_checks)}</div>`:''}
@@ -147,7 +147,8 @@ function aiWorkupMarkup(i){
       ${partsSuggestions(w,i.vehicle||{})}
       ${laborSuggestions(w)}
       ${safety.note?`<div style="margin-top:8px;padding:7px 8px;border-left:3px solid #ef2a31;background:#1a1012;border-radius:6px"><b>Safety — ${esc(safety.level||'check')}:</b> ${esc(safety.note)}</div>`:''}
-      <p class="small muted" style="margin:8px 0 0">AI pre-workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
+      ${w.source==='built_in'?'<div class="small" style="margin-top:8px;color:#ffb454"><b>Built-in fallback:</b> Paid AI did not run. '+esc(i.ai_error||'Provider unavailable')+'</div>':''}
+      <p class="small muted" style="margin:8px 0 0">Preliminary workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
     </div>`;
   }
   if(status==='processing')return `<div style="margin-top:9px;padding:9px;border:1px solid #303945;border-radius:9px"><b>🤖 AI pre-workup:</b> analyzing customer concern…</div>`;
