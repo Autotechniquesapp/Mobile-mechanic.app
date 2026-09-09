@@ -68,17 +68,21 @@ function renderCompletedSection(){
   const route=(location.hash||'#dashboard').replace('#','').split('?')[0]||'dashboard';
   if(!['jobs','dashboard','calendar'].includes(route))return;
   const jobs=completedJobs();
-  document.querySelector('[data-mma-completed-section]')?.remove();
   const root=document.querySelector('.content')||document.getElementById('app')||document.body;
   document.querySelectorAll('[data-open-job],.mmp-job-row[data-job]').forEach(el=>{
     const id=String(el.dataset.openJob||el.dataset.job||'');
     const j=jobById(id);
     if(j&&isCompleted(j))el.classList.add('mma-completed-hidden');
   });
-  if(!jobs.length)return;
+  const existing=document.querySelector('[data-mma-completed-section]');
+  if(!jobs.length){existing?.remove();return;}
+  const sig=jobs.map(j=>String(j.id)+':' + String(j.completedAt||j.status||'')).join('|');
+  if(existing?.dataset.sig===sig)return;
+  existing?.remove();
   const details=document.createElement('details');
   details.className='mma-completed-section';
   details.dataset.mmaCompletedSection='1';
+  details.dataset.sig=sig;
   details.innerHTML=`<summary>Completed Jobs <span>${jobs.length}</span></summary><div class="mma-completed-list">${jobs.map(j=>`<button class="mma-completed-job" type="button" data-mma-completed-open="${esc(j.id)}"><b>${esc(tileLabel(j))}</b><small>${esc(j.completedAt?new Date(j.completedAt).toLocaleString():'Completed')}</small></button>`).join('')}</div>`;
   root.appendChild(details);
 }
@@ -93,6 +97,11 @@ function openPanel(id){ensureStyles();const j=jobById(id);if(!j)return;setActive
 function patchLabels(){document.querySelectorAll('[data-open-job],[data-job]').forEach(el=>{const id=el.dataset.openJob||el.dataset.job,j=jobById(id);if(!j)return;el.querySelectorAll('b,small').forEach(node=>{if(node.textContent&&!node.textContent.includes('Vehicle details pending'))return;node.textContent=node.textContent.replace('Vehicle details pending',vehicleText(j.vehicle));});});}
 document.addEventListener('click',e=>{const completedOpen=e.target.closest('[data-mma-completed-open]');if(completedOpen){e.preventDefault();openPanel(completedOpen.dataset.mmaCompletedOpen);return;}const closeBtn=e.target.closest('[data-job-panel-close]');if(closeBtn||e.target.matches('[data-job-tile-actions-modal]')){e.preventDefault();close();return;}const del=e.target.closest('[data-job-panel-delete]');if(del){e.preventDefault();deleteJob(del.dataset.jobPanelDelete);return;}const complete=e.target.closest('[data-job-panel-complete]');if(complete){e.preventDefault();completeJob(complete.dataset.jobPanelComplete);return;}const schedule=e.target.closest('[data-job-panel-schedule]');if(schedule){e.preventDefault();openSchedule(schedule.dataset.jobPanelSchedule);return;}const mapsBtn=e.target.closest('[data-job-panel-maps]');if(mapsBtn){e.preventDefault();maps(jobById(mapsBtn.dataset.jobPanelMaps));return;}const full=e.target.closest('[data-job-panel-open],[data-job-panel-estimate]');if(full){e.preventDefault();openNativeJob(full.dataset.jobPanelOpen||full.dataset.jobPanelEstimate);return;}const findings=e.target.closest('[data-job-panel-findings]');if(findings){e.preventDefault();setActive(findings.dataset.jobPanelFindings);close();location.hash='#findings';return;}const tile=e.target.closest('[data-open-job],.mmp-job-row[data-job]');if(tile&&!tile.dataset.mmaNativeOpen&&!e.target.closest('button,a,input,select,textarea')){e.preventDefault();e.stopImmediatePropagation();openPanel(tile.dataset.openJob||tile.dataset.job);}},true);
 document.addEventListener('keydown',e=>{const tile=e.target.closest?.('[data-open-job],.mmp-job-row[data-job]');if(tile&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openPanel(tile.dataset.openJob||tile.dataset.job);}},true);
-new MutationObserver(()=>{patchLabels();renderCompletedSection();}).observe(document.documentElement,{subtree:true,childList:true});
-patchLabels();renderCompletedSection();
+let patchTimer=0;
+function schedulePatch(){clearTimeout(patchTimer);patchTimer=setTimeout(()=>{patchLabels();renderCompletedSection();},180);}
+const appRoot=document.getElementById('app')||document.body;
+new MutationObserver(schedulePatch).observe(appRoot,{subtree:true,childList:true});
+window.addEventListener('hashchange',schedulePatch);
+window.addEventListener('load',schedulePatch);
+schedulePatch();
 })();
