@@ -294,6 +294,21 @@ document.addEventListener('click',async e=>{
 
 document.addEventListener('submit',async e=>{
   const form=e.target;
+  if(form.id==='changePasswordForm'){
+    e.preventDefault();e.stopImmediatePropagation();
+    const d=Object.fromEntries(new FormData(form));
+    if(String(d.newPassword||'').length<8)return showStatus('New password must be at least 8 characters.','bad');
+    if(d.newPassword!==d.confirmPassword)return showStatus('New passwords do not match.','bad');
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    try{
+      const {data:{user}}=await sb.auth.getUser();if(!user?.email)throw new Error('Your signed-in account could not be verified.');
+      const {error:verifyError}=await sb.auth.signInWithPassword({email:user.email,password:String(d.currentPassword||'')});if(verifyError)throw new Error('Current password is incorrect.');
+      const {error:updateError}=await sb.auth.updateUser({password:String(d.newPassword)});if(updateError)throw updateError;
+      form.reset();showStatus('Password changed successfully.','good');
+    }catch(err){showStatus(err.message||'Could not change password.','bad');}
+    finally{if(button)button.disabled=false;}
+    return;
+  }
   if(form.id==='teamForm'){
     e.preventDefault();e.stopImmediatePropagation();
     const d=Object.fromEntries(new FormData(form));
