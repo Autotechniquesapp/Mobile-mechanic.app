@@ -21,7 +21,7 @@ test('VIN is optional and camera placeholder is removed from customer intake', (
 });
 
 test('visible external send button mirrors the handler submit button state', () => {
-  assert.match(guards, /data\.intakeSubmitProxy/);
+  assert.match(guards, /dataset\.intakeSubmitProxy/);
   assert.match(guards, /external\.disabled=proxy\.disabled/);
   assert.match(guards, /external\.textContent=proxy\.textContent/);
   assert.match(legal, /form\.querySelector\('\.customer-submit,\[type="submit"\]'\)/);
