@@ -65,8 +65,10 @@ Deno.serve(async(req)=>{
         const {data:intake}=await admin.from("intake_submissions").select("id,shop_id,vehicle,customer_states").eq("id",intakeId).maybeSingle();
         if(intake){
           const {data:shop}=await admin.from("shops").select("labor_rate,tax_rate,travel_fee").eq("shop_id",intake.shop_id).maybeSingle();
-          const {error:updateError}=await admin.from("intake_submissions").update({ai_workup:builtInWorkup(intake,shop||{}),ai_status:"complete",ai_error:null,updated_at:new Date().toISOString()}).eq("id",intakeId);
-          if(!updateError)return json({ok:true,status:"complete",source:"built_in"});
+          const providerError=safe(err instanceof Error?err.message:"AI workup failed",500);
+          const fallback=builtInWorkup(intake,shop||{});
+          const {error:updateError}=await admin.from("intake_submissions").update({ai_workup:fallback,ai_status:"complete",ai_error:providerError,updated_at:new Date().toISOString()}).eq("id",intakeId);
+          if(!updateError)return json({ok:true,status:"complete",source:"built_in",ai_error:providerError});
         }
       }catch(fallbackError){console.error("Built-in intake workup failed",fallbackError);}
       try{await admin.from("intake_submissions").update({ai_status:"error",ai_error:safe(err instanceof Error?err.message:"AI workup failed",500),updated_at:new Date().toISOString()}).eq("id",intakeId);}catch{}
