@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="app-icon.svg" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=20260905-drawer" />
+  <link rel="stylesheet" href="styles.css?v=20260910-module-switches" />
   <link rel="stylesheet" href="open-map.css?v=20260828-2225" />
   <link rel="stylesheet" href="service-information.css?v=20260831-1" />
 </head>
@@ -96,7 +96,7 @@
     ]).finally(() => {
       if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
-      script.src = 'app.js?v=20260910-jobtiles-password';
+      script.src = 'app.js?v=20260910-module-switches';
       document.body.appendChild(script);
     });
   </script>
