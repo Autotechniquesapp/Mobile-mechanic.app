@@ -154,6 +154,7 @@ async function loadWorkspace(user, allowCreate=true){
     setupComplete:!!shop.setup_complete,logo:shop.logo_url||null,
     theme:{accent:shop.accent_color||'#ef2a31',background:'dark',style:'vibrant'},
     settings:{laborRate:Number(shop.labor_rate||75),taxRate:Number(shop.tax_rate||0),partsMarkup:Number(shop.parts_markup||25),travelFee:Number(shop.travel_fee||0),freeRadius:Number(shop.free_radius_miles||10),depositPercent:Number(shop.deposit_percent||60)},
+    specialties:Array.isArray(shop.specialties)&&shop.specialties.length?shop.specialties:['automotive'],modules:Array.isArray(shop.modules)?shop.modules:['estimates','inventory','inspections','scheduling','reporting','time_clock','ai'],customSpecialty:shop.custom_specialty||'',assetLabel:shop.asset_label||'Vehicle / Equipment',
     terms:shop.terms_version?{version:shop.terms_version,acceptedAt:shop.terms_accepted_at,userId:user.id}:null,
     users:uiTeam.length?uiTeam:[{id:user.id,name:currentName,email:user.email||'',role:roleFromDb(membership.role),active:true}],
     customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[],addonCatalog:addonCatalogRes.data||[],addons:(shopAddonsRes.data||[]).map(a=>a.addon_code)
@@ -307,6 +308,18 @@ document.addEventListener('submit',async e=>{
       form.reset();showStatus('Password changed successfully.','good');
     }catch(err){showStatus(err.message||'Could not change password.','bad');}
     finally{if(button)button.disabled=false;}
+    return;
+  }
+  if(form.id==='businessTypesForm'){
+    e.preventDefault();e.stopImmediatePropagation();
+    const fd=new FormData(form),sid=currentShopId(),specialties=fd.getAll('specialties').map(String),modules=fd.getAll('modules').map(String);
+    if(!sid)return showStatus('Open your shop before saving tools.','bad');
+    if(!specialties.length)return showStatus('Choose at least one business specialty.','bad');
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    try{
+      const {error}=await sb.from('shops').update({specialties,modules,custom_specialty:String(fd.get('customSpecialty')||'').trim(),asset_label:String(fd.get('assetLabel')||'Vehicle / Equipment')}).eq('shop_id',sid);if(error)throw error;
+      showStatus('Business types and tools saved.','good');await refreshWorkspace('#settings');
+    }catch(err){showStatus(err.message||'Could not save business tools.','bad');if(button)button.disabled=false;}
     return;
   }
   if(form.id==='teamForm'){
