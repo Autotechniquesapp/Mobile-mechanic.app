@@ -279,6 +279,11 @@ document.addEventListener('click',async e=>{
     try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs',jid);}catch(err){showStatus(err.message||'Could not complete job.','bad');}
     return;
   }
+  if(action==='decline-job'){
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
+    try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
+    return;
+  }
   if(action==='send-estimate'){
     e.preventDefault();e.stopImmediatePropagation();showStatus('Secure cross-device estimate approval is the next production module. The browser-only demo link is disabled.','');return;
   }
