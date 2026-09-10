@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "serve": "python3 -m http.server 8888",
-    "check": "node --check app.js && node --check service-information.js && node --check shop-job-payment.js && node --test test/*.test.js"
+    "check": "node --check app.js && node --check service-information.js && node --check shop-job-payment.js && node --check square-sync.js && node --check supabase/functions/square-sync/index.ts && node --check supabase/functions/square-webhook/index.ts && node --check supabase/functions/square-invoice/index.ts && node --check supabase/functions/payment-processors/index.ts && node --test test/*.test.js"
   }
 }

@@ -17,8 +17,7 @@ test('job payment panel is restricted to the workup route', () => {
   assert.match(payments, /querySelector\('\[data-shop-job-payment\]'\)\?\.remove\(\)/);
 });
 
-test('dashboard tile excludes settled invoice states', () => {
-  for (const status of ['paid', 'canceled', 'cancelled', 'void', 'voided']) {
-    assert.match(payments, new RegExp(`['\"]${status}['\"]`));
-  }
+test('dashboard tile counts customer balances that are actually due', () => {
+  assert.match(payments, /\['sent','deposit_due','partially_paid'\]\.includes/);
+  assert.doesNotMatch(payments, /statuses\.includes\('draft'\)/);
 });
