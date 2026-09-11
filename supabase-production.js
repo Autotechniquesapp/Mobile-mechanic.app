@@ -49,6 +49,9 @@ function roleFromDb(v){ return v==='shop_owner' ? 'owner' : v; }
 function statusToUi(v){
   return ({new:'AI Pre-Workup',ai_workup:'AI Pre-Workup',diagnosing:'Diagnosis / Findings',estimate_sent:'Awaiting Approval',authorized:'Approved / Ready for Work',repairing:'In Progress',invoiced:'Invoiced',paid:'Paid',completed:'Completed',declined:'Customer Declined',warranty:'Warranty',comeback:'Comeback'})[v] || 'AI Pre-Workup';
 }
+const PPI_MARKER='\n\n[PPI DRAFT]\n';
+function ppiFromFindings(value){const text=String(value||''),at=text.lastIndexOf(PPI_MARKER);if(at<0)return null;try{return JSON.parse(text.slice(at+PPI_MARKER.length));}catch{return null;}}
+function findingsWithoutPpi(value){const text=String(value||''),at=text.lastIndexOf(PPI_MARKER);return (at<0?text:text.slice(0,at)).trimEnd();}
 function currentShopId(){ return readCache().session?.shopId || null; }
 function currentJobId(){ return readCache().session?.activeJobId || null; }
 function showStatus(message,type=''){
@@ -139,7 +142,7 @@ async function loadWorkspace(user, allowCreate=true){
       complaint:j.customer_states||'',requestType:'Repair / Diagnostic',availability:j.availability||'',
       location:j.current_location?.raw||'',createdAt:j.created_at,status:statusToUi(j.status),assignedTo:j.assigned_user_id||null,
       scheduledStart:j.scheduled_start_at||null,scheduledEnd:j.scheduled_end_at||null,estimatedLaborHours:Number(j.estimated_labor_hours||1),travelMinutes:Number(j.travel_minutes||0),bufferMinutes:Number(j.buffer_minutes??15),scheduleNotes:j.schedule_notes||'',
-      findings:j.findings||'',codes:j.codes||'',photos:[],estimate:j.estimate||null,approval:j.approval||null,
+      findings:findingsWithoutPpi(j.findings),codes:j.codes||'',photos:[],inspectionDraft:ppiFromFindings(j.findings),estimate:j.estimate||null,approval:j.approval||null,
       completedAt:j.completed_at||null,carfax:{status:j.carfax_status||'Not Connected'}
     };
   });
@@ -342,6 +345,15 @@ document.addEventListener('submit',async e=>{
     }catch(err){showStatus(err.message||'Could not create invite.','bad');}
     return;
   }
+  if(form.id==='resetPassForm'){
+    e.preventDefault();e.stopImmediatePropagation();
+    const cache=readCache(),shop=cache.shops?.[cache.session?.shopId],member=shop?.users?.find(x=>x.id===form.dataset.user),email=String(member?.email||'').trim();
+    if(!email)return showStatus('This technician does not have an email address on the shop profile. Add the email first, then send the reset link.','bad');
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    try{const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:`${location.origin}${location.pathname}#profile`});if(error)throw error;document.querySelector('.modal-backdrop')?.remove();showStatus(`Password reset email sent to ${email}.`,'good');}
+    catch(err){showStatus(err.message||'Could not send the password reset email.','bad');if(button)button.disabled=false;}
+    return;
+  }
   if(form.id==='signupForm'){
     e.preventDefault();e.stopImmediatePropagation();
     const d=Object.fromEntries(new FormData(form)),button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
@@ -363,7 +375,7 @@ document.addEventListener('submit',async e=>{
     try{const {error}=await sb.from('shops').update({name:d.name?.trim()||undefined,business_phone:d.phone?.trim()||null,slug:slugify(d.slug),labor_rate:Number(d.laborRate||0),tax_rate:Number(d.taxRate||0),parts_markup:Number(d.partsMarkup||0),travel_fee:Number(d.travelFee||0),free_radius_miles:Number(d.freeRadius||0),deposit_percent:Number(d.depositPercent||0)}).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#settings');}catch(err){showStatus(err.message||'Could not save settings.','bad');}
     return;
   }
-  if(form.id==='teamForm'||form.id==='resetPassForm'||form.id==='platformAdminForm'){
+  if(form.id==='teamForm'||form.id==='platformAdminForm'){
     e.preventDefault();e.stopImmediatePropagation();showStatus('Secure staff invitations/password management are not connected yet. No browser-only account was created.','');return;
   }
   if(form.id==='addVehicleForm'){
@@ -378,6 +390,14 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action="save-estimate"]');if(!b)return;
   setTimeout(async()=>{
     try{const cache=readCache(),s=cache.shops?.[cache.session?.shopId],j=s?.jobs?.find(x=>x.id===b.dataset.job);if(!j?.estimate)return;const {error}=await sb.from('jobs').update({estimate:j.estimate}).eq('id',j.id);if(error)throw error;showStatus('Estimate saved to Supabase.','good');}catch(err){showStatus(err.message||'Could not sync estimate.','bad');}
+  },0);
+},false);
+
+// Save inspection drafts into the protected job record so they survive refreshes.
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-action="save-ppi"]');if(!b)return;
+  setTimeout(async()=>{
+    try{const cache=readCache(),shop=cache.shops?.[cache.session?.shopId],job=shop?.jobs?.find(x=>x.id===cache.session?.activeJobId),draft=job?.inspectionDraft;if(!job||!draft)return;const original=String(job.findings||''),at=original.lastIndexOf(PPI_MARKER),base=(at>=0?original.slice(0,at):original).trimEnd(),findings=`${base}${PPI_MARKER}${JSON.stringify(draft)}`;const {error}=await sb.from('jobs').update({findings}).eq('id',job.id);if(error)throw error;showStatus('Inspection draft saved to the job.','good');}catch(err){showStatus(err.message||'Inspection draft was saved on this device but could not sync.','bad');}
   },0);
 },false);
 
