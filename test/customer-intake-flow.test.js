@@ -14,10 +14,11 @@ test('pre-purchase intake cannot be blocked by hidden required complaint', () =>
   assert.match(guards, /appendPpiDetails\(form\)/);
 });
 
-test('VIN is optional and camera placeholder is removed from customer intake', () => {
+test('VIN is optional and camera scanner remains available on customer intake', () => {
   assert.match(guards, /VIN \(optional\)/);
   assert.match(guards, /You do not have to decode the VIN to send the request/);
-  assert.match(guards, /scanField\.remove\(\)/);
+  assert.match(guards, /Open camera to scan the VIN barcode/);
+  assert.doesNotMatch(guards, /scanField\.remove\(\)/);
 });
 
 test('visible external send button mirrors the handler submit button state', () => {
