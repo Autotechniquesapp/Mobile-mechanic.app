@@ -48,6 +48,16 @@ jobs:
           node --check youtube-repair.js
           node --check ai-quote-sms.js
           node --check open-map.js
+          node --check parts-extraction.js
+          node --check work-order-pricing.js
+          node --check intake-queue.js
+          node --check job-work-order.js
+      - name: Install test dependencies
+        run: npm ci
+      - name: Run unit tests
+        # MMA_REQUIRE_DOM_TESTS makes the live render test fail rather than skip
+        # if jsdom is unavailable, so CI can never pass by silently skipping it.
+        run: MMA_REQUIRE_DOM_TESTS=1 node --test test/*.test.js
       - name: Check required production files
         run: |
           test -f index.html
@@ -71,6 +81,10 @@ jobs:
           test -f vehicle-lookup.js
           test -f ai-credits.js
           test -f youtube-repair.js
+          test -f parts-extraction.js
+          grep -q "parts-extraction.js" index.html
+          test -f work-order-pricing.js
+          grep -q "work-order-pricing.js" youtube-repair.js
           grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html

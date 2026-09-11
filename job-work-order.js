@@ -8,6 +8,27 @@ let currentState=null;
 function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function context(){const db=read(),sid=db.session?.shopId,shop=sid?db.shops?.[sid]:null,job=shop?.jobs?.find(j=>String(j.id)===String(db.session?.activeJobId));return {db,shop,job};}
 function canSeeFinancials(){const {db,shop}=context(),user=shop?.users?.find(u=>u.id===db.session?.userId);return ['owner','manager','service_writer'].includes(user?.role);}
+/*
+ * Parts cost, labor hours/rates and totals are shop financial information.
+ * Owners, managers and service writers may edit them. A technician may only do
+ * so in a true one-person shop, where that technician is the sole active user.
+ * As soon as another active user is present, the technician view fails closed.
+ */
+function canEditWorkOrderMoney(){
+  const {db,shop}=context();
+  if(db.session?.role!=='shop'||!shop)return false;
+  const id=db.session?.userId;if(!id)return false;
+  const users=Array.isArray(shop.users)?shop.users:[];
+  const u=users.find(x=>x.id===id);
+  if(!u||u.active===false)return false;
+  if(['owner','manager','service_writer'].includes(u.role))return true;
+  const activeUsers=users.filter(x=>x.active!==false);
+  return u.role==='technician'&&activeUsers.length===1&&activeUsers[0].id===id;
+}
+function pricing(){const {shop}=context();const p=window.MobileMechanicPricing;return p?p.shopPricing(shop):{laborRate:75,partsMarkup:25,taxRate:0,travelFee:0};}
+/* Who is signing. An attestation with no named user is worthless, so the UI
+ * refuses to record one when the session cannot identify the person. */
+function currentUser(){const {db,shop}=context();const id=db.session?.userId;if(!id)return null;const u=shop?.users?.find(x=>x.id===id);return {id,name:u?.name||db.session?.name||null,role:u?.role||null};}
 function esc(v=''){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function money(v){if(v===null||v===undefined||v==='')return '';return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0));}
 function toast(msg,type=''){document.querySelector('.workorder-toast')?.remove();const d=document.createElement('div');d.className=`toast workorder-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3200);}
@@ -27,19 +48,128 @@ async function load(job){
     if(!jr.error)row=jr.data;
     if(!ir.error)invoice=ir.data;
   }
-  const wo=structuredClone(row?.ai_workup?.work_order||emptyWO());
+  let wo=structuredClone(row?.ai_workup?.work_order||emptyWO());
   wo.parts=Array.isArray(wo.parts)?wo.parts:[];
   wo.work=Array.isArray(wo.work)?wo.work:[];
   wo.tests=Array.isArray(wo.tests)?wo.tests:[];
   wo.authorization=wo.authorization||{status:'',note:''};
+  /*
+   * The intake AI workup used to stop at the intake queue: the job's work order
+   * always opened blank and the mechanic retyped the parts, checks, and labor
+   * operations the AI had already produced. Seed the first render from it, but
+   * only while the mechanic has not entered anything, so a saved work order is
+   * never overwritten. Every seeded row is unpriced and unconfirmed.
+   */
+  const api=window.MobileMechanicParts;
+  if(api?.isEmptyWorkOrder?.(wo)&&api.hasDiagnosis?.(row?.ai_workup)){
+    const seeded=api.seedWorkOrder(row.ai_workup);
+    if(seeded.seeded_from_ai){wo=seeded;wo.authorization={status:'',note:''};}
+  }
+  /*
+   * Carry any AI hour/price guesses onto the lines as estimates. Safe to run on
+   * a saved work order too: applyAiEstimates never touches a typed or attested
+   * value, it only fills `line.estimate`.
+   */
+  const p=window.MobileMechanicPricing;
+  if(p&&row?.ai_workup)wo=p.applyAiEstimates(wo,row.ai_workup);
   return {job,row,invoice,wo};
 }
 
+/*
+ * An AI guess and a real number are never the same control. The estimate shows
+ * as a muted chip beside the input; typing a real value takes over the line's
+ * amount while the chip stays visible so the mechanic can see what was guessed.
+ */
+function estimateChip(line,kind){
+  const p=window.MobileMechanicPricing;if(!p)return '';
+  const guess=kind==='hours'?line.estimate?.hours:line.estimate?.price;
+  if(guess===null||guess===undefined)return '';
+  const real=kind==='hours'?line.hours:(line.price??line.cost);
+  const live=real===null||real===undefined||real==='';
+  const shown=kind==='hours'?p.formatHours(guess):p.formatMoney(guess);
+  return `<span class="jwo-est ${live?'live':'beaten'}" title="${live?'Unconfirmed AI estimate. Check it yourself before quoting.':'AI estimated '+esc(shown)+'. Your entry is being used instead.'}">AI est. ${esc(shown)}</span>`;
+}
+function moneyCell(item,type,index){
+  const p=window.MobileMechanicPricing;
+  if(!p||!canEditWorkOrderMoney())return canSeeFinancials()&&item.price!==null&&item.price!==undefined?`<span class="jwo-price">${money(item.price)}</span>`:'';
+  const rates=pricing();
+  if(type==='parts'){
+    const r=p.partAmount(item,rates);
+    const entered=item.cost??item.price??'';
+    const basis=r.basis==='marked_up'?`+${rates.partsMarkup}% markup`:r.basis==='price'?'price as entered':r.basis==='estimated'?'AI guess — not checked':'';
+    return `<span class="jwo-money"><label class="jwo-inp"><span>Cost</span><input type="number" min="0" step="0.01" inputmode="decimal" value="${esc(entered)}" data-jwo-cost data-jwo-index="${index}" placeholder="—"></label><span class="jwo-amt ${r.estimated?'est':''}">${esc(p.formatMoney(r.amount)||'—')}</span>${basis?`<small>${esc(basis)}</small>`:''}${estimateChip(item,'price')}${attestControl(item,'parts',index,r)}</span>`;
+  }
+  const r=p.laborAmount(item,rates);
+  return `<span class="jwo-money"><label class="jwo-inp"><span>Hours</span><input type="number" min="0" step="0.1" inputmode="decimal" value="${esc(item.hours??'')}" data-jwo-hours data-jwo-index="${index}" placeholder="—"></label><span class="jwo-amt ${r.estimated?'est':''}">${esc(p.formatMoney(r.amount)||'—')}</span><small>@ ${esc(p.formatMoney(r.rate))}/hr</small>${estimateChip(item,'hours')}${attestControl(item,'work',index,r)}</span>`;
+}
+/*
+ * The attestation control. A line with a real number but no signature shows an
+ * amber "Not checked — sign off" button; a signed line shows who signed, when,
+ * and against what source. Lines carrying only an AI guess cannot be signed at
+ * all — you sign for a number you verified, not for the model's opinion.
+ */
+function attestControl(item,kind,index,r){
+  const p=window.MobileMechanicPricing;
+  if(!p||r.amount===null)return '';
+  if(r.estimated)return `<span class="jwo-attest none">Enter a real ${kind==='parts'?'cost':'time'} to sign off</span>`;
+  const kindKey=kind==='parts'?'parts':'labor';
+  /*
+   * A signature that no longer covers the figure. Nobody edited the line — a
+   * shop-wide rate moved under it — so this is louder than "not checked": the
+   * mechanic is being told a number they already signed for has changed.
+   */
+  if(r.stale){
+    const s=p.staleAttestationOf(item,kindKey,r.amount);
+    return `<button type="button" class="jwo-attest stale" data-jwo-attest="${kind}" data-jwo-index="${index}" title="Signed for ${esc(p.formatMoney(s?.amount_at_signing))} by ${esc(s?.by_name||'a technician')}; the line is now ${esc(p.formatMoney(r.amount))}.">⚠ Price changed since sign-off — was ${esc(p.formatMoney(s?.amount_at_signing))} · re-check</button>`;
+  }
+  const a=p.attestationOf(item,kindKey,r.amount);
+  if(a){
+    const when=(()=>{try{return new Date(a.at).toLocaleDateString();}catch{return '';}})();
+    return `<span class="jwo-attest ok" title="Checklist ${esc(a.checklist_version)} — source: ${esc(a.source)}">✓ Checked by ${esc(a.by_name||'technician')}${when?` · ${esc(when)}`:''} · ${esc(a.source)}<button type="button" class="jwo-relink" data-jwo-attest="${kind}" data-jwo-index="${index}">Redo</button></span>`;
+  }
+  return `<button type="button" class="jwo-attest pending" data-jwo-attest="${kind}" data-jwo-index="${index}">⚠ Not checked — sign off</button>`;
+}
 function rowMarkup(item,type,index){
   const task=type!=='parts';
   const options=task?taskOptions(item.status):partOptions(item.status);
   const detail=item.note||item.purpose||item.source||'';
-  return `<div class="jwo-row"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}</div>${canSeeFinancials()&&item.price!==null&&item.price!==undefined?`<span class="jwo-price">${money(item.price)}</span>`:''}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
+  const cell=type==='tests'?'':moneyCell(item,type,index);
+  return `<div class="jwo-row${cell?' jwo-row-money':''}"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}</div>${cell}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
+}
+/*
+ * Two totals, never one. Confirmed is what may be quoted to a customer;
+ * projected includes unconfirmed AI estimates and is a planning figure only.
+ * The disclaimer is quoted from section 2 of terms.html rather than reworded.
+ */
+function totalsMarkup(wo){
+  const p=window.MobileMechanicPricing;
+  if(!p||!canEditWorkOrderMoney())return '';
+  const t=p.totals(wo,pricing());
+  if(t.counts.enteredLines===0&&t.counts.estimatedLines===0)return '';
+  const line=(label,v,cls='')=>`<div class="jwo-total-row ${cls}"><span>${label}</span><b>${esc(v||'—')}</b></div>`;
+  const a=t.attested,j=t.projected;
+  const showProjected=j.total!==null&&j.total!==a.total;
+  return `<div class="jwo-totals" data-jwo-totals>
+    <div class="jwo-total-col ok">
+      <div class="jwo-total-head">Checked &amp; signed — safe to quote</div>
+      ${line('Parts',p.formatMoney(a.parts))}
+      ${line('Labor'+(a.hours?` (${p.formatHours(a.hours)})`:''),p.formatMoney(a.labor))}
+      ${a.tax?line('Tax',p.formatMoney(a.tax)):''}
+      ${a.travel?line('Travel',p.formatMoney(a.travel)):''}
+      ${line('Total',p.formatMoney(a.total),'grand')}
+      <small>${a.total===null?'Nothing signed off yet — there is no quotable total.':'Every line here is signed for by a named technician.'}</small>
+    </div>
+    ${showProjected?`<div class="jwo-total-col est">
+      <div class="jwo-total-head">Working figure — not quotable</div>
+      ${line('Parts',p.formatMoney(j.parts))}
+      ${line('Labor'+(j.hours?` (${p.formatHours(j.hours)})`:''),p.formatMoney(j.labor))}
+      ${line('Total',p.formatMoney(j.total),'grand')}
+      <small>${[t.counts.pendingLines?`${t.counts.pendingLines} line${t.counts.pendingLines===1?'':'s'} not signed off`:'',t.counts.estimatedLines?`${t.counts.estimatedLines} still on an AI estimate`:''].filter(Boolean).join(', ')}. Do not give this number to a customer.</small>
+    </div>`:''}
+    ${t.counts.staleLines?`<p class="jwo-disclaimer stale-warn" data-jwo-stale>⚠ ${t.counts.staleLines} line${t.counts.staleLines===1?' has':'s have'} changed price since being signed off, which normally means a labor rate or parts markup was edited in shop settings. ${t.counts.staleLines===1?'That signature has':'Those signatures have'} been voided and ${t.counts.staleLines===1?'the line is':'the lines are'} out of the quotable total until re-checked.</p>`:''}
+    <p class="jwo-disclaimer">Per the Terms of Service: AI outputs, including labor estimates, are informational aids only and may be incomplete or incorrect. The shop and technician remain solely responsible for diagnosis, testing, repair decisions, labor times, parts selection and pricing. Check every labor time and part price yourself before quoting it.</p>
+    ${t.counts.unpricedLines?`<p class="jwo-disclaimer plain">${t.counts.unpricedLines} line${t.counts.unpricedLines===1?'':'s'} have no cost or hours entered yet.</p>`:''}
+  </div>`;
 }
 function section(title,type,items,button){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3><button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button></div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
 function financialMarkup(invoice,wo){
@@ -56,6 +186,7 @@ function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.cus
   ${section('Parts Bought / Needed','parts',wo.parts,'Part')}
   ${section('Work Being Done / Completed','work',wo.work,'Work Item')}
   ${section('Tests / Checks','tests',wo.tests,'Test')}
+  ${totalsMarkup(wo)}
   ${canSeeFinancials()?financialMarkup(invoice,wo):''}
   ${wo.authorization?.note?`<div class="jwo-auth"><b>Authorization:</b> ${esc(wo.authorization.note)}</div>`:''}
 </section>`;}
@@ -63,7 +194,41 @@ function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.cus
 function css(){if(document.getElementById('job-work-order-style'))return;const s=document.createElement('style');s.id='job-work-order-style';s.textContent=`
 .jwo{background:#10151b;border:1px solid #63262b;border-radius:15px;padding:14px;margin:10px 0 12px;box-shadow:0 0 18px rgba(239,42,49,.08)}
 .jwo-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.jwo-top h2{font-size:18px;margin:2px 0}.jwo-complaint{background:#0a0e13;border:1px solid #303841;border-radius:10px;padding:11px;margin-bottom:10px}.jwo-complaint p{margin:5px 0 3px;line-height:1.35}.jwo-complaint small{display:block;color:#aeb6c0;margin-top:7px}.jwo-section{border-top:1px solid #2c343d;padding-top:10px;margin-top:10px}.jwo-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.jwo-section-head h3{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.04em}.jwo-add{padding:4px 8px!important;min-height:28px!important;font-size:11px!important}.jwo-list{display:grid;gap:6px}.jwo-row{display:grid;grid-template-columns:minmax(0,1fr) auto 118px;gap:8px;align-items:center;background:#0a0e13;border:1px solid #28313a;border-radius:9px;padding:8px 9px}.jwo-main{min-width:0}.jwo-main b{display:block;font-size:12px}.jwo-main small{display:block;color:#8e99a5;font-size:10px;margin-top:3px;line-height:1.25}.jwo-price{font-size:11px;font-weight:700}.jwo-row select{background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:6px;font-size:10px;max-width:118px}.jwo-empty{font-size:11px;color:#8e99a5;padding:8px}.jwo-fin{margin-top:11px;background:#0a0e13;border:1px solid #34404a;border-radius:10px;padding:10px}.jwo-fin b,.jwo-fin span{display:block}.jwo-fin span{font-size:11px;color:#c5cbd2;margin-top:3px}.jwo-auth{font-size:11px;margin-top:8px;color:#c8ced5}.jwo-ai-wrap{margin-top:9px;border:1px solid #303841;border-radius:11px;background:#0b0f14}.jwo-ai-wrap>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:700}.jwo-ai-wrap>.work-white{margin:0!important;border:0!important;border-top:1px solid #303841!important;border-radius:0 0 11px 11px!important}
-@media(max-width:620px){.jwo{padding:11px}.jwo-row{grid-template-columns:minmax(0,1fr) 108px}.jwo-price{grid-column:1}.jwo-row select{grid-column:2;grid-row:1 / span 2}.jwo-top h2{font-size:16px}}
+.jwo-row-money{grid-template-columns:minmax(0,1fr) minmax(190px,auto) 118px}
+.jwo-money{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;max-width:280px}
+.jwo-inp{display:flex;align-items:center;gap:5px;font-size:10px;color:#9aa4b0}.jwo-inp input{width:74px;background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:5px 6px;font-size:11px}
+.jwo-amt{font-size:12px;font-weight:700}.jwo-amt.est{color:#8e99a5;font-weight:600;font-style:italic}
+.jwo-money>small{font-size:9px;color:#8e99a5;width:100%;text-align:right}
+.jwo-est{font-size:9px;border-radius:6px;padding:2px 5px;border:1px dashed #4a5560;color:#9aa4b0}.jwo-est.beaten{opacity:.55;text-decoration:line-through}
+.jwo-attest{width:100%;text-align:right;font-size:9px;border-radius:7px;padding:4px 6px;border:1px solid transparent}
+.jwo-attest.pending{background:#2a2008;border-color:#7a5c12;color:#f0c04a;cursor:pointer;font-weight:700}
+.jwo-attest.ok{background:#0d1c12;border-color:#2c5c3a;color:#7fd6a0;display:block}
+.jwo-attest.none{color:#78828d;font-style:italic}
+.jwo-attest.stale{background:#2b1010;border-color:#8a2f2f;color:#ef8a8a;cursor:pointer;font-weight:700}
+.jwo-disclaimer.stale-warn{color:#ef8a8a;background:#2b1010;border-color:#8a2f2f}
+.jwo-relink{margin-left:6px;background:none;border:0;color:#9aa4b0;text-decoration:underline;font-size:9px;cursor:pointer}
+.jwo-totals{margin-top:12px;display:grid;gap:9px;grid-template-columns:1fr 1fr}
+.jwo-total-col{background:#0a0e13;border:1px solid #2c343d;border-radius:10px;padding:10px}
+.jwo-total-col.ok{border-color:#2c5c3a}.jwo-total-col.est{border-color:#5a4a1e;opacity:.92}
+.jwo-total-head{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#aeb6c0;margin-bottom:6px;font-weight:700}
+.jwo-total-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0}.jwo-total-row.grand{border-top:1px solid #2c343d;margin-top:4px;padding-top:5px;font-size:13px}
+.jwo-total-col small{display:block;margin-top:6px;font-size:9px;color:#8e99a5;line-height:1.35}
+.jwo-disclaimer{grid-column:1/-1;margin:0;font-size:10px;line-height:1.45;color:#c9a24a;background:#1c1708;border:1px solid #5a4a1e;border-radius:9px;padding:8px 10px}
+.jwo-disclaimer.plain{color:#8e99a5;background:#0a0e13;border-color:#2c343d}
+.jwo-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999}
+.jwo-modal-card{background:#10151b;border:1px solid #3a454f;border-radius:14px;padding:16px;max-width:460px;width:100%;max-height:88vh;overflow:auto}
+.jwo-modal-card h3{margin:0 0 6px;font-size:15px}
+.jwo-modal-amt{margin:0 0 8px;font-size:19px;font-weight:800}
+.jwo-modal-guess{margin:0 0 8px;font-size:11px;color:#9aa4b0}
+.jwo-modal-terms{margin:0 0 10px;font-size:10px;line-height:1.45;color:#c9a24a;background:#1c1708;border:1px solid #5a4a1e;border-radius:9px;padding:8px 10px}
+.jwo-check{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:7px}
+.jwo-check label{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.4;cursor:pointer}
+.jwo-check input{margin-top:2px;width:16px;height:16px;flex:none}
+.jwo-src{display:block;font-size:10px;color:#9aa4b0}.jwo-src input{width:100%;margin-top:4px;background:#0a0e13;color:#f4f6f8;border:1px solid #39434d;border-radius:8px;padding:8px;font-size:12px}
+.jwo-modal-sign{font-size:10px;color:#8e99a5;margin:9px 0 0;line-height:1.4}
+.jwo-modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.jwo-modal-err{margin:8px 0 0;font-size:11px;color:#ef6a6a}
+@media(max-width:620px){.jwo-totals{grid-template-columns:1fr}.jwo-row-money{grid-template-columns:minmax(0,1fr) 108px}.jwo-money{max-width:none;justify-content:flex-start}.jwo{padding:11px}.jwo-row{grid-template-columns:minmax(0,1fr) 108px}.jwo-price{grid-column:1}.jwo-row select{grid-column:2;grid-row:1 / span 2}.jwo-top h2{font-size:16px}}
 `;document.head.appendChild(s);}
 
 function simplifyLegacyUI(){
@@ -109,9 +274,90 @@ function add(type){
   else currentState.wo[type].push({name:name.trim(),status:'to_do'});
   rerender();save();
 }
+/*
+ * Typing a number always drops any existing signature on that line. Someone
+ * signed for $180; if the figure silently becomes $400 while still showing as
+ * checked, the record is a lie. Re-entering means re-signing.
+ */
+function setMoney(kind,index,raw){
+  const p=window.MobileMechanicPricing;if(!p||!currentState||!canEditWorkOrderMoney())return;
+  if(kind==='cost'){
+    const list=currentState.wo.parts;if(!list?.[index])return;
+    list[index]=p.clearAttestation(p.confirmPartCost(list[index],raw));
+  }else{
+    const list=currentState.wo.work;if(!list?.[index])return;
+    list[index]=p.clearAttestation(p.confirmLaborHours(list[index],raw,'entered'));
+  }
+  rerender();save();
+}
+function closeAttestModal(){document.querySelector('[data-jwo-attest-modal]')?.remove();}
+function openAttestModal(kind,index){
+  const p=window.MobileMechanicPricing;if(!p||!currentState||!canEditWorkOrderMoney())return;
+  const listKey=kind==='parts'?'parts':'work';
+  const item=currentState.wo[listKey]?.[index];if(!item)return;
+  const user=currentUser();
+  if(!user){toast('Sign in again before signing off — an attestation has to name a person.','bad');return;}
+  const checkKind=kind==='parts'?'parts':'labor';
+  const items=p.checklistFor(checkKind);
+  const rates=pricing();
+  const r=kind==='parts'?p.partAmount(item,rates):p.laborAmount(item,rates);
+  const guess=kind==='parts'?item.estimate?.price:item.estimate?.hours;
+  const guessText=guess===null||guess===undefined?'':(kind==='parts'?p.formatMoney(guess):p.formatHours(guess));
+  closeAttestModal();
+  const el=document.createElement('div');
+  el.setAttribute('data-jwo-attest-modal','');
+  el.className='jwo-modal';
+  el.innerHTML=`<div class="jwo-modal-card" role="dialog" aria-modal="true" aria-label="Sign off on this number">
+    <h3>Sign off: ${esc(item.name)}</h3>
+    <p class="jwo-modal-amt">${esc(kind==='parts'?p.formatMoney(r.amount):`${p.formatHours(r.hours)} · ${p.formatMoney(r.amount)}`)}</p>
+    ${guessText?`<p class="jwo-modal-guess">The AI estimated ${esc(guessText)}. You are signing for your own figure, not the AI's.</p>`:''}
+    <p class="jwo-modal-terms">Terms of Service section 2: AI outputs, including labor estimates, are informational aids only and may be incomplete or incorrect. The shop and technician remain solely responsible for labor times, parts selection and pricing.</p>
+    <form data-jwo-attest-form>
+      <ul class="jwo-check">${items.map(x=>`<li><label><input type="checkbox" data-jwo-check="${esc(x.id)}"><span>${esc(x.text)}</span></label></li>`).join('')}</ul>
+      <label class="jwo-src"><span>${kind==='parts'?'Supplier or quote reference':'Labor guide or measured source'}</span><input type="text" data-jwo-attest-source maxlength="200" placeholder="${kind==='parts'?'e.g. NAPA counter quote #4821':'e.g. Identifix 2.4 hr, verified'}" required></label>
+      <p class="jwo-modal-sign">Signing as <b>${esc(user.name||'this account')}</b>. Your name, the time, this checklist version and the AI estimate are recorded on the work order.</p>
+      <div class="jwo-modal-btns">
+        <button type="button" class="btn btn-soft" data-jwo-attest-cancel>Cancel</button>
+        <button type="submit" class="btn" data-jwo-attest-submit>I checked this myself — sign off</button>
+      </div>
+      <p class="jwo-modal-err" data-jwo-attest-err hidden></p>
+    </form>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('[data-jwo-attest-source]')?.focus();
+  el.addEventListener('click',ev=>{if(ev.target===el)closeAttestModal();});
+  el.querySelector('[data-jwo-attest-cancel]')?.addEventListener('click',()=>closeAttestModal());
+  el.querySelector('[data-jwo-attest-form]')?.addEventListener('submit',ev=>{
+    ev.preventDefault();
+    const ticked=[...el.querySelectorAll('[data-jwo-check]')].filter(c=>c.checked).map(c=>c.dataset.jwoCheck);
+    const source=el.querySelector('[data-jwo-attest-source]')?.value||'';
+    const res=p.attestLine(item,checkKind,{userId:user.id,userName:user.name,source,items:ticked,amount:r.amount,userAgent:navigator.userAgent});
+    const err=el.querySelector('[data-jwo-attest-err]');
+    if(!res.ok){
+      if(err){err.hidden=false;err.textContent=res.needsSource?'Name the labor guide, supplier or quote you checked against.':`Check every box first — ${res.missing.length} still unticked.`;}
+      return;
+    }
+    currentState.wo[listKey][index]=res.line;
+    closeAttestModal();rerender();save();
+    toast('Signed off and recorded.','good');
+  });
+}
 function bindGlobal(){
-  document.addEventListener('change',e=>{const el=e.target.closest?.('[data-jwo-status]');if(!el||!currentState)return;const type=el.dataset.jwoType,i=Number(el.dataset.jwoIndex);if(!currentState.wo[type]?.[i])return;currentState.wo[type][i].status=el.value;save();},true);
-  document.addEventListener('click',e=>{const b=e.target.closest?.('[data-jwo-add]');if(!b)return;e.preventDefault();add(b.dataset.jwoAdd);},true);
+  document.addEventListener('change',e=>{
+    const el=e.target.closest?.('[data-jwo-status]');
+    if(el&&currentState){const type=el.dataset.jwoType,i=Number(el.dataset.jwoIndex);if(currentState.wo[type]?.[i]){currentState.wo[type][i].status=el.value;save();}return;}
+    const cost=e.target.closest?.('[data-jwo-cost]');
+    if(cost){setMoney('cost',Number(cost.dataset.jwoIndex),cost.value);return;}
+    const hours=e.target.closest?.('[data-jwo-hours]');
+    if(hours){setMoney('hours',Number(hours.dataset.jwoIndex),hours.value);return;}
+  },true);
+  document.addEventListener('click',e=>{
+    const b=e.target.closest?.('[data-jwo-add]');
+    if(b){e.preventDefault();add(b.dataset.jwoAdd);return;}
+    const a=e.target.closest?.('[data-jwo-attest]');
+    if(a){e.preventDefault();openAttestModal(a.dataset.jwoAttest,Number(a.dataset.jwoIndex));return;}
+  },true);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAttestModal();});
 }
 async function mount(){
   simplifyLegacyUI();
