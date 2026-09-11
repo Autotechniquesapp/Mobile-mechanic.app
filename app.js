@@ -459,10 +459,41 @@ function calendar(){
   <section class="card card-pad" style="margin-top:10px"><div class="card-title">${ic('jobs')} NEEDS SCHEDULE</div><div class="divider"></div><div class="list">${unscheduled.map(j=>`<div class="list-item"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} - ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.availability||'Customer availability not set')}<br>${esc(j.complaint||'')}</p><div class="list-actions"><button class="btn btn-primary" data-action="schedule-job" data-job="${j.id}">Schedule</button></div></div></div>`).join('')||'<div class="muted">Everything has a scheduled time.</div>'}</div></section>`;
   shopShell(content,'calendar');
 }
-function reports(){
-  const s=currentShop();
-  const content=`${pageTitle('Reports','Job history, profitability, declined work, warranties, and service records.')}
-  <div class="metric-grid"><div class="metric red"><b>${s.jobs.length}</b><span>Total Jobs</span></div><div class="metric green"><b>${s.jobs.filter(j=>j.status==='Completed').length}</b><span>Completed</span></div><div class="metric orange"><b>${s.declined?.length||0}</b><span>Declined</span></div><div class="metric blue"><b>${s.warranties?.length||0}</b><span>Warranty / Comeback</span></div></div><section class="card card-pad" style="margin-top:10px"><div class="card-title">JOB PROFITABILITY</div><div class="section-note">Production version compares estimate vs. actual technician time, parts cost, travel expense, and gross profit. Customer never sees internal cost/profit.</div></section>`;
+function reportJobFacts(s,j){
+  const declinedIds=new Set((s.declined||[]).map(x=>String(x.jobId||x.id||'')));
+  const warrantyIds=new Set((s.warranties||[]).map(x=>String(x.jobId||x.originalJobId||x.id||'')));
+  const status=String(j.status||'').toLowerCase();
+  const completed=status==='completed'||Boolean(j.completedAt);
+  const declined=declinedIds.has(String(j.id))||status.includes('declined')||j.approval?.status==='declined';
+  const warranty=warrantyIds.has(String(j.id))||status.includes('warranty')||status.includes('comeback')||Boolean(j.warranty||j.comeback);
+  const selected=j.approval?.option||j.approval?.selectedOption||'better';
+  const invoiceTotal=Number(j.invoice?.total??j.invoiceTotal??j.payment?.total);
+  const estimateTotal=Number(j.estimate?.[selected]?.price??j.estimate?.single?.total??j.estimate?.single?.price??j.estimate?.better?.price);
+  const revenue=Number.isFinite(invoiceTotal)&&invoiceTotal>0?invoiceTotal:Number.isFinite(estimateTotal)&&estimateTotal>0?estimateTotal:0;
+  const wo=j.ai_workup?.work_order||j.work_order||{};
+  const partsCost=Number(j.actualPartsCost??j.partsCost) || (Array.isArray(wo.parts)?wo.parts.reduce((sum,p)=>sum+Number(p.cost||0),0):0);
+  const travelExpense=Number(j.travelExpense??j.expenses?.travel??0)||0;
+  const jobTime=(s.timeEntries||[]).filter(x=>String(x.jobId||'')===String(j.id));
+  const clockHours=jobTime.reduce((sum,x)=>{const end=x.clockOut?new Date(x.clockOut):new Date();return sum+Math.max(0,(end-new Date(x.clockIn))/3600000);},0);
+  const workHours=Array.isArray(wo.work)?wo.work.reduce((sum,x)=>sum+Number(x.hours||0),0):0;
+  const laborHours=Number(j.actualLaborHours)||clockHours||workHours||Number(j.estimatedLaborHours||0);
+  const laborCost=Number(j.actualLaborCost??j.laborCost)||jobTime.reduce((sum,x)=>{const tech=s.users?.find(u=>u.id===x.userId),end=x.clockOut?new Date(x.clockOut):new Date(),hours=Math.max(0,(end-new Date(x.clockIn))/3600000);return sum+hours*Number(tech?.hourlyCost||0);},0);
+  const gross=revenue-partsCost-travelExpense-laborCost;
+  return {completed,declined,warranty,revenue,partsCost,travelExpense,laborHours,laborCost,gross};
+}
+function reports(filter='all'){
+  const s=currentShop(),jobs=Array.isArray(s.jobs)?s.jobs:[];
+  const facts=new Map(jobs.map(j=>[j.id,reportJobFacts(s,j)]));
+  const groups={all:jobs,completed:jobs.filter(j=>facts.get(j.id).completed),declined:jobs.filter(j=>facts.get(j.id).declined),warranty:jobs.filter(j=>facts.get(j.id).warranty)};
+  const active=groups[filter]?filter:'all',shown=groups[active];
+  const completedFacts=groups.completed.map(j=>facts.get(j.id));
+  const totals=completedFacts.reduce((a,x)=>({revenue:a.revenue+x.revenue,parts:a.parts+x.partsCost,travel:a.travel+x.travelExpense,labor:a.labor+x.laborCost,gross:a.gross+x.gross,hours:a.hours+x.laborHours}),{revenue:0,parts:0,travel:0,labor:0,gross:0,hours:0});
+  const tile=(key,color,label,count)=>`<button type="button" class="metric report-filter ${color} ${active===key?'active':''}" data-report-filter="${key}" aria-pressed="${active===key}"><b>${count}</b><span>${label}</span><small>Tap to view</small></button>`;
+  const rows=shown.slice().sort((a,b)=>new Date(b.completedAt||b.createdAt||0)-new Date(a.completedAt||a.createdAt||0)).map(j=>{const f=facts.get(j.id),hasMoney=f.revenue>0||f.partsCost>0||f.travelExpense>0||f.laborCost>0;return `<button type="button" class="list-item report-job" data-open-job="${esc(j.id)}"><div class="list-icon">${ic(f.warranty?'shield':f.declined?'alert':'wrench')}</div><div class="list-main"><b>${esc(j.customerName||'Customer')} — ${esc(vehicleText(j.vehicle)||assetTerm(s))}</b><p>${esc(j.status||'Job')} · ${new Date(j.completedAt||j.createdAt||Date.now()).toLocaleDateString()}<br>${esc(j.complaint||'No complaint recorded.')}</p>${f.completed?`<div class="report-money"><span>Revenue <b>${f.revenue?money(f.revenue):'Needs invoice'}</b></span><span>Parts cost <b>${money(f.partsCost)}</b></span><span>Labor <b>${f.laborHours.toFixed(2)} hr</b></span><span>${hasMoney?'Gross before overhead':'Profitability'} <b>${hasMoney?money(f.gross):'Needs pricing'}</b></span></div>`:''}</div><strong class="report-open">Open ›</strong></button>`;}).join('');
+  const content=`${pageTitle('Reports','Tap a total to see the jobs behind it. Open any job to review or finish its records.')}
+  <div class="metric-grid">${tile('all','red','Total Jobs',groups.all.length)}${tile('completed','green','Completed',groups.completed.length)}${tile('declined','orange','Declined',groups.declined.length)}${tile('warranty','blue','Warranty / Comeback',groups.warranty.length)}</div>
+  <section class="card card-pad report-summary" style="margin-top:10px"><div class="card-title">COMPLETED JOB PROFITABILITY</div><div class="section-note">Uses saved invoice/estimate revenue, entered parts cost, travel expense, technician cost when recorded, and job/time-clock hours. Internal only.</div><div class="divider"></div><div class="report-totals"><div><span>Revenue</span><b>${money(totals.revenue)}</b></div><div><span>Parts Cost</span><b>${money(totals.parts)}</b></div><div><span>Travel Expense</span><b>${money(totals.travel)}</b></div><div><span>Labor Hours</span><b>${totals.hours.toFixed(2)}</b></div><div><span>Labor Cost</span><b>${money(totals.labor)}</b></div><div><span>Gross Before Overhead</span><b class="${totals.gross<0?'red':'green'}">${money(totals.gross)}</b></div></div></section>
+  <section class="card card-pad" style="margin-top:10px"><div class="card-title">${active==='all'?'ALL JOBS':active==='completed'?'COMPLETED JOBS':active==='declined'?'DECLINED WORK':'WARRANTY / COMEBACK JOBS'}</div><div class="section-note">${shown.length} matching record${shown.length===1?'':'s'}. Tap a row to open the complete job.</div><div class="divider"></div><div class="list">${rows||'<div class="muted">No matching jobs yet.</div>'}</div></section>`;
   shopShell(content,'reports');
 }
 
@@ -659,6 +690,8 @@ function bind(){
 // Route and job navigation use delegation so controls injected after a render
 // (pricing, integrations, admin helpers, etc.) work without another bind pass.
 document.addEventListener('click',e=>{
+  const reportFilter=e.target.closest?.('[data-report-filter]');
+  if(reportFilter){e.preventDefault();reports(reportFilter.dataset.reportFilter);return;}
   const intakeAction=e.target.closest?.('[data-action="share-intake"],[data-action="copy-intake"],[data-action="preview-intake"]');
   if(intakeAction){
     e.preventDefault();
