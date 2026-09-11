@@ -49,6 +49,7 @@ jobs:
           node --check ai-quote-sms.js
           node --check open-map.js
           node --check parts-extraction.js
+          node --check work-order-pricing.js
           node --check intake-queue.js
           node --check job-work-order.js
       - name: Install test dependencies
@@ -82,6 +83,8 @@ jobs:
           test -f youtube-repair.js
           test -f parts-extraction.js
           grep -q "parts-extraction.js" index.html
+          test -f work-order-pricing.js
+          grep -q "work-order-pricing.js" youtube-repair.js
           grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html
