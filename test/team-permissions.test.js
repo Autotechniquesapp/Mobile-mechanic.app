@@ -17,31 +17,19 @@ test('technicians cannot open financial administration routes directly', () => {
   assert.match(app, /\['billing','settings','reports','export'\].*!canViewShopFinancials/);
 });
 
-/*
- * The rule changed deliberately, so this test changed with it.
- *
- * Before: technicians saw no money at all on a work order.
- * Now: the mechanic on the job enters and sees LINE money — part cost, labor
- * hours, line amounts — because they are the person who knows what the part
- * cost and how long it took, and because they must personally sign for those
- * figures. Customer-facing money (the invoice, payments, what is owed) is
- * unchanged and still owner/manager/service_writer only.
- */
 test('technician work orders still hide invoice and payment totals', () => {
   assert.match(workOrder, /function canSeeFinancials\(\).*owner.*manager.*service_writer/);
   assert.match(workOrder, /canSeeFinancials\(\)\?financialMarkup/);
 });
 
-test('work order line money is open to any active mechanic on the job, not just financial roles', () => {
+test('work order money is limited to financial roles or the sole active technician', () => {
   assert.match(workOrder, /function canEditWorkOrderMoney\(\)/);
   assert.match(workOrder, /canEditWorkOrderMoney\(\)[\s\S]{0,200}session\?\.role!=='shop'/);
-  // Must fail closed: the user has to be found AND active. An earlier version
-  // tested `?.active!==false`, which passes for a user who isn't in the shop
-  // at all, so a stale session for a removed employee kept its access.
-  assert.match(workOrder, /const u=shop\.users\?\.find\(x=>x\.id===id\);return Boolean\(u&&u\.active!==false\)/);
-  assert.doesNotMatch(workOrder, /return Boolean\(shop\.users\?\.find\([^)]*\)\?\.active!==false\)/);
-  // The line money gate must NOT be the financial-roles gate.
-  assert.doesNotMatch(workOrder, /canSeeFinancials\(\)&&item\.price&&/);
+  assert.match(workOrder, /\['owner','manager','service_writer'\]\.includes\(u\.role\)/);
+  assert.match(workOrder, /u\.role==='technician'&&activeUsers\.length===1&&activeUsers\[0\]\.id===id/);
+  assert.match(workOrder, /if\(!u\|\|u\.active===false\)return false/);
+  assert.match(workOrder, /setMoney\([\s\S]{0,160}!canEditWorkOrderMoney\(\)/);
+  assert.match(workOrder, /openAttestModal\([\s\S]{0,160}!canEditWorkOrderMoney\(\)/);
   assert.match(workOrder, /data-jwo-cost/);
   assert.match(workOrder, /data-jwo-hours/);
 });
