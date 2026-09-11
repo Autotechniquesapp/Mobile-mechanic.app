@@ -137,8 +137,7 @@ function enhanceVinField(form){
   }
 
   const scan=form.querySelector('[data-action="scan-placeholder"]');
-  const scanField=scan?.closest('.field');
-  if(scanField) scanField.remove();
+  if(scan) scan.setAttribute('aria-label','Open camera to scan the VIN barcode');
 }
 
 function wireSubmitFeedback(form){
