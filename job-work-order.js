@@ -9,16 +9,22 @@ function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{
 function context(){const db=read(),sid=db.session?.shopId,shop=sid?db.shops?.[sid]:null,job=shop?.jobs?.find(j=>String(j.id)===String(db.session?.activeJobId));return {db,shop,job};}
 function canSeeFinancials(){const {db,shop}=context(),user=shop?.users?.find(u=>u.id===db.session?.userId);return ['owner','manager','service_writer'].includes(user?.role);}
 /*
- * Customer-facing money (the invoice, what was paid, what is owed) stays behind
- * canSeeFinancials. Work order line money is different: the mechanic on the job
- * is the person who knows what the part cost at the counter and how long the
- * job actually took, so they can enter and see cost, hours, and line amounts.
- * Shop-side session only — this module never mounts for a customer.
+ * Parts cost, labor hours/rates and totals are shop financial information.
+ * Owners, managers and service writers may edit them. A technician may only do
+ * so in a true one-person shop, where that technician is the sole active user.
+ * As soon as another active user is present, the technician view fails closed.
  */
-/* Fails closed. An unknown user id — a stale session for somebody removed from
- * the shop — must not reach the money, so the user has to be FOUND and active,
- * not merely "not found to be deactivated". */
-function canEditWorkOrderMoney(){const {db,shop}=context();if(db.session?.role!=='shop'||!shop)return false;const id=db.session?.userId;if(!id)return false;const u=shop.users?.find(x=>x.id===id);return Boolean(u&&u.active!==false);}
+function canEditWorkOrderMoney(){
+  const {db,shop}=context();
+  if(db.session?.role!=='shop'||!shop)return false;
+  const id=db.session?.userId;if(!id)return false;
+  const users=Array.isArray(shop.users)?shop.users:[];
+  const u=users.find(x=>x.id===id);
+  if(!u||u.active===false)return false;
+  if(['owner','manager','service_writer'].includes(u.role))return true;
+  const activeUsers=users.filter(x=>x.active!==false);
+  return u.role==='technician'&&activeUsers.length===1&&activeUsers[0].id===id;
+}
 function pricing(){const {shop}=context();const p=window.MobileMechanicPricing;return p?p.shopPricing(shop):{laborRate:75,partsMarkup:25,taxRate:0,travelFee:0};}
 /* Who is signing. An attestation with no named user is worthless, so the UI
  * refuses to record one when the session cannot identify the person. */
@@ -274,7 +280,7 @@ function add(type){
  * checked, the record is a lie. Re-entering means re-signing.
  */
 function setMoney(kind,index,raw){
-  const p=window.MobileMechanicPricing;if(!p||!currentState)return;
+  const p=window.MobileMechanicPricing;if(!p||!currentState||!canEditWorkOrderMoney())return;
   if(kind==='cost'){
     const list=currentState.wo.parts;if(!list?.[index])return;
     list[index]=p.clearAttestation(p.confirmPartCost(list[index],raw));
@@ -286,7 +292,7 @@ function setMoney(kind,index,raw){
 }
 function closeAttestModal(){document.querySelector('[data-jwo-attest-modal]')?.remove();}
 function openAttestModal(kind,index){
-  const p=window.MobileMechanicPricing;if(!p||!currentState)return;
+  const p=window.MobileMechanicPricing;if(!p||!currentState||!canEditWorkOrderMoney())return;
   const listKey=kind==='parts'?'parts':'work';
   const item=currentState.wo[listKey]?.[index];if(!item)return;
   const user=currentUser();
