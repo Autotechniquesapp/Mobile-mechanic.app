@@ -96,8 +96,10 @@ function stopVisiblePolling(){
 
 function aiList(items=[]){return Array.isArray(items)&&items.length?`<ul style="margin:6px 0 0;padding-left:18px">${items.slice(0,6).map(x=>`<li style="margin:3px 0">${esc(typeof x==='string'?x:(x?.cause||x?.test||''))}</li>`).join('')}</ul>`:'';}
 function partSearchTerm(part,vehicle={}){
-  const base=[vehicle.year,vehicle.make,vehicle.model,vehicle.submodel,vehicle.engine,part].filter(Boolean).join(' ');
-  return base.trim()||part;
+  const api=window.MobileMechanicParts;
+  if(api?.searchTerm)return api.searchTerm(part,vehicle);
+  const name=typeof part==='string'?part:(part?.name||'');
+  return [vehicle.year,vehicle.make,vehicle.model,vehicle.submodel,vehicle.engine,name].filter(Boolean).join(' ').trim()||name;
 }
 function partsLookupLinks(part,vehicle={}){
   const q=encodeURIComponent(partSearchTerm(part,vehicle));
@@ -110,20 +112,45 @@ function partsLookupLinks(part,vehicle={}){
   ];
   return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px">${links.map(([name,url])=>`<a class="btn btn-soft" style="padding:6px 8px;font-size:12px" href="${esc(url)}" target="_blank" rel="noopener">Check ${esc(name)}</a>`).join('')}</div>`;
 }
+/*
+ * Orderable parts are extracted by the shared catalog in parts-extraction.js,
+ * which covers every repair category rather than the four no-start parts this
+ * function used to hard-code. If that module failed to load, return nothing
+ * rather than silently degrading to a starter-only parts list.
+ */
 function actionableParts(rows=[]){
-  const text=rows.map(x=>typeof x==='string'?x:(x?.name||x?.part||x?.cause||'')).join(' ').toLowerCase();
-  const out=[];
-  if(/starter|starting motor|solenoid/.test(text))out.push('Starter assembly');
-  if(/battery/.test(text))out.push('Battery');
-  if(/terminal|cable/.test(text))out.push('Battery cable / terminal');
-  if(/relay/.test(text))out.push('Starter relay');
-  return [...new Set(out)];
+  const api=window.MobileMechanicParts;
+  if(!api?.extractParts)return [];
+  return api.extractParts(rows);
 }
-function partsSuggestions(workup={},vehicle={}){
+function partsSuggestions(intake={},workup={},vehicle={}){
   const rows=Array.isArray(workup.parts_candidates)?workup.parts_candidates.slice(0,8):[];
   if(!rows.length)return'';
   const lookupParts=actionableParts(rows);
-  return `<div style="margin-top:9px;padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px"><b>Parts to inspect / may be needed</b>${aiList(rows)}${lookupParts.length?`<div style="margin-top:9px"><b>Parts availability search</b><p class="small muted" style="margin:4px 0 0">Open the supplier links, confirm fitment by VIN/engine, then quote the store price and availability.</p>${lookupParts.map(part=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #26303a"><b>${esc(partSearchTerm(part,vehicle))}</b>${partsLookupLinks(part,vehicle)}</div>`).join('')}</div>`:''}<p class="small muted" style="margin:7px 0 0">Do not order parts until testing confirms the failed component and the vehicle-specific fitment.</p></div>`;
+  const names=lookupParts.map(p=>p.name);
+  const location=intake.address||intake.current_location?.raw||'';
+  return `<div style="margin-top:9px;padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px"><b>Parts to inspect / may be needed</b>${aiList(rows)}${lookupParts.length?`<div style="margin-top:9px"><b>Parts availability search</b><p class="small muted" style="margin:4px 0 0">Open the supplier links, confirm fitment by VIN/engine, then quote the store price and availability.</p>${lookupParts.map(part=>`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #26303a"><b>${esc(partSearchTerm(part,vehicle))}</b>${part.condition?`<div class="small muted" style="margin:3px 0 0">${esc(part.condition)}</div>`:''}${partsLookupLinks(part,vehicle)}</div>`).join('')}</div>${nearbyPartsMarkup(intake,names,location)}`:''}<p class="small muted" style="margin:7px 0 0">Do not order parts until testing confirms the failed component and the vehicle-specific fitment.</p></div>`;
+}
+
+/*
+ * Mount point for the OpenStreetMap nearby-parts panel. open-map.js fills this
+ * in via window.MobileMechanicMap so the mechanic sees the stores closest to
+ * the customer's address right next to the parts the AI named.
+ */
+function nearbyPartsMarkup(intake={},partNames=[],location=''){
+  if(!partNames.length)return'';
+  return `<div style="margin-top:10px;padding-top:9px;border-top:1px solid #26303a" data-intake-parts-map="${esc(intake.id||'')}" data-parts-location="${esc(location)}" data-parts-names="${esc(partNames.join('|'))}"><b>Parts stores near the customer</b><p class="small muted" style="margin:4px 0 0">${location?`Searching around ${esc(location)}.`:'Add a service location to search around the customer.'} Call ahead to confirm stock before dispatch.</p></div>`;
+}
+
+function mountIntakePartsMaps(){
+  const mapApi=window.MobileMechanicMap;
+  if(!mapApi?.mount)return;
+  document.querySelectorAll('[data-intake-parts-map]').forEach(el=>{
+    if(el.dataset.partsMapReady==='1')return;
+    el.dataset.partsMapReady='1';
+    const parts=(el.dataset.partsNames||'').split('|').filter(Boolean);
+    mapApi.mount(el,{location:el.dataset.partsLocation||'',parts});
+  });
 }
 function laborSuggestions(workup={}){
   const rows=Array.isArray(workup.labor_suggestions)?workup.labor_suggestions.slice(0,8):[];
@@ -144,7 +171,7 @@ function aiWorkupMarkup(i){
       ${Array.isArray(w.first_checks)&&w.first_checks.length?`<div style="margin-top:7px"><b>First checks</b>${aiList(w.first_checks)}</div>`:''}
       ${tests.length?`<div style="margin-top:7px"><b>Confirmation tests</b><ul style="margin:5px 0 0;padding-left:18px">${tests.map(t=>`<li style="margin:4px 0"><b>${esc(t.test||'Test')}</b>${t.what_to_watch?` — watch for ${esc(t.what_to_watch)}`:''}${t.meaning?` <span class="muted">(${esc(t.meaning)})</span>`:''}</li>`).join('')}</ul></div>`:''}
       ${Array.isArray(w.do_not_overlook)&&w.do_not_overlook.length?`<div style="margin-top:7px"><b>Do not overlook</b>${aiList(w.do_not_overlook)}</div>`:''}
-      ${partsSuggestions(w,i.vehicle||{})}
+      ${partsSuggestions(i,w,i.vehicle||{})}
       ${laborSuggestions(w)}
       ${safety.note?`<div style="margin-top:8px;padding:7px 8px;border-left:3px solid #ef2a31;background:#1a1012;border-radius:6px"><b>Safety — ${esc(safety.level||'check')}:</b> ${esc(safety.note)}</div>`:''}
       <p class="small muted" style="margin:8px 0 0">AI pre-workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
@@ -177,6 +204,7 @@ async function openQueue(){
     const d=document.createElement('div');d.className='modal-backdrop';d.dataset.intakeQueueModal='1';
     d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer concern and AI preliminary workup before converting it to a job.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
     document.body.appendChild(d);
+    mountIntakePartsMaps();
   }catch(err){notice(err.message||'Could not open intake queue.','bad');}
 }
 
@@ -193,11 +221,38 @@ async function retryAiWorkup(id,button){
   }catch(err){if(button){button.disabled=false;button.textContent=original;}notice(err.message||'AI workup failed.','bad');}
 }
 
+/*
+ * The convert_intake_to_job RPC creates the customer, vehicle, and job, but the
+ * job can come back without the intake's AI workup attached. Without it the
+ * mechanic's work order opens blank and the whole pre-workup is lost at exactly
+ * the moment it becomes useful. Backfill it here, preserving any work_order the
+ * RPC already wrote.
+ */
+async function carryWorkupToJob(intakeId,jobId){
+  const api=window.MobileMechanicParts;
+  if(!jobId||!api?.hasDiagnosis)return false;
+  try{
+    const [{data:intake},{data:job}]=await Promise.all([
+      sb.from('intake_submissions').select('ai_workup').eq('id',intakeId).maybeSingle(),
+      sb.from('jobs').select('ai_workup').eq('id',jobId).maybeSingle()
+    ]);
+    const source=intake?.ai_workup;
+    if(!api.hasDiagnosis(source))return false;
+    if(api.hasDiagnosis(job?.ai_workup))return false;
+    const merged={...source,work_order:job?.ai_workup?.work_order||undefined,carried_from_intake:intakeId};
+    if(!merged.work_order)delete merged.work_order;
+    const {error}=await sb.from('jobs').update({ai_workup:merged,updated_at:new Date().toISOString()}).eq('id',jobId);
+    if(error)throw error;
+    return true;
+  }catch(err){console.warn('Could not carry AI workup to job',err);return false;}
+}
+
 async function convertIntake(id,button){
   button.disabled=true;button.textContent='Converting…';
   try{
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
+    await carryWorkupToJob(id,data);
     notice('Customer, vehicle, job, and AI workup carried forward.','good');
     document.querySelector('.modal-backdrop')?.remove();
     const c=cache();

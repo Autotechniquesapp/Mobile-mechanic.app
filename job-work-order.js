@@ -27,11 +27,23 @@ async function load(job){
     if(!jr.error)row=jr.data;
     if(!ir.error)invoice=ir.data;
   }
-  const wo=structuredClone(row?.ai_workup?.work_order||emptyWO());
+  let wo=structuredClone(row?.ai_workup?.work_order||emptyWO());
   wo.parts=Array.isArray(wo.parts)?wo.parts:[];
   wo.work=Array.isArray(wo.work)?wo.work:[];
   wo.tests=Array.isArray(wo.tests)?wo.tests:[];
   wo.authorization=wo.authorization||{status:'',note:''};
+  /*
+   * The intake AI workup used to stop at the intake queue: the job's work order
+   * always opened blank and the mechanic retyped the parts, checks, and labor
+   * operations the AI had already produced. Seed the first render from it, but
+   * only while the mechanic has not entered anything, so a saved work order is
+   * never overwritten. Every seeded row is unpriced and unconfirmed.
+   */
+  const api=window.MobileMechanicParts;
+  if(api?.isEmptyWorkOrder?.(wo)&&api.hasDiagnosis?.(row?.ai_workup)){
+    const seeded=api.seedWorkOrder(row.ai_workup);
+    if(seeded.seeded_from_ai){wo=seeded;wo.authorization={status:'',note:''};}
+  }
   return {job,row,invoice,wo};
 }
 

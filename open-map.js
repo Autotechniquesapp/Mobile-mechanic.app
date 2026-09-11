@@ -36,7 +36,7 @@
     } catch { return ''; }
   }
 
-  function createPanel({compact=false, input=null, initialLocation='' }={}) {
+  function createPanel({compact=false, input=null, initialLocation='', parts=[] }={}) {
     const panel=document.createElement('div');
     panel.className=`mma-map-tools${compact?' mma-map-inline':''}`;
     panel.innerHTML=`
@@ -58,7 +58,7 @@
     const map=L.map(canvas,{zoomControl:true,attributionControl:true}).setView([39.8283,-98.5795],4);
     L.tileLayer(TILE_URL,{maxZoom:19,attribution:TILE_ATTR}).addTo(map);
     const markerLayer=L.layerGroup().addTo(map);
-    const state={map,markerLayer,point:null,input,compact};
+    const state={map,markerLayer,point:null,input,compact,parts:Array.isArray(parts)?parts.filter(Boolean):[]};
     panels.set(panel,state);
 
     panel.querySelector('.mma-map-locate').addEventListener('click',()=>locate(panel));
@@ -160,7 +160,7 @@
     results.innerHTML=stores.map((s,i)=>{
       const miles=distanceMiles(state.point.lat,state.point.lng,s.lat,s.lng).toFixed(1);
       return `<button type="button" class="mma-map-result" data-store="${i}"><b>${esc(s.name)}</b><span>${miles} mi${s.address?' • '+esc(s.address):''}${s.phone?' • '+esc(s.phone):''}</span></button>`;
-    }).join('');
+    }).join('')+partStockLinks(state,stores);
     state.stores=stores;
     stores.forEach(s=>L.marker([s.lat,s.lng]).addTo(state.markerLayer).bindPopup(`<b>${esc(s.name)}</b>${s.address?`<br>${esc(s.address)}`:''}`));
     const bounds=L.latLngBounds([[state.point.lat,state.point.lng],...stores.map(s=>[s.lat,s.lng])]);state.map.fitBounds(bounds.pad(.15),{maxZoom:14});
@@ -198,7 +198,38 @@
     content.appendChild(wrap);
   }
 
+  /*
+   * When the panel was mounted with the parts the AI named, offer a per-part
+   * stock check against the closest store. OpenStreetMap has no inventory data,
+   * so this is a targeted search link rather than a live availability claim.
+   */
+  function partStockLinks(state,stores) {
+    const parts=state.parts||[];
+    if(!parts.length||!stores.length)return '';
+    const nearest=stores[0];
+    const rows=parts.slice(0,8).map(part=>{
+      const q=encodeURIComponent(`${nearest.name} ${part} in stock`);
+      return `<a class="btn btn-soft mma-map-part-link" target="_blank" rel="noopener" href="https://www.google.com/search?q=${q}">${esc(part)}</a>`;
+    }).join('');
+    return `<div class="mma-map-parts-stock"><b>Check stock at ${esc(nearest.name)}</b><div class="mma-map-part-links">${rows}</div><span class="mma-map-stock-note">Live inventory needs a supplier account. Call the store to confirm before dispatch.</span></div>`;
+  }
+
   function enhance() { if(!window.L)return; enhanceIntake(); enhanceParts(); }
+
+  /*
+   * Public mount point so other modules (currently the intake queue) can drop a
+   * nearby-parts map beside an AI workup, seeded with the customer's address
+   * and the parts that were extracted from it.
+   */
+  window.MobileMechanicMap={
+    mount(container,{location='',parts=[]}={}) {
+      if(!container||!window.L)return null;
+      const panel=createPanel({initialLocation:location,parts});
+      container.appendChild(panel);
+      if(location)setTimeout(()=>findParts(panel),650);
+      return panel;
+    }
+  };
 
   document.addEventListener('click',e=>{
     const locationBtn=e.target.closest?.('[data-action="location"]');

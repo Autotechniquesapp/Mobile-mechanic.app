@@ -15,3 +15,10 @@
 .mma-map-tools .leaflet-control-attribution{font-size:8px}.mma-map-tools .leaflet-popup-content{color:#111;font:12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
 .mma-map-inline{margin-top:9px}.mma-map-inline .mma-map-canvas{height:250px}
 @media(max-width:620px){.mma-map-actions>.btn{flex:1 1 calc(50% - 7px)}.mma-map-canvas{height:285px}.mma-map-inline .mma-map-canvas{height:235px}.mma-map-search-row{flex-direction:column}.mma-map-search-row .btn{width:100%}}
+
+/* Per-part stock check shown beside the nearest store in the AI workup */
+.mma-map-parts-stock{border:1px solid #303945;border-radius:10px;padding:10px;background:#10151b}
+.mma-map-parts-stock>b{display:block;font-size:11px;margin-bottom:7px}
+.mma-map-part-links{display:flex;flex-wrap:wrap;gap:6px}
+.mma-map-part-link{padding:6px 8px;font-size:11px;text-decoration:none}
+.mma-map-stock-note{display:block;color:#919ba7;font-size:9px;margin-top:7px}
