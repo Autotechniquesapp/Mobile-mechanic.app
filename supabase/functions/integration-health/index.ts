@@ -1,6 +1,6 @@
-const has = (name: string) => Boolean(Deno.env.get(name));
+export const has = (name: string) => Boolean(Deno.env.get(name));
 const microsoftReady = has('MICROSOFT_CLIENT_ID') && has('MICROSOFT_CLIENT_SECRET');
-const readiness = {
+export const readiness = {
   openai: has('OPENAI_API_KEY'),
   google: has('GOOGLE_CLIENT_ID') && has('GOOGLE_CLIENT_SECRET'),
   microsoft: microsoftReady,
