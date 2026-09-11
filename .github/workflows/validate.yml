@@ -51,8 +51,12 @@ jobs:
           node --check parts-extraction.js
           node --check intake-queue.js
           node --check job-work-order.js
+      - name: Install test dependencies
+        run: npm ci
       - name: Run unit tests
-        run: node --test test/*.test.js
+        # MMA_REQUIRE_DOM_TESTS makes the live render test fail rather than skip
+        # if jsdom is unavailable, so CI can never pass by silently skipping it.
+        run: MMA_REQUIRE_DOM_TESTS=1 node --test test/*.test.js
       - name: Check required production files
         run: |
           test -f index.html
