@@ -113,7 +113,7 @@ async function renderWorkOrder({ shop: shopPatch = {}, session: sessionPatch = {
         partsMarkup: 50,
         taxRate: 0,
         travelFee: 0,
-        users: [{ id: USER_ID, name: 'Dave Ruiz', role: 'technician', active: true }],
+        users: [{ id: USER_ID, name: 'Dave Ruiz', role: 'owner', active: true }],
         jobs: [{ id: JOB_ID, vehicle: { year: '2014', make: 'Ford', model: 'F-150' } }],
         ...shopPatch
       }
@@ -142,9 +142,8 @@ describe('work order pricing and attestation live render', () => {
   const $$ = sel => [...ctx.window.document.querySelectorAll(sel)];
   const totalsText = () => $('[data-jwo-totals]')?.textContent || '';
 
-  test('the work order mounts as a technician, with money fields visible', () => {
+  test('the work order mounts for an owner with money fields visible', () => {
     assert.ok($('[data-job-work-order]'), 'work order rendered');
-    // The point of the permission widening: a technician, not just an owner.
     assert.ok($$('[data-jwo-cost]').length >= 2, 'per-part cost inputs present');
     assert.ok($$('[data-jwo-hours]').length >= 1, 'per-labor hours input present');
   });
@@ -334,5 +333,32 @@ describe('the money gate fails closed', () => {
     });
     opened.push(ctx.dom);
     assert.equal(ctx.window.document.querySelectorAll('[data-jwo-cost]').length, 0);
+  });
+
+  test('a technician in a multi-user shop cannot see prices, hours, rates or totals', async () => {
+    const ctx = await renderWorkOrder({
+      shop: { users: [
+        { id: USER_ID, name: 'Dave Ruiz', role: 'technician', active: true },
+        { id: 'usr_owner_1', name: 'Shop Owner', role: 'owner', active: true }
+      ] }
+    });
+    opened.push(ctx.dom);
+    const doc = ctx.window.document;
+    assert.equal(doc.querySelectorAll('[data-jwo-cost]').length, 0, 'no part-cost inputs');
+    assert.equal(doc.querySelectorAll('[data-jwo-hours]').length, 0, 'no labor-hour inputs');
+    assert.equal(doc.querySelectorAll('.jwo-price').length, 0, 'no line prices');
+    assert.equal(doc.querySelector('[data-jwo-totals]'), null, 'no pricing totals');
+    assert.doesNotMatch(doc.querySelector('[data-job-work-order]').textContent, /\$|\/hr/, 'no money or rate text');
+  });
+
+  test('the sole active technician in a one-person shop can edit work-order money', async () => {
+    const ctx = await renderWorkOrder({
+      shop: { users: [{ id: USER_ID, name: 'Dave Ruiz', role: 'technician', active: true }] }
+    });
+    opened.push(ctx.dom);
+    const doc = ctx.window.document;
+    assert.ok(doc.querySelectorAll('[data-jwo-cost]').length >= 2, 'part-cost inputs available');
+    assert.ok(doc.querySelectorAll('[data-jwo-hours]').length >= 1, 'labor-hour inputs available');
+    assert.ok(doc.querySelector('[data-jwo-totals]'), 'pricing totals available');
   });
 });
