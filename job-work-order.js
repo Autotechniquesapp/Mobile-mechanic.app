@@ -15,7 +15,10 @@ function canSeeFinancials(){const {db,shop}=context(),user=shop?.users?.find(u=>
  * job actually took, so they can enter and see cost, hours, and line amounts.
  * Shop-side session only — this module never mounts for a customer.
  */
-function canEditWorkOrderMoney(){const {db,shop}=context();if(db.session?.role!=='shop'||!shop)return false;return Boolean(shop.users?.find(u=>u.id===db.session?.userId)?.active!==false);}
+/* Fails closed. An unknown user id — a stale session for somebody removed from
+ * the shop — must not reach the money, so the user has to be FOUND and active,
+ * not merely "not found to be deactivated". */
+function canEditWorkOrderMoney(){const {db,shop}=context();if(db.session?.role!=='shop'||!shop)return false;const id=db.session?.userId;if(!id)return false;const u=shop.users?.find(x=>x.id===id);return Boolean(u&&u.active!==false);}
 function pricing(){const {shop}=context();const p=window.MobileMechanicPricing;return p?p.shopPricing(shop):{laborRate:75,partsMarkup:25,taxRate:0,travelFee:0};}
 /* Who is signing. An attestation with no named user is worthless, so the UI
  * refuses to record one when the session cannot identify the person. */
@@ -103,7 +106,17 @@ function attestControl(item,kind,index,r){
   const p=window.MobileMechanicPricing;
   if(!p||r.amount===null)return '';
   if(r.estimated)return `<span class="jwo-attest none">Enter a real ${kind==='parts'?'cost':'time'} to sign off</span>`;
-  const a=p.attestationOf(item,kind==='parts'?'parts':'labor');
+  const kindKey=kind==='parts'?'parts':'labor';
+  /*
+   * A signature that no longer covers the figure. Nobody edited the line — a
+   * shop-wide rate moved under it — so this is louder than "not checked": the
+   * mechanic is being told a number they already signed for has changed.
+   */
+  if(r.stale){
+    const s=p.staleAttestationOf(item,kindKey,r.amount);
+    return `<button type="button" class="jwo-attest stale" data-jwo-attest="${kind}" data-jwo-index="${index}" title="Signed for ${esc(p.formatMoney(s?.amount_at_signing))} by ${esc(s?.by_name||'a technician')}; the line is now ${esc(p.formatMoney(r.amount))}.">⚠ Price changed since sign-off — was ${esc(p.formatMoney(s?.amount_at_signing))} · re-check</button>`;
+  }
+  const a=p.attestationOf(item,kindKey,r.amount);
   if(a){
     const when=(()=>{try{return new Date(a.at).toLocaleDateString();}catch{return '';}})();
     return `<span class="jwo-attest ok" title="Checklist ${esc(a.checklist_version)} — source: ${esc(a.source)}">✓ Checked by ${esc(a.by_name||'technician')}${when?` · ${esc(when)}`:''} · ${esc(a.source)}<button type="button" class="jwo-relink" data-jwo-attest="${kind}" data-jwo-index="${index}">Redo</button></span>`;
@@ -147,6 +160,7 @@ function totalsMarkup(wo){
       ${line('Total',p.formatMoney(j.total),'grand')}
       <small>${[t.counts.pendingLines?`${t.counts.pendingLines} line${t.counts.pendingLines===1?'':'s'} not signed off`:'',t.counts.estimatedLines?`${t.counts.estimatedLines} still on an AI estimate`:''].filter(Boolean).join(', ')}. Do not give this number to a customer.</small>
     </div>`:''}
+    ${t.counts.staleLines?`<p class="jwo-disclaimer stale-warn" data-jwo-stale>⚠ ${t.counts.staleLines} line${t.counts.staleLines===1?' has':'s have'} changed price since being signed off, which normally means a labor rate or parts markup was edited in shop settings. ${t.counts.staleLines===1?'That signature has':'Those signatures have'} been voided and ${t.counts.staleLines===1?'the line is':'the lines are'} out of the quotable total until re-checked.</p>`:''}
     <p class="jwo-disclaimer">Per the Terms of Service: AI outputs, including labor estimates, are informational aids only and may be incomplete or incorrect. The shop and technician remain solely responsible for diagnosis, testing, repair decisions, labor times, parts selection and pricing. Check every labor time and part price yourself before quoting it.</p>
     ${t.counts.unpricedLines?`<p class="jwo-disclaimer plain">${t.counts.unpricedLines} line${t.counts.unpricedLines===1?'':'s'} have no cost or hours entered yet.</p>`:''}
   </div>`;
@@ -184,6 +198,8 @@ function css(){if(document.getElementById('job-work-order-style'))return;const s
 .jwo-attest.pending{background:#2a2008;border-color:#7a5c12;color:#f0c04a;cursor:pointer;font-weight:700}
 .jwo-attest.ok{background:#0d1c12;border-color:#2c5c3a;color:#7fd6a0;display:block}
 .jwo-attest.none{color:#78828d;font-style:italic}
+.jwo-attest.stale{background:#2b1010;border-color:#8a2f2f;color:#ef8a8a;cursor:pointer;font-weight:700}
+.jwo-disclaimer.stale-warn{color:#ef8a8a;background:#2b1010;border-color:#8a2f2f}
 .jwo-relink{margin-left:6px;background:none;border:0;color:#9aa4b0;text-decoration:underline;font-size:9px;cursor:pointer}
 .jwo-totals{margin-top:12px;display:grid;gap:9px;grid-template-columns:1fr 1fr}
 .jwo-total-col{background:#0a0e13;border:1px solid #2c343d;border-radius:10px;padding:10px}

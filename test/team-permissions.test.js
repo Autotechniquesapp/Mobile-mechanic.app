@@ -35,6 +35,11 @@ test('technician work orders still hide invoice and payment totals', () => {
 test('work order line money is open to any active mechanic on the job, not just financial roles', () => {
   assert.match(workOrder, /function canEditWorkOrderMoney\(\)/);
   assert.match(workOrder, /canEditWorkOrderMoney\(\)[\s\S]{0,200}session\?\.role!=='shop'/);
+  // Must fail closed: the user has to be found AND active. An earlier version
+  // tested `?.active!==false`, which passes for a user who isn't in the shop
+  // at all, so a stale session for a removed employee kept its access.
+  assert.match(workOrder, /const u=shop\.users\?\.find\(x=>x\.id===id\);return Boolean\(u&&u\.active!==false\)/);
+  assert.doesNotMatch(workOrder, /return Boolean\(shop\.users\?\.find\([^)]*\)\?\.active!==false\)/);
   // The line money gate must NOT be the financial-roles gate.
   assert.doesNotMatch(workOrder, /canSeeFinancials\(\)&&item\.price&&/);
   assert.match(workOrder, /data-jwo-cost/);

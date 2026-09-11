@@ -215,3 +215,92 @@ test('formatters return empty rather than lying about a missing number', () => {
   assert.equal(P.formatMoney(150), '$150.00');
   assert.equal(P.formatHours(2.5), '2.5 hr');
 });
+
+/*
+ * Regression: a signature covers one figure, not a line forever.
+ *
+ * These exist because the first version of this module shipped a hole. The
+ * amount was recorded at signing and then never looked at again, so changing
+ * the shop's parts markup or labor rate silently re-priced every signed line
+ * while leaving the signatures in place. A technician who signed for $150
+ * would appear to have vouched for $250.
+ */
+test('raising the parts markup voids the signature it invalidates', () => {
+  const rates = { laborRate: 75, partsMarkup: 50, taxRate: 0, travelFee: 0 };
+  const signed = P.attestLine({ name: 'Brake Pads', cost: 100 }, 'parts', {
+    userId: 'u1', userName: 'Dave', source: 'NAPA #4821',
+    items: P.requiredItemIds('parts'), amount: P.partAmount({ cost: 100 }, rates).amount
+  }).line;
+
+  assert.equal(P.partAmount(signed, rates).amount, 150);
+  assert.equal(P.partAmount(signed, rates).attested, true);
+  assert.equal(P.partAmount(signed, rates).stale, false);
+
+  const raised = { ...rates, partsMarkup: 150 };
+  const after = P.partAmount(signed, raised);
+  assert.equal(after.amount, 250, 'the line is worth more now');
+  assert.equal(after.attested, false, 'nobody signed for $250');
+  assert.equal(after.stale, true, 'and the UI must be able to say why');
+});
+
+test('a raised rate pulls the line back out of the quotable total', () => {
+  const rates = { laborRate: 100, partsMarkup: 0, taxRate: 0, travelFee: 0 };
+  const line = P.attestLine({ name: 'Replace Brakes', hours: 2 }, 'labor', {
+    userId: 'u1', userName: 'Dave', source: 'Measured',
+    items: P.requiredItemIds('labor'), amount: 200
+  }).line;
+  const wo = { parts: [], work: [line], tests: [] };
+
+  assert.equal(P.totals(wo, rates).attested.total, 200);
+  assert.equal(P.totals(wo, rates).counts.staleLines, 0);
+
+  const raised = { ...rates, laborRate: 160 };
+  const t = P.totals(wo, raised);
+  assert.equal(t.attested.total, null, 'there is no quotable total any more');
+  assert.equal(t.projected.total, 320, 'the working figure still reflects reality');
+  assert.equal(t.counts.staleLines, 1);
+  assert.equal(t.hasStale, true);
+  assert.equal(t.counts.pendingLines, 1, 'it counts as awaiting a signature');
+});
+
+test('lowering a rate voids the signature too, not just raising it', () => {
+  const rates = { laborRate: 100, partsMarkup: 0, taxRate: 0, travelFee: 0 };
+  const line = P.attestLine({ name: 'Job', hours: 2 }, 'labor', {
+    userId: 'u1', userName: 'Dave', source: 'Measured',
+    items: P.requiredItemIds('labor'), amount: 200
+  }).line;
+  // A cheaper number is still a number nobody checked.
+  assert.equal(P.laborAmount(line, { ...rates, laborRate: 50 }).attested, false);
+});
+
+test('rounding noise does not void a signature', () => {
+  const rates = { laborRate: 100, partsMarkup: 0, taxRate: 0, travelFee: 0 };
+  const line = P.attestLine({ name: 'Job', hours: 2 }, 'labor', {
+    userId: 'u1', userName: 'Dave', source: 'Measured',
+    items: P.requiredItemIds('labor'), amount: 200.001
+  }).line;
+  assert.equal(P.laborAmount(line, rates).attested, true, 'a tenth of a cent is not a price change');
+  assert.equal(P.laborAmount(line, rates).stale, false);
+});
+
+test('an old record with no amount recorded is not treated as stale', () => {
+  // Forward compatibility: rows signed before amount_at_signing existed.
+  const line = { name: 'Part', cost: 100, attested: {
+    by_user_id: 'u1', by_name: 'Dave', at: new Date().toISOString(),
+    source: 'NAPA', items: P.requiredItemIds('parts')
+  } };
+  const r = P.partAmount(line, { partsMarkup: 50 });
+  assert.equal(r.attested, true, 'nothing to compare against, so it stands');
+  assert.equal(r.stale, false);
+});
+
+test('staleAttestationOf exposes the original figure for the warning', () => {
+  const line = P.attestLine({ name: 'Part', cost: 100 }, 'parts', {
+    userId: 'u1', userName: 'Dave', source: 'NAPA',
+    items: P.requiredItemIds('parts'), amount: 150
+  }).line;
+  const s = P.staleAttestationOf(line, 'parts', 250);
+  assert.equal(s.amount_at_signing, 150);
+  assert.equal(s.by_name, 'Dave');
+  assert.equal(P.staleAttestationOf(line, 'parts', 150), null, 'not stale when it matches');
+});

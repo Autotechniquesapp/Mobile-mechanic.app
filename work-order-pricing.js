@@ -107,7 +107,15 @@
    * An attestation counts only if it names a user, names a source, and covers
    * every required checklist item. A partial tick is not an attestation.
    */
-  function attestationOf(line = {}, kind = 'parts') {
+  function attestationOf(line = {}, kind = 'parts', amount) {
+    const a = wellFormedAttestation(line, kind);
+    if (!a) return null;
+    // A signature covers one figure. If the figure has moved, it covers nothing.
+    if (amount !== undefined && !coversAmount(a, amount)) return null;
+    return a;
+  }
+
+  function wellFormedAttestation(line = {}, kind = 'parts') {
     const a = line.attested;
     if (!a || typeof a !== 'object') return null;
     if (!a.by_user_id || !a.at) return null;
@@ -117,8 +125,38 @@
     return a;
   }
 
-  function isAttested(line = {}, kind = 'parts') {
-    return attestationOf(line, kind) !== null;
+  /*
+   * Does this signature still cover the figure on screen?
+   *
+   * A line's amount can move without anyone touching the line: the parts markup
+   * or the labor rate is a shop-wide multiplier, so changing it in settings
+   * silently re-prices every signed line at once. Someone signed for $150; the
+   * owner raises markup and the line now reads $250 with the same signature on
+   * it. The record would be describing a number the technician never saw.
+   *
+   * So the amount is part of what was signed, and a drift of more than half a
+   * cent voids the signature. Rounding noise is tolerated; a real change is not.
+   */
+  function coversAmount(a, amount) {
+    const signed = num(a && a.amount_at_signing);
+    const now = num(amount);
+    if (signed === null || now === null) return true; // nothing to compare against
+    return Math.abs(signed - now) < 0.005;
+  }
+
+  /*
+   * A signature that was valid and no longer covers the current figure. The UI
+   * needs to tell these apart from never-signed lines: "the price moved under a
+   * sign-off" is a different and more alarming message than "not checked yet".
+   */
+  function staleAttestationOf(line = {}, kind = 'parts', amount) {
+    const a = wellFormedAttestation(line, kind);
+    if (!a) return null;
+    return coversAmount(a, amount) ? null : a;
+  }
+
+  function isAttested(line = {}, kind = 'parts', amount) {
+    return attestationOf(line, kind, amount) !== null;
   }
 
   /*
@@ -133,20 +171,29 @@
    * a typed cost gets the shop's parts markup applied.
    */
   function partAmount(part = {}, pricing = DEFAULTS) {
-    const attested = isAttested(part, 'parts');
     const price = num(part.price);
     if (price !== null) {
-      return { amount: round2(price), basis: 'price', source: 'entered', attested, estimated: false };
+      const amount = round2(price);
+      return { amount, basis: 'price', source: 'entered', ...attestState(part, 'parts', amount), estimated: false };
     }
     const cost = num(part.cost);
     if (cost !== null) {
-      return { amount: markUp(cost, pricing.partsMarkup), basis: 'marked_up', source: 'entered', attested, estimated: false };
+      const amount = markUp(cost, pricing.partsMarkup);
+      return { amount, basis: 'marked_up', source: 'entered', ...attestState(part, 'parts', amount), estimated: false };
     }
     const guess = num(part.estimate?.price);
     if (guess !== null) {
-      return { amount: round2(guess), basis: 'estimated', source: 'ai', attested: false, estimated: true };
+      return { amount: round2(guess), basis: 'estimated', source: 'ai', attested: false, stale: false, estimated: true };
     }
-    return { amount: null, basis: null, source: null, attested: false, estimated: false };
+    return { amount: null, basis: null, source: null, attested: false, stale: false, estimated: false };
+  }
+
+  /* Attested, gone stale, or neither — resolved against the live amount. */
+  function attestState(line, kind, amount) {
+    return {
+      attested: isAttested(line, kind, amount),
+      stale: staleAttestationOf(line, kind, amount) !== null
+    };
   }
 
   /*
@@ -155,16 +202,16 @@
    */
   function laborAmount(line = {}, pricing = DEFAULTS) {
     const rate = positive(line.rate) ?? positive(pricing.laborRate) ?? DEFAULTS.laborRate;
-    const attested = isAttested(line, 'labor');
     const hours = positive(line.hours);
     if (hours !== null) {
-      return { amount: round2(hours * rate), hours: round2(hours), rate, basis: line.hours_source || 'entered', source: 'entered', attested, estimated: false };
+      const amount = round2(hours * rate);
+      return { amount, hours: round2(hours), rate, basis: line.hours_source || 'entered', source: 'entered', ...attestState(line, 'labor', amount), estimated: false };
     }
     const guess = positive(line.estimate?.hours);
     if (guess !== null) {
-      return { amount: round2(guess * rate), hours: round2(guess), rate, basis: 'estimated', source: 'ai', attested: false, estimated: true };
+      return { amount: round2(guess * rate), hours: round2(guess), rate, basis: 'estimated', source: 'ai', attested: false, stale: false, estimated: true };
     }
-    return { amount: null, hours: null, rate, basis: null, source: null, attested: false, estimated: false };
+    return { amount: null, hours: null, rate, basis: null, source: null, attested: false, stale: false, estimated: false };
   }
 
   /*
@@ -191,7 +238,7 @@
       attestedParts: 0, attestedLabor: 0, attestedHours: 0, attestedLines: 0,
       enteredParts: 0, enteredLabor: 0, enteredHours: 0, enteredLines: 0,
       projectedParts: 0, projectedLabor: 0, projectedHours: 0,
-      estimatedLines: 0, unpricedLines: 0
+      estimatedLines: 0, unpricedLines: 0, staleLines: 0
     };
 
     for (const p of parts) {
@@ -200,6 +247,7 @@
       acc.projectedParts += r.amount;
       if (r.estimated) { acc.estimatedLines++; continue; }
       acc.enteredParts += r.amount; acc.enteredLines++;
+      if (r.stale) acc.staleLines++;
       if (r.attested) { acc.attestedParts += r.amount; acc.attestedLines++; }
     }
     for (const w of work) {
@@ -209,6 +257,7 @@
       acc.projectedHours += r.hours || 0;
       if (r.estimated) { acc.estimatedLines++; continue; }
       acc.enteredLabor += r.amount; acc.enteredHours += r.hours || 0; acc.enteredLines++;
+      if (r.stale) acc.staleLines++;
       if (r.attested) { acc.attestedLabor += r.amount; acc.attestedHours += r.hours || 0; acc.attestedLines++; }
     }
 
@@ -239,10 +288,14 @@
         pendingLines,
         confirmedLines: acc.attestedLines,
         estimatedLines: acc.estimatedLines,
-        unpricedLines: acc.unpricedLines
+        unpricedLines: acc.unpricedLines,
+        // Lines whose signed figure no longer matches what the line is worth,
+        // almost always because a shop-wide rate moved underneath them.
+        staleLines: acc.staleLines
       },
       hasEstimates: acc.estimatedLines > 0,
       hasPending: pendingLines > 0,
+      hasStale: acc.staleLines > 0,
       quotable: acc.attestedLines > 0 && acc.estimatedLines === 0 && pendingLines === 0 && acc.unpricedLines === 0,
       fullyConfirmed: acc.estimatedLines === 0 && acc.unpricedLines === 0 && pendingLines === 0 && acc.attestedLines > 0,
       pricing
@@ -403,7 +456,9 @@
     checklistFor,
     requiredItemIds,
     attestationOf,
+    staleAttestationOf,
     isAttested,
+    coversAmount,
     attestLine,
     clearAttestation,
     applyAiEstimates,

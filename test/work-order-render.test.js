@@ -88,7 +88,7 @@ function makeSupabase(recorder) {
   };
 }
 
-async function renderWorkOrder() {
+async function renderWorkOrder({ shop: shopPatch = {}, session: sessionPatch = {}, workOrder = null } = {}) {
   const dom = new JSDOM(
     `<!doctype html><html><body>
        <div class="page-title"><h2>AI Pre-Workup</h2><p>sub</p></div>
@@ -98,13 +98,14 @@ async function renderWorkOrder() {
   );
   const { window } = dom;
   const recorder = { updates: [], aiWorkup: JSON.parse(JSON.stringify(AI_WORKUP)) };
+  if (workOrder) recorder.aiWorkup.work_order = JSON.parse(JSON.stringify(workOrder));
 
   // jsdom does not implement structuredClone, which every target browser has.
   // Supplying it keeps the module under test unmodified.
   if (!window.structuredClone) window.structuredClone = v => JSON.parse(JSON.stringify(v));
   window.MobileMechanicSupabase = makeSupabase(recorder);
   window.localStorage.setItem('mobile_mechanic_ai_approved_v7', JSON.stringify({
-    session: { role: 'shop', shopId: SHOP_ID, userId: USER_ID, activeJobId: JOB_ID },
+    session: { role: 'shop', shopId: SHOP_ID, userId: USER_ID, activeJobId: JOB_ID, ...sessionPatch },
     shops: {
       [SHOP_ID]: {
         id: SHOP_ID,
@@ -113,7 +114,8 @@ async function renderWorkOrder() {
         taxRate: 0,
         travelFee: 0,
         users: [{ id: USER_ID, name: 'Dave Ruiz', role: 'technician', active: true }],
-        jobs: [{ id: JOB_ID, vehicle: { year: '2014', make: 'Ford', model: 'F-150' } }]
+        jobs: [{ id: JOB_ID, vehicle: { year: '2014', make: 'Ford', model: 'F-150' } }],
+        ...shopPatch
       }
     }
   }));
@@ -256,5 +258,81 @@ describe('work order pricing and attestation live render', () => {
     assert.doesNotMatch(row.textContent, /Checked by/);
     assert.equal(ctx.recorder.aiWorkup.work_order.parts[0].attested, undefined, 'revocation persisted');
     assert.match(totalsText(), /Nothing signed off yet/, 'the raised figure is not quotable');
+  });
+});
+
+/*
+ * Both of these are regressions from the first version of this feature, found
+ * in review rather than by the tests above — worth remembering that a green
+ * suite only covers the failures somebody thought of.
+ */
+const SIGNED_WO = {
+  parts: [{
+    name: 'Brake Pads', status: 'needed', cost: 100,
+    attested: {
+      by_user_id: USER_ID, by_name: 'Dave Ruiz', at: '2026-09-10T17:00:00.000Z',
+      source: 'NAPA counter quote #4821',
+      items: ['parts_fitment', 'parts_price', 'parts_identity'],
+      checklist_version: '2026-09-v1', amount_at_signing: 150
+    }
+  }],
+  work: [], tests: [], authorization: { status: '', note: '' }
+};
+
+describe('a signature does not survive the rate moving underneath it', () => {
+  const opened = [];
+  test.after(() => opened.forEach(d => d.window.close()));
+
+  test('at the markup it was signed at, the line reads as checked and is quotable', async () => {
+    const ctx = await renderWorkOrder({ workOrder: SIGNED_WO, shop: { partsMarkup: 50 } });
+    opened.push(ctx.dom);
+    const doc = ctx.window.document;
+    assert.match(doc.querySelector('.jwo-row-money').textContent, /Checked by Dave Ruiz/);
+    assert.match(doc.querySelector('[data-jwo-totals]').textContent, /\$150\.00/);
+    assert.equal(doc.querySelector('[data-jwo-stale]'), null);
+  });
+
+  test('after the owner raises the markup, the signature is voided and flagged', async () => {
+    // Nobody touched the work order. Only the shop-wide markup changed.
+    const ctx = await renderWorkOrder({ workOrder: SIGNED_WO, shop: { partsMarkup: 150 } });
+    opened.push(ctx.dom);
+    const doc = ctx.window.document;
+    const row = doc.querySelector('.jwo-row-money');
+
+    assert.match(row.textContent, /\$250\.00/, 'the line is worth more now');
+    assert.doesNotMatch(row.textContent, /Checked by Dave Ruiz/, 'Dave never signed for $250');
+    assert.match(row.textContent, /Price changed since sign-off/);
+    assert.match(row.textContent, /was \$150\.00/, 'it says what was actually signed for');
+    assert.ok(row.querySelector('.jwo-attest.stale'), 'and offers a re-check');
+
+    const totals = doc.querySelector('[data-jwo-totals]').textContent;
+    assert.match(totals, /Nothing signed off yet/, '$250 must not be quotable');
+    assert.match(doc.querySelector('[data-jwo-stale]').textContent, /changed price since being signed off/);
+    assert.match(doc.querySelector('[data-jwo-stale]').textContent, /shop settings/);
+  });
+});
+
+describe('the money gate fails closed', () => {
+  const opened = [];
+  test.after(() => opened.forEach(d => d.window.close()));
+
+  test('a session for a user who is no longer on the roster gets no money controls', async () => {
+    // The stale-session case: the user was removed from the shop entirely, so
+    // the lookup finds nothing. Finding nothing must not read as "fine".
+    const ctx = await renderWorkOrder({ session: { userId: 'usr_removed_long_ago' } });
+    opened.push(ctx.dom);
+    const doc = ctx.window.document;
+    assert.ok(doc.querySelector('[data-job-work-order]'), 'the work order still renders');
+    assert.equal(doc.querySelectorAll('[data-jwo-cost]').length, 0, 'no cost inputs');
+    assert.equal(doc.querySelectorAll('[data-jwo-hours]').length, 0, 'no hours inputs');
+    assert.equal(doc.querySelector('[data-jwo-totals]'), null, 'no totals block');
+  });
+
+  test('a deactivated user gets no money controls either', async () => {
+    const ctx = await renderWorkOrder({
+      shop: { users: [{ id: USER_ID, name: 'Dave Ruiz', role: 'technician', active: false }] }
+    });
+    opened.push(ctx.dom);
+    assert.equal(ctx.window.document.querySelectorAll('[data-jwo-cost]').length, 0);
   });
 });
