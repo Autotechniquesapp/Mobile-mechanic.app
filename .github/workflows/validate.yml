@@ -84,7 +84,9 @@ jobs:
           test -f parts-extraction.js
           grep -q "parts-extraction.js" index.html
           test -f work-order-pricing.js
-          grep -q "work-order-pricing.js" youtube-repair.js
+          test -f job-work-order.js
+          grep -q 'src="work-order-pricing.js' index.html
+          grep -q 'src="job-work-order.js' index.html
           grep -q "admin-access.js" index.html
           grep -q "legal-protections.js" index.html
           grep -q "referral-tracking.js" index.html
