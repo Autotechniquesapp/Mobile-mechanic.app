@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="app-icon.svg" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=20260910-square-sync" />
+  <link rel="stylesheet" href="styles.css?v=20260912-square-tile1" />
   <link rel="stylesheet" href="open-map.css?v=20260828-2225" />
   <link rel="stylesheet" href="service-information.css?v=20260831-1" />
 </head>
@@ -69,15 +69,15 @@
   <script src="public-intake-rpc.js?v=20260829-0026"></script>
   <script src="vehicle-lookup.js?v=20260906-full-makes"></script>
   <script src="service-information.js?v=20260831-1"></script>
-  <script src="feedback.js"></script>
+  <script src="feedback.js?v=20260912-mobile-layout1"></script>
   <script src="stripe-billing.js"></script>
   <script src="ai-credits.js?v=20260829-0229"></script>
   <script src="stripe-connect.js?v=20260828-0632"></script>
-  <script src="payment-processors.js?v=20260910-square-sync"></script>
-  <script src="square-sync.js?v=20260912-errors1"></script>
+  <script src="payment-processors.js?v=20260912-square-tile1"></script>
+  <script src="square-sync.js?v=20260912-square-tile1"></script>
   <script src="quickbooks-integration.js?v=20260905-status"></script>
   <script src="integration-automation.js?v=20260906-onedrive"></script>
-  <script src="technician-help.js"></script>
+  <script src="technician-help.js?v=20260912-mobile-layout1"></script>
   <script src="accessibility-controls.js?v=20260906-textsize-fix1"></script>
   <script src="youtube-repair.js?v=20260912-live2"></script>
   <script src="ai-quote-sms.js?v=20260829-1640"></script>
@@ -91,7 +91,7 @@
   <script src="intake-queue.js?v=20260911-parts-catalog"></script>
   <script src="intake-location-enhancement.js?v=20260906-location1"></script>
   <script src="github-pages-intake.js?v=20260829-0005"></script>
-  <script src="admin-access.js"></script>
+  <script src="admin-access.js?v=20260912-mobile-layout1"></script>
   <script>
     Promise.all([
       window.MobileMechanicBootstrap || Promise.resolve(),
@@ -101,7 +101,7 @@
     ]).finally(() => {
       if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
-      script.src = 'app.js?v=20260912-customer-intake1';
+      script.src = 'app.js?v=20260912-owner-layout1';
       document.body.appendChild(script);
     });
   </script>

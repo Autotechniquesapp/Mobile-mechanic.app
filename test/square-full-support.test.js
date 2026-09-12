@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const html = fs.readFileSync('index.html', 'utf8');
 const app = fs.readFileSync('app.js', 'utf8');
 const browser = fs.readFileSync('square-sync.js', 'utf8');
+const processors = fs.readFileSync('payment-processors.js', 'utf8');
 const invoiceFunction = fs.readFileSync('supabase/functions/square-invoice/index.ts', 'utf8');
 const syncFunction = fs.readFileSync('supabase/functions/square-sync/index.ts', 'utf8');
 const webhookFunction = fs.readFileSync('supabase/functions/square-webhook/index.ts', 'utf8');
@@ -12,8 +13,12 @@ const processorFunction = fs.readFileSync('supabase/functions/payment-processors
 const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_sync.sql', 'utf8');
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
-  assert.match(html, /square-sync\.js\?v=20260912-errors1/);
-  assert.match(html, /app\.js\?v=20260912-customer-intake1/);
+  assert.match(html, /square-sync\.js\?v=20260912-square-tile1/);
+  assert.match(html, /payment-processors\.js\?v=20260912-square-tile1/);
+  assert.match(html, /styles\.css\?v=20260912-square-tile1/);
+  assert.match(browser, /data-square-sync-slot/);
+  assert.match(processors, /data-square-sync-slot/);
+  assert.match(html, /app\.js\?v=20260912-owner-layout1/);
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {

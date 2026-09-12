@@ -13,6 +13,7 @@ function addStyles(){if(document.getElementById('feedbackStyles'))return;const s
 .feedback-fab{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:85;border:1px solid #7d3035;background:linear-gradient(180deg,#1a1f26,#11151a);color:#fff;border-radius:999px;padding:10px 14px;display:flex;align-items:center;gap:8px;font-weight:850;box-shadow:0 12px 34px rgba(0,0,0,.42);cursor:pointer}.feedback-fab:hover{border-color:#ef2a31}.feedback-fab-dot{width:9px;height:9px;border-radius:50%;background:#ef2a31;box-shadow:0 0 12px rgba(239,42,49,.7)}
 .feedback-modal-backdrop{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.72);display:grid;place-items:end center;padding:18px}.feedback-modal{width:min(620px,100%);background:#0d1116;color:#f6f7f9;border:1px solid #7d3035;border-radius:14px;padding:16px;box-shadow:0 30px 90px rgba(0,0,0,.6)}.feedback-modal h2{margin:0;font-size:20px}.feedback-modal p{color:#9da6b2;margin:5px 0 14px}.feedback-modal label{display:block;font-size:11px;font-weight:800;color:#c6ccd4;margin:10px 0 5px}.feedback-modal select,.feedback-modal textarea{width:100%;background:#080b0f;color:#fff;border:1px solid #343c46;border-radius:9px;padding:11px;font:inherit}.feedback-modal textarea{min-height:130px;resize:vertical}.feedback-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}.feedback-actions button{min-height:40px;border-radius:9px;padding:9px 13px;font-weight:850;cursor:pointer}.feedback-cancel{background:#151a21;color:#fff;border:1px solid #343c46}.feedback-submit{background:#d5252c;color:#fff;border:1px solid #ff4b50}.feedback-context{font-size:11px;color:#7f8996;margin-top:8px}
 @media(min-width:900px){.feedback-fab{bottom:18px}}
+@media(max-width:560px){.feedback-fab{position:static;width:100%;margin-top:12px;justify-content:center}}
 `;document.head.appendChild(style);}
 function close(){document.querySelector('.feedback-modal-backdrop')?.remove();}
 function open(){
@@ -45,10 +46,10 @@ async function submit(e){
 }
 function install(){
   addStyles();
-  const {sid}=context();const shell=document.querySelector('.shell');
-  if(!shell||!sid){document.querySelector('.feedback-fab')?.remove();return;}
+  const {sid}=context();const shell=document.querySelector('.shell'),content=shell?.querySelector('.content');
+  if(!shell||!content||!sid){document.querySelector('.feedback-fab')?.remove();return;}
   if(document.querySelector('.feedback-fab'))return;
-  const btn=document.createElement('button');btn.type='button';btn.className='feedback-fab';btn.innerHTML='<span class="feedback-fab-dot"></span><span>Feedback</span>';btn.setAttribute('aria-label','Send feedback or request a feature');btn.addEventListener('click',open);document.body.appendChild(btn);
+  const btn=document.createElement('button');btn.type='button';btn.className='feedback-fab';btn.innerHTML='<span class="feedback-fab-dot"></span><span>Feedback</span>';btn.setAttribute('aria-label','Send feedback or request a feature');btn.addEventListener('click',open);content.appendChild(btn);
 }
 new MutationObserver(install).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(install,0));

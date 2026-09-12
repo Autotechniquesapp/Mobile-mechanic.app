@@ -117,8 +117,9 @@ function closeInvoices(){modalOpen=false;document.querySelector('[data-square-in
 
 async function renderProcessorStatus(status=null){
   const card=document.querySelector('[data-processor-card="square"]');if(!card||!canView())return;
-  let box=card.querySelector('[data-square-sync-panel]');
-  if(!box){card.insertAdjacentHTML('beforeend','<div class="square-sync-panel" data-square-sync-panel><b>Customer & payment sync</b><p data-square-sync-summary>Customers, invoices, payments and refunds sync with this shop’s Square account.</p><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button></div>');box=card.querySelector('[data-square-sync-panel]');}
+  const slot=card.querySelector('[data-square-sync-slot]')||card.querySelector('.list-main');
+  let box=slot?.querySelector('[data-square-sync-panel]');
+  if(slot&&!box){slot.insertAdjacentHTML('beforeend','<div class="square-sync-panel" data-square-sync-panel><b>Customer & payment sync</b><p data-square-sync-summary>Customers, invoices, payments and refunds sync with this shop’s Square account.</p><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button></div>');box=slot.querySelector('[data-square-sync-panel]');}
   if(!status){
     if(statusLoading||Date.now()-lastStatusRead<5000)return;
     statusLoading=true;lastStatusRead=Date.now();
