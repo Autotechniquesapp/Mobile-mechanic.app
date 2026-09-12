@@ -2,6 +2,7 @@
 'use strict';
 
 const DBKEY='mobile_mechanic_ai_approved_v7';
+const sb=window.MobileMechanicSupabase;
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
@@ -31,14 +32,27 @@ function openSchedule(jobId,start=''){
     if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input)input.value=start;},80);
   },80);
 }
-function removeSchedule(jobId){
-  const db=read(),s=shop();if(!s)return;
-  const j=s.jobs.find(x=>x.id===jobId);if(!j)return;
+async function removeSchedule(jobId){
+  const db=read(),sid=db.session?.shopId,s=sid?db.shops?.[sid]:null;if(!s)return;
+  const j=s.jobs?.find(x=>String(x.id)===String(jobId));if(!j)return;
   if(!confirm(`Remove ${j.customerName||'this job'} from the calendar? The job stays saved and can be rescheduled.`))return;
-  j.scheduledStart=null;j.scheduledEnd=null;j.scheduleNotes=j.scheduleNotes||'';if(j.status==='Scheduled')j.status='AI Pre-Workup';
-  write(db);close();status('Removed from calendar. Job is still saved.','good');location.hash='#calendar';setTimeout(()=>location.reload(),250);
+  try{
+    if(!sb)throw new Error('The live database connection is not available.');
+    const {error}=await sb.from('jobs').update({scheduled_start_at:null,scheduled_end_at:null}).eq('id',jobId).eq('shop_id',sid);
+    if(error)throw error;
+    j.scheduledStart=null;j.scheduledEnd=null;j.scheduleNotes=j.scheduleNotes||'';
+    write(db);close();status('Removed from calendar. Job is still saved.','good');location.hash='#calendar';setTimeout(()=>location.reload(),250);
+  }catch(err){status(err?.message||'Could not remove this job from the calendar.','bad');}
 }
-function openJob(jobId){location.hash=`#findings?id=${encodeURIComponent(jobId)}`;}
+function openJob(jobId){
+  const db=read();
+  if(!db.session||!jobById(jobId))return status('That job could not be opened.','bad');
+  db.session.activeJobId=jobId;
+  write(db);
+  close();
+  location.hash='#findings';
+}
+function jobById(id){return jobs().find(j=>String(j.id)===String(id))||null;}
 function openDay(date){
   const d=new Date(`${date}T12:00:00`),dayJobs=scheduled().filter(j=>sameDay(j.scheduledStart,d)),needs=unscheduled();
   const list=dayJobs.length?dayJobs.map(j=>`<div class="list-item"><div class="list-icon">📅</div><div class="list-main"><b>${esc(fmtTime(j.scheduledStart))} - ${esc(j.customerName||'Customer')}</b><p>${esc(vehicle(j.vehicle))}<br>${esc(j.location||'No location')}</p><div class="list-actions"><button class="btn btn-primary" data-cal-live-job="${esc(j.id)}">Open Job</button><button class="btn btn-soft" data-cal-live-edit="${esc(j.id)}">Edit Time</button><button class="btn btn-soft" data-action="open-maps" data-location="${esc(j.location||'')}">Google Maps</button><button class="btn btn-soft" data-cal-live-remove="${esc(j.id)}">Remove</button></div></div></div>`).join(''):'<button class="btn btn-soft btn-wide" data-cal-live-need-time>No jobs on this day. Pick a job and time below.</button>';
