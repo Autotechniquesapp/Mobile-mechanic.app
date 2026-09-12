@@ -257,11 +257,11 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(action==='save-schedule'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job;if(!jid)return;
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job,sid=currentShopId();if(!jid||!sid)return;
     const startVal=document.getElementById('scheduleStart')?.value;if(!startVal)return showStatus('Pick a start time.','bad');
     const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
     const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
-    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
+    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
   if(action==='toggle-addon'){
@@ -278,18 +278,18 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(action==='save-findings'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({findings:document.getElementById('findingText')?.value||'',codes:document.getElementById('codeInput')?.value||'',status:'diagnosing'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#findings',jid);}catch(err){showStatus(err.message||'Could not save findings.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({findings:document.getElementById('findingText')?.value||'',codes:document.getElementById('codeInput')?.value||'',status:'diagnosing'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#findings',jid);}catch(err){showStatus(err.message||'Could not save findings.','bad');}
     return;
   }
   if(action==='complete-job'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs',jid);}catch(err){showStatus(err.message||'Could not complete job.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#jobs',jid);}catch(err){showStatus(err.message||'Could not complete job.','bad');}
     return;
   }
   if(action==='decline-job'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
     return;
   }
   if(action==='send-estimate'){
@@ -393,7 +393,7 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action="save-estimate"]');if(!b)return;
   setTimeout(async()=>{
-    try{const cache=readCache(),s=cache.shops?.[cache.session?.shopId],j=s?.jobs?.find(x=>x.id===b.dataset.job);if(!j?.estimate)return;const {error}=await sb.from('jobs').update({estimate:j.estimate}).eq('id',j.id);if(error)throw error;showStatus('Estimate saved to Supabase.','good');}catch(err){showStatus(err.message||'Could not sync estimate.','bad');}
+    try{const cache=readCache(),sid=cache.session?.shopId,s=cache.shops?.[sid],j=s?.jobs?.find(x=>x.id===b.dataset.job);if(!sid||!j?.estimate)return;const {error}=await sb.from('jobs').update({estimate:j.estimate}).eq('id',j.id).eq('shop_id',sid);if(error)throw error;showStatus('Estimate saved to Supabase.','good');}catch(err){showStatus(err.message||'Could not sync estimate.','bad');}
   },0);
 },false);
 
@@ -401,7 +401,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action="save-ppi"]');if(!b)return;
   setTimeout(async()=>{
-    try{const cache=readCache(),shop=cache.shops?.[cache.session?.shopId],job=shop?.jobs?.find(x=>x.id===cache.session?.activeJobId),draft=job?.inspectionDraft;if(!job||!draft)return;const original=String(job.findings||''),at=original.lastIndexOf(PPI_MARKER),base=(at>=0?original.slice(0,at):original).trimEnd(),findings=`${base}${PPI_MARKER}${JSON.stringify(draft)}`;const {error}=await sb.from('jobs').update({findings}).eq('id',job.id);if(error)throw error;showStatus('Inspection draft saved to the job.','good');}catch(err){showStatus(err.message||'Inspection draft was saved on this device but could not sync.','bad');}
+    try{const cache=readCache(),sid=cache.session?.shopId,shop=cache.shops?.[sid],job=shop?.jobs?.find(x=>x.id===cache.session?.activeJobId),draft=job?.inspectionDraft;if(!sid||!job||!draft)return;const original=String(job.findings||''),at=original.lastIndexOf(PPI_MARKER),base=(at>=0?original.slice(0,at):original).trimEnd(),findings=`${base}${PPI_MARKER}${JSON.stringify(draft)}`;const {error}=await sb.from('jobs').update({findings}).eq('id',job.id).eq('shop_id',sid);if(error)throw error;showStatus('Inspection draft saved to the job.','good');}catch(err){showStatus(err.message||'Inspection draft was saved on this device but could not sync.','bad');}
   },0);
 },false);
 
