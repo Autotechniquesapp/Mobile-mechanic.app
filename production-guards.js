@@ -226,7 +226,7 @@ document.addEventListener('invalid',e=>{
   const el=e.target;
   const form=el?.form;
   if(form?.id!=='intakeForm' || form.dataset.public!=='true') return;
-  notice(`Please fill in ${fieldLabel(el)} before sending the request.`);
+  notice(form.dataset.lang==='es'?`Complete el campo ${fieldLabel(el)} antes de enviar la solicitud.`:`Please fill in ${fieldLabel(el)} before sending the request.`);
 },true);
 
 document.addEventListener('submit',e=>{
