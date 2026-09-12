@@ -4,10 +4,13 @@ const fs=require('node:fs');
 
 const calendar=fs.readFileSync('calendar-live-actions.js','utf8');
 
-test('removing a calendar appointment persists to Supabase for the selected shop',()=>{
+test('removing a calendar appointment persists to Supabase for the selected shop before updating local cache',()=>{
   assert.match(calendar,/const sb=window\.MobileMechanicSupabase/);
   assert.match(calendar,/from\('jobs'\)\.update\(\{scheduled_start_at:null,scheduled_end_at:null\}\)\.eq\('id',jobId\)\.eq\('shop_id',sid\)/);
-  assert.doesNotMatch(calendar,/function removeSchedule\(jobId\)\{[\s\S]*?write\(db\);close\(\);status\('Removed from calendar/);
+  const serverWrite=calendar.indexOf("const {error}=await sb.from('jobs').update({scheduled_start_at:null,scheduled_end_at:null})");
+  const localWrite=calendar.indexOf('j.scheduledStart=null;j.scheduledEnd=null');
+  assert.ok(serverWrite>=0,'expected Supabase calendar removal write');
+  assert.ok(localWrite>serverWrite,'local calendar cache must only change after the Supabase update');
 });
 
 test('Open Job from calendar explicitly selects that job before routing to findings',()=>{
