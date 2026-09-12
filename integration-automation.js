@@ -63,8 +63,8 @@ window.addEventListener('submit',e=>{const form=e.target;if(form?.id!=='teamForm
 
 // Microsoft 365 UI bridge. The production OAuth/actions already support Outlook
 // Calendar, Microsoft email and OneDrive. This keeps the integrations screen in
-// sync with the real backend state and removes the old OneDrive "Learn More"
-// dead-end without changing the underlying authorization boundaries.
+// sync with the real backend state and replaces the old OneDrive request button
+// with real account authorization controls.
 (() => {
 'use strict';
 const sb=window.MobileMechanicSupabase;
@@ -78,7 +78,7 @@ const labels={
 function panel(){return document.querySelector('[data-business-integrations-panel]');}
 function needsPatch(p){
   if(!p)return false;
-  if(p.querySelector('[data-onedrive-learn-more],[data-business-details="dropbox"]'))return true;
+  if(p.querySelector('[data-onedrive-learn-more]'))return true;
   return Object.entries(labels).some(([provider,label])=>{
     const item=p.querySelector(`[data-business-details="${provider}"]`)?.closest('.list-item');
     const title=item?.querySelector('.list-main > b');
@@ -98,8 +98,8 @@ function setBadge(item,row){
   badge.classList.remove('green','orange','red');
   badge.classList.add(status==='connected'?'green':status==='needs_attention'?'orange':'red');
 }
-function patchProvider(p,provider,row){
-  const details=p.querySelector(`[data-business-details="${provider}"]`);const item=details?.closest('.list-item');if(!item)return;
+function patchProvider(p,provider,row,itemOverride=null){
+  const details=p.querySelector(`[data-business-details="${provider}"]`);const item=itemOverride||details?.closest('.list-item');if(!item)return;
   setTitle(item,labels[provider]||row?.name||provider);setBadge(item,row);
   if(provider==='microsoft_email'){
     const note=item.querySelector('.list-main > p');if(note)note.textContent='Send estimates, invoices and follow-ups from the shop\'s Outlook / Microsoft 365 mailbox.';
@@ -111,6 +111,7 @@ function patchProvider(p,provider,row){
   const old=item.querySelector('[data-onedrive-learn-more]');
   if(old){old.removeAttribute('data-onedrive-learn-more');old.classList.remove('btn-primary');old.classList.add('btn-soft');}
   const button=old||item.querySelector('[data-business-connect="onedrive"],[data-business-disconnect="onedrive"]');if(!button)return;
+  const detail=item.querySelector('[data-business-details]');if(detail)detail.dataset.businessDetails='onedrive';
   button.removeAttribute('data-business-connect');button.removeAttribute('data-business-disconnect');
   if(row?.status==='connected'){
     button.dataset.businessDisconnect='onedrive';button.textContent='Disconnect';button.classList.remove('btn-primary');button.classList.add('btn-soft');
@@ -125,8 +126,9 @@ async function patchMicrosoft(){
   try{
     const {data,error}=await sb.functions.invoke('business-integrations',{body:{action:'status'}});if(error||data?.error)return;
     const rows=Object.fromEntries((data?.integrations||[]).map(row=>[row.provider,row]));
-    const dropbox=p.querySelector('[data-business-details="dropbox"]')?.closest('.list-item');if(dropbox)dropbox.remove();
-    ['microsoft_calendar','microsoft_email','onedrive'].forEach(provider=>patchProvider(p,provider,rows[provider]||{}));
+    ['microsoft_calendar','microsoft_email'].forEach(provider=>patchProvider(p,provider,rows[provider]||{}));
+    const legacyOneDrive=p.querySelector('[data-onedrive-learn-more]')?.closest('.list-item');
+    patchProvider(p,'onedrive',rows.onedrive||{},legacyOneDrive);
     const body=p.querySelector('[data-business-integrations-body]');
     if(body&&!body.querySelector('[data-microsoft365-note]')){
       const note=document.createElement('div');note.dataset.microsoft365Note='1';note.className='section-note';note.style.margin='8px 0 12px';note.textContent='Microsoft 365 can connect Outlook Calendar, Outlook email and OneDrive separately so each shop grants only the permissions it wants.';body.prepend(note);
