@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const tileActions = fs.readFileSync(path.join(__dirname, '..', 'job-tile-actions.js'), 'utf8');
 
 test('every literal data-route has a registered destination', () => {
   const routeBlock = source.match(/const routes=\{([\s\S]*?)\};\n  \(routes\[route\]/)?.[1] || '';
@@ -40,4 +41,13 @@ test('customer intake link buttons use delegated handlers', () => {
 test('job rows do not nest an action button inside another button', () => {
   assert.match(source, /class="list-item job-list-item" role="button"/);
   assert.doesNotMatch(source, /<button class="list-item"[^`]*data-job=/);
+});
+
+
+test('customer tiles open their latest saved intake without hijacking nested actions', () => {
+  assert.match(source, /data-open-customer-intake=/);
+  assert.match(tileActions, /function openCustomerIntake/);
+  assert.match(tileActions, /customerJobs\(customer\)/);
+  assert.match(tileActions, /closest\('button,a,input,select,textarea'\)/);
+  assert.match(tileActions, /openCustomerIntake\(customerTile\.dataset\.openCustomerIntake\)/);
 });
