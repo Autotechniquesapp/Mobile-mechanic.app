@@ -64,7 +64,15 @@ function openList(title,items,empty){
 }
 function handleMetric(metric){const label=metric.textContent.toLowerCase();if(label.includes('today'))return openDay(dayKey(new Date()));if(label.includes('need time'))return openList('Jobs Needing Time',unscheduled(),'Everything has a scheduled time.');if(label.includes('scheduled')||label.includes('hours booked'))return openList('Scheduled Jobs',scheduled(),'No scheduled jobs yet.');}
 function upgradeMetrics(){if(location.hash.split('?')[0]!=='#calendar')return;$$('.metric-grid .metric').forEach(m=>{if(m.dataset.calLiveMetric)return;m.dataset.calLiveMetric='1';m.setAttribute('role','button');m.tabIndex=0;m.style.cursor='pointer';});}
-function bind(){upgradeMetrics();}
+function ensureDayStrip(){
+  if(location.hash.split('?')[0]!=='#calendar'||$('[data-cal-live-days]'))return;
+  const metrics=$('.metric-grid');if(!metrics)return;
+  const start=new Date();start.setHours(12,0,0,0);
+  const days=Array.from({length:14},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);const key=dayKey(d),count=scheduled().filter(j=>sameDay(j.scheduledStart,d)).length;return `<button type="button" class="btn btn-soft" data-cal-open-day="${key}" aria-label="Open ${esc(fmtDate(d))}"><b style="display:block">${i===0?'Today':esc(d.toLocaleDateString([],{weekday:'short'}))}</b><span>${esc(d.toLocaleDateString([],{month:'short',day:'numeric'}))}</span><small style="display:block">${count} job${count===1?'':'s'}</small></button>`;}).join('');
+  const section=document.createElement('section');section.className='card card-pad';section.dataset.calLiveDays='1';section.style.marginTop='10px';section.innerHTML=`<div class="card-title">OPEN A DAY</div><div class="section-note">Tap a day to see its jobs, edit times, or schedule an unscheduled job.</div><div class="divider"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px">${days}</div>`;
+  metrics.insertAdjacentElement('afterend',section);
+}
+function bind(){upgradeMetrics();ensureDayStrip();}
 
 document.addEventListener('click',e=>{
   const closeBtn=e.target.closest('[data-cal-live-close]');if(closeBtn||e.target.classList?.contains('calendar-live-modal')){close();return;}
