@@ -69,7 +69,15 @@ async function squareRequest(ctx: Row, path: string, init: RequestInit = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.errors?.[0]?.detail || data?.errors?.[0]?.code || `Square request failed (${response.status}).`);
+    const first = data?.errors?.[0] || {};
+    const code = String(first.code || "");
+    const detail = String(first.detail || "");
+    const authorizationFailure = response.status === 401 || response.status === 403
+      || /UNAUTHORIZED|FORBIDDEN|INSUFFICIENT|ACCESS_TOKEN/.test(code);
+    if (authorizationFailure) {
+      throw new Error("Square authorization needs updated permissions. Tap Manage / Reconnect, approve customer, invoice, order, and payment access, then run Sync Square Now again.");
+    }
+    throw new Error(detail || code || `Square request failed (${response.status}).`);
   }
   return data;
 }
