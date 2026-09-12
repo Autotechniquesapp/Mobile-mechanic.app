@@ -20,7 +20,8 @@ function routeCalendar(){if(location.hash.split('?')[0]!=='#calendar')location.h
 function modal(title,body){$('.calendar-live-modal')?.remove();const d=document.createElement('div');d.className='modal-backdrop calendar-live-modal';d.innerHTML=`<div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" type="button" data-cal-live-close>×</button></div>${body}</div>`;document.body.appendChild(d);}
 function close(){ $('.calendar-live-modal')?.remove(); }
 function status(msg,type='good'){if(typeof window.toast==='function')window.toast(msg,type);}
-function jobs(){return (shop()?.jobs||[]).filter(j=>j.status!=='Cancelled');}
+function isClosedJob(j){const state=String(j?.status||'').trim().toLowerCase();return !!j?.completedAt||state==='completed'||state==='cancelled'||state.includes('declined');}
+function jobs(){return (shop()?.jobs||[]).filter(j=>!isClosedJob(j));}
 function scheduled(){return jobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return jobs().filter(j=>!j.scheduledStart);}
 function openSchedule(jobId,start=''){
