@@ -163,7 +163,10 @@ async function loadWorkspace(user, allowCreate=true){
     users:uiTeam.length?uiTeam:[{id:user.id,name:currentName,email:user.email||'',role:roleFromDb(membership.role),active:true}],
     customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[],addonCatalog:addonCatalogRes.data||[],addons:(shopAddonsRes.data||[]).map(a=>a.addon_code)
   };
-  const cache=blankCache(); cache.shops={[s.id]:s}; cache.session={role:'shop',shopId:s.id,userId:user.id,activeJobId:uiJobs[0]?.id||null};
+  const prior=readCache();
+  const priorActiveJobId=prior.session?.shopId===s.id?prior.session?.activeJobId:null;
+  const activeJobId=uiJobs.some(j=>String(j.id)===String(priorActiveJobId))?priorActiveJobId:(uiJobs[0]?.id||null);
+  const cache=blankCache(); cache.shops={[s.id]:s}; cache.session={role:'shop',shopId:s.id,userId:user.id,activeJobId};
   writeCache(cache); document.documentElement.style.setProperty('--red',s.theme.accent);
   return s;
 }
