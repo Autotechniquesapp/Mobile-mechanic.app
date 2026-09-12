@@ -14,8 +14,9 @@
 
   async function submit(form) {
     const d=Object.fromEntries(new FormData(form));
+    const es=form.dataset.lang==='es';
     const button=document.querySelector('.customer-submit');
-    if(button){button.disabled=true;button.textContent='SENDING…';}
+    if(button){button.disabled=true;button.textContent=es?'ENVIANDO…':'SENDING…';}
 
     const vehicle={
       year:d.year?Number(d.year):null,
@@ -46,9 +47,9 @@
 
       const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
       const body=document.querySelector('.customer-body');
-      if(body) body.innerHTML=`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
+      if(body) body.innerHTML=es?`<div class="customer-card" style="text-align:center"><h2>✓ Solicitud enviada a ${shopName}</h2><p>Recibimos su solicitud.</p><p class="muted small">El taller la revisará y se comunicará con usted para indicar el siguiente paso.</p></div>`:`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
       document.querySelector('.customer-footer')?.remove();
-      toast('Customer intake sent successfully.','good');
+      toast(es?'Solicitud enviada correctamente.':'Customer intake sent successfully.','good');
     } catch(err) {
       if(button){button.disabled=false;button.textContent=`SEND TO ${(document.querySelector('.customer-shop b')?.textContent||'SHOP').toUpperCase()}`;}
       toast(err?.message||'Could not submit intake.','bad');

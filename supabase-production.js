@@ -182,8 +182,8 @@ async function submitPublicIntake(form,d){
     p_vehicle:vehicle,p_customer_states:d.complaint||''
   });
   if(error) throw error;
-  const shopName=document.querySelector('.customer-shop b')?.textContent||'the shop';
-  document.querySelector('.customer-body').innerHTML=`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
+  const es=form.dataset.lang==='es',shopName=document.querySelector('.customer-shop b')?.textContent||(es?'el taller':'the shop');
+  document.querySelector('.customer-body').innerHTML=es?`<div class="customer-card" style="text-align:center"><h2>✓ Solicitud enviada a ${shopName}</h2><p>Recibimos su solicitud.</p><p class="muted small">El taller la revisará y se comunicará con usted para indicar el siguiente paso.</p></div>`:`<div class="customer-card" style="text-align:center"><h2>✓ Request sent to ${shopName}</h2><p>Your request was received.</p><p class="muted small">The shop will review it and contact you with the next step.</p></div>`;
   document.querySelector('.customer-footer')?.remove();
 }
 
