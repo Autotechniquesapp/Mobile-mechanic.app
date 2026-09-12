@@ -19,9 +19,20 @@ test('Open Job from calendar explicitly selects that job before routing to findi
   assert.doesNotMatch(calendar,/location\.hash=`#findings\?id=/);
 });
 
-test('calendar still exposes Today, Needs Time, and Scheduled metric actions',()=>{
+test('calendar renders tappable days and keeps Today, Needs Time, and Scheduled metric actions',()=>{
+  assert.match(calendar,/Array\.from\(\{length:14\}/);
+  assert.match(calendar,/data-cal-open-day=/);
+  assert.match(calendar,/Tap a day to see its jobs, edit times, or schedule an unscheduled job/);
   assert.match(calendar,/label\.includes\('today'\)/);
   assert.match(calendar,/label\.includes\('need time'\)/);
   assert.match(calendar,/label\.includes\('scheduled'\)/);
-  assert.match(calendar,/data-cal-open-day/);
+});
+
+test('completed, cancelled, and declined work stays out of the active calendar',()=>{
+  assert.match(calendar,/function isClosedJob\(j\)/);
+  assert.match(calendar,/!!j\?\.completedAt/);
+  assert.match(calendar,/state==='completed'/);
+  assert.match(calendar,/state==='cancelled'/);
+  assert.match(calendar,/state\.includes\('declined'\)/);
+  assert.match(calendar,/filter\(j=>!isClosedJob\(j\)\)/);
 });
