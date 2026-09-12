@@ -15,3 +15,8 @@ test('workspace falls back to a valid current-shop job when the old active job i
   assert.match(production,/\(uiJobs\[0\]\?\.id\|\|null\)/);
   assert.doesNotMatch(production,/activeJobId:uiJobs\[0\]\?\.id\|\|null/);
 });
+
+test('scheduled database status remains Scheduled after a production workspace reload',()=>{
+  assert.match(production,/scheduled:'Scheduled'/);
+  assert.match(production,/status:'scheduled'/);
+});
