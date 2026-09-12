@@ -13,7 +13,7 @@ const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
   assert.match(html, /square-sync\.js\?v=20260912-errors1/);
-  assert.match(html, /app\.js\?v=20260910-square-sync/);
+  assert.match(html, /app\.js\?v=20260912-customer-intake1/);
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {
