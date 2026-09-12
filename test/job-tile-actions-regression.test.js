@@ -21,5 +21,5 @@ test('signed-in users can securely change their own Supabase password', () => {
   assert.match(app, /id="changePasswordForm"/);
   assert.match(production, /signInWithPassword\(\{email:user\.email,password:/);
   assert.match(production, /updateUser\(\{password:/);
-  assert.match(html, /app\.js\?v=20260912-customer-intake1/);
+  assert.match(html, /app\.js\?v=20260912-owner-layout1/);
 });
