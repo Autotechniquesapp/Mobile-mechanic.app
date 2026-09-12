@@ -19,12 +19,13 @@ test('OneDrive Learn More dead-end is converted into a real connect or disconnec
   assert.match(automation, /removeAttribute\('data-onedrive-learn-more'\)/);
   assert.match(automation, /dataset\.businessConnect='onedrive'/);
   assert.match(automation, /dataset\.businessDisconnect='onedrive'/);
+  assert.match(automation, /dataset\.businessDetails='onedrive'/);
 });
 
-test('Dropbox is removed from the shop integration surface while OneDrive remains available', () => {
-  assert.match(automation, /data-business-details="dropbox"/);
-  assert.match(automation, /dropbox\.remove\(\)/);
+test('backup automation stays OneDrive-only for Microsoft file storage', () => {
+  assert.doesNotMatch(automation, /dropbox/i);
   assert.match(automation, /Connect OneDrive/);
+  assert.match(automation, /onedrive\.upload_text/);
 });
 
 test('Microsoft services remain separately permissioned', () => {
