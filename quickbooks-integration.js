@@ -4,6 +4,7 @@ const sb=window.MobileMechanicSupabase;
 let busy=false;
 const REOPEN_KEY='mm_open_business_integrations';
 const DBKEY='mobile_mechanic_ai_approved_v7';
+const HIDDEN_PROVIDERS=new Set(['microsoft_calendar','microsoft_email','onedrive']);
 const PARTS_PORTALS=[
   {provider:'autozone_pro',name:'AutoZone Pro',initials:'AZ',url:'https://www.autozonepro.com/',note:'Open AutoZone Pro and sign in with this shop\'s commercial account.'},
   {provider:'oreilly_first_call',name:'O\'Reilly First Call',initials:'OR',url:'https://www.firstcallonline.com/',note:'Open First Call and sign in with this shop\'s O\'Reilly professional account.'},
@@ -38,7 +39,7 @@ function displayRow(row){
   return row;
 }
 function badge(raw){const row=displayRow(raw);let status=row.status||'not_connected';if(status==='not_connected'&&!row.configured)status='needs_keys';const label={connected:'Connected',connecting:'Connecting',needs_keys:'Needs setup',needs_attention:'Needs attention',disabled:'Disabled',not_connected:'Not connected',optional:'Optional',under_review:'Under review'}[status]||status;const cls=status==='connected'?'green':status==='needs_attention'||status==='optional'||status==='under_review'?'orange':'red';return `<span class="badge ${cls}">${esc(label)}</span>`;}
-function pageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-business-integrations-back>‹</button><div><h2>Business Integrations</h2><p>Connect the services each shop wants to use.</p></div></div><section class="card card-pad" data-business-integrations-panel><div class="card-title">SHOP INTEGRATIONS</div><div class="section-note">These are separate from customer payment processing and the Mobile Mechanic AI subscription. Microsoft 365 services are authorized separately so each shop grants only the permissions it wants.</div><div class="divider"></div><div data-business-integrations-body class="muted">Checking integrations…</div></section>`;}
+function pageMarkup(){return `<div class="page-title"><button class="back-btn" type="button" data-business-integrations-back>‹</button><div><h2>Business Integrations</h2><p>Connect the services each shop wants to use.</p></div></div><section class="card card-pad" data-business-integrations-panel><div class="card-title">SHOP INTEGRATIONS</div><div class="section-note">These are separate from customer payment processing and the Mobile Mechanic AI subscription. Only integrations that are ready to use or intentionally offered are shown here.</div><div class="divider"></div><div data-business-integrations-body class="muted">Checking integrations…</div></section>`;}
 async function openIntegrationsPage(){const main=settingsMain();if(!main||!sb)return;main.dataset.businessIntegrationsPage='1';main.dataset.paymentProcessingPage='1';main.innerHTML=pageMarkup();await renderIntegrations();}
 function actionButton(raw){const row=displayRow(raw);
   if(row.provider==='carfax')return `<span class="small muted">No setup required right now</span>`;
@@ -55,7 +56,7 @@ function isCombinedPartsRow(row){return row?.provider==='commercial_parts'||row?
 async function renderIntegrations(){
   const body=document.querySelector('[data-business-integrations-body]');if(!body||!sb)return;body.innerHTML='Checking integrations…';
   try{
-    const d=await invoke('business-integrations',{action:'status'}),rows=d.integrations||[];
+    const d=await invoke('business-integrations',{action:'status'}),rows=(d.integrations||[]).filter(x=>!HIDDEN_PROVIDERS.has(x.provider));
     const order=['Accounting','Calendar','Communication','Location & Vehicle','Parts & Automation','Files'];
     body.innerHTML=order.map(category=>{const seen=new Set(),items=rows.filter(x=>x.category===category&&!isCombinedPartsRow(x)).filter(x=>{const key=x.provider;if(seen.has(key))return false;seen.add(key);return true;});if(category==='Parts & Automation')return `<div class="integration-group"><div class="card-title" style="margin-top:8px">PARTS ORDERING & AUTOMATION</div>${partsPortalMarkup()}${items.map(rowMarkup).join('')}<div class="divider"></div></div>`;if(!items.length)return '';return `<div class="integration-group"><div class="card-title" style="margin-top:8px">${esc(category.toUpperCase())}</div>${items.map(rowMarkup).join('')}<div class="divider"></div></div>`;}).join('')+`<p class="small muted">A service marked “Needs setup” has its app wiring ready but still needs that provider's production credentials or authorized account before it can go live.</p><button class="btn btn-soft" data-business-refresh>Refresh Status</button>`;
   }catch(err){body.innerHTML=`<div class="alert bad">${esc(err.message||'Could not load business integrations.')}</div><button class="btn btn-soft" data-business-refresh>Try Again</button>`;}
