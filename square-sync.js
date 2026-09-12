@@ -15,7 +15,7 @@ function money(value){return new Intl.NumberFormat('en-US',{style:'currency',cur
 function safeSquareUrl(value){try{const url=new URL(String(value||''));const host=url.hostname.toLowerCase();return url.protocol==='https:'&&(host==='squareup.com'||host.endsWith('.squareup.com')||host==='square.link'||host.endsWith('.square.link')||host==='square.site'||host.endsWith('.square.site'))?url.href:'';}catch{return '';}}
 function toast(message,type=''){document.querySelector('.square-sync-toast')?.remove();const node=document.createElement('div');node.className=`toast square-sync-toast ${type}`;node.textContent=message;document.body.appendChild(node);setTimeout(()=>node.remove(),5000);}
 function route(){return (location.hash||'#login').slice(1).split('?')[0];}
-async function invoke(functionName,body){if(!sb)throw new Error('Square sync is unavailable.');const {sid}=context();const {data,error}=await sb.functions.invoke(functionName,{body:{...body,...(sid?{shop_id:sid}:{})}});if(error)throw new Error(error.message||'Square request failed.');if(data?.error)throw new Error(data.error);return data;}
+async function invoke(functionName,body){if(!sb)throw new Error('Square sync is unavailable.');const {sid}=context();const {data,error}=await sb.functions.invoke(functionName,{body:{...body,...(sid?{shop_id:sid}:{})}});if(error){let detail='';try{const payload=await error.context?.json?.();detail=String(payload?.error||'');}catch{}throw new Error(detail||error.message||'Square request failed.');}if(data?.error)throw new Error(data.error);return data;}
 
 async function sync(force=false,showMessage=false){
   const {sid}=context();if(!sid||!canView()||syncing)return null;
