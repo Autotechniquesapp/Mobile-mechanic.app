@@ -140,3 +140,66 @@ new MutationObserver(schedule).observe(document.documentElement,{childList:true,
 window.addEventListener('hashchange',schedule);
 setTimeout(schedule,900);
 })();
+
+// Square context bridge. Square remains the source of truth for the payment,
+// while Mobile Mechanic AI surfaces that payment beside the matching customer
+// and job. Payment never auto-completes a repair because deposits can be paid
+// before the work itself is finished.
+(() => {
+'use strict';
+const sb=window.MobileMechanicSupabase;
+if(!sb)return;
+const DBKEY='mobile_mechanic_ai_approved_v7';
+let busy=false,timer=null,lastLoaded=0,state=null;
+function local(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
+function context(){const db=local(),sid=db.session?.shopId||null,shop=sid?db.shops?.[sid]:null,user=shop?.users?.find?.(u=>String(u.id)===String(db.session?.userId));return {db,sid,shop,user};}
+function canView(){const {db,user}=context();return db.session?.role==='platform_owner'||['owner','manager','service_writer'].includes(String(user?.role||''));}
+function money(v){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0));}
+function ensureStyles(){if(document.getElementById('mmaSquareContextStyles'))return;const style=document.createElement('style');style.id='mmaSquareContextStyles';style.textContent=`.mma-square-context{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}.mma-square-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(34,163,90,.55);background:rgba(22,122,61,.13);color:#baf1cd;border-radius:999px;padding:4px 8px;font-size:.78rem;font-weight:800}.mma-square-pill.due{border-color:rgba(239,157,42,.55);background:rgba(239,157,42,.11);color:#ffd89a}.mma-square-payment-card{margin-top:10px!important;border-color:rgba(34,163,90,.5)!important}.mma-square-payment-card h3{display:flex;justify-content:space-between;gap:10px;align-items:center}`;document.head.appendChild(style);}
+async function load(force=false){
+  if(!canView())return null;
+  const {sid}=context();if(!sid)return null;
+  if(state&&!force&&Date.now()-lastLoaded<5000)return state;
+  if(busy)return state;busy=true;
+  try{
+    const [paymentsResult,invoicesResult]=await Promise.all([
+      sb.from('payment_transactions').select('local_customer_id,local_invoice_id,status,amount,refunded,paid_at').eq('shop_id',sid).eq('provider','square').eq('status','COMPLETED').order('paid_at',{ascending:false}),
+      sb.from('invoices').select('id,job_id,status,total,paid_at,processor_status,processor_metadata').eq('shop_id',sid).eq('payment_processor','square').order('updated_at',{ascending:false})
+    ]);
+    if(paymentsResult.error)throw paymentsResult.error;if(invoicesResult.error)throw invoicesResult.error;
+    const customer=new Map(),job=new Map(),invoiceById=new Map((invoicesResult.data||[]).map(row=>[String(row.id),row]));
+    for(const payment of paymentsResult.data||[]){
+      if(!payment.local_customer_id)continue;const key=String(payment.local_customer_id),cur=customer.get(key)||{count:0,net:0,last:null};cur.count++;cur.net+=Math.max(0,Number(payment.amount||0)-Number(payment.refunded||0));if(!cur.last&&payment.paid_at)cur.last=payment.paid_at;customer.set(key,cur);
+    }
+    for(const invoice of invoicesResult.data||[]){
+      if(!invoice.job_id)continue;const key=String(invoice.job_id),paid=Number(invoice.processor_metadata?.total_paid||0),remaining=Math.max(0,Number(invoice.processor_metadata?.remaining_calculated??(Number(invoice.total||0)-paid))),status=String(invoice.processor_status||invoice.status||'').toUpperCase();const current=job.get(key)||{total:0,paid:0,due:0,paidAt:null,statuses:[]};current.total+=Number(invoice.total||0);current.paid+=status==='PAID'&&paid<=0?Number(invoice.total||0):paid;current.due+=remaining;current.statuses.push(status);if(invoice.paid_at&&(!current.paidAt||new Date(invoice.paid_at)>new Date(current.paidAt)))current.paidAt=invoice.paid_at;job.set(key,current);
+    }
+    for(const payment of paymentsResult.data||[]){
+      const invoice=payment.local_invoice_id?invoiceById.get(String(payment.local_invoice_id)):null;if(!invoice?.job_id)continue;const current=job.get(String(invoice.job_id));if(current&&current.paid<=0)current.paid+=Math.max(0,Number(payment.amount||0)-Number(payment.refunded||0));
+    }
+    state={customer,job};lastLoaded=Date.now();return state;
+  }catch(err){console.warn('Square customer/job payment context unavailable.',err);return null;}finally{busy=false;}
+}
+function setContext(host,text,due=false){
+  if(!host)return;let box=host.querySelector(':scope > .mma-square-context');if(!box){box=document.createElement('div');box.className='mma-square-context';host.appendChild(box);}box.innerHTML=`<span class="mma-square-pill${due?' due':''}">${text}</span>`;
+}
+function clearContext(){document.querySelectorAll('.mma-square-context,.mma-square-payment-card').forEach(node=>node.remove());}
+async function render(force=false){
+  if(!canView()){clearContext();return;}ensureStyles();const data=await load(force);if(!data)return;
+  document.querySelectorAll('[data-open-customer-intake]').forEach(tile=>{
+    const row=data.customer.get(String(tile.dataset.openCustomerIntake||''));const host=tile.querySelector('.list-main')||tile;if(!row){host.querySelector(':scope > .mma-square-context')?.remove();return;}const when=row.last?` · last ${new Date(row.last).toLocaleDateString()}`:'';setContext(host,`Square collected ${money(row.net)} · ${row.count} payment${row.count===1?'':'s'}${when}`);
+  });
+  const jobNodes=[...document.querySelectorAll('[data-open-job],.mmp-job-row[data-job],[data-mma-completed-open]')];
+  jobNodes.forEach(tile=>{
+    const id=tile.dataset.openJob||tile.dataset.job||tile.dataset.mmaCompletedOpen,row=data.job.get(String(id||''));const host=tile.querySelector('.list-main')||tile;if(!row){host.querySelector(':scope > .mma-square-context')?.remove();return;}const paid=row.statuses.some(x=>x==='PAID')&&row.due<=0;setContext(host,paid?`Square paid ${money(row.paid||row.total)}`:`Square ${money(row.paid)} paid · ${money(row.due)} due`,!paid);
+  });
+  const modal=document.querySelector('[data-job-tile-actions-modal] .modal');const active=context().db.session?.activeJobId,row=active?data.job.get(String(active)):null;
+  if(modal){modal.querySelector('.mma-square-payment-card')?.remove();if(row){const paid=row.statuses.some(x=>x==='PAID')&&row.due<=0,card=document.createElement('div');card.className='work-card mma-square-payment-card';card.innerHTML=`<h3>Square Payment <span class="badge ${paid?'green':'orange'}">${paid?'Paid':'Balance'}</span></h3><p>${paid?`${money(row.paid||row.total)} collected in Square.`:`${money(row.paid)} collected · ${money(row.due)} remaining.`}${row.paidAt?`<br>Last paid ${new Date(row.paidAt).toLocaleString()}`:''}</p>`;const vehicle=modal.querySelector('.mma-vehicle-card');if(vehicle)vehicle.insertAdjacentElement('afterend',card);else modal.querySelector('.job-banner')?.insertAdjacentElement('afterend',card);}}
+}
+function schedule(force=false){clearTimeout(timer);timer=setTimeout(()=>render(force),180);}
+new MutationObserver(()=>schedule(false)).observe(document.getElementById('app')||document.documentElement,{childList:true,subtree:true});
+window.addEventListener('hashchange',()=>schedule(true));
+document.addEventListener('click',event=>{if(event.target.closest?.('[data-square-sync-now]'))setTimeout(()=>{state=null;schedule(true);},1800);},true);
+window.MobileMechanicSquareContextRefresh=()=>{state=null;return render(true);};
+setTimeout(()=>schedule(true),1100);
+})();
