@@ -109,19 +109,20 @@ async function createInitialShop(user,meta={}){
 }
 
 async function loadWorkspace(user, allowCreate=true){
-  let {data:memberships,error:memberError}=await sb.from('shop_members').select('shop_id,role,status,user_id').eq('user_id',user.id).eq('status','active').limit(1);
+  let {data:memberships,error:memberError}=await sb.from('shop_members').select('shop_id,role,status,user_id').eq('user_id',user.id).eq('status','active');
   if(memberError) throw memberError;
   if(!memberships?.length && allowCreate && user.user_metadata?.shop_name){
     await createInitialShop(user,user.user_metadata);
     return loadWorkspace(user,false);
   }
   if(!memberships?.length){ writeCache(blankCache()); return null; }
-  const membership=memberships[0], sid=membership.shop_id;
+  const preferredShopId=currentShopId();
+  const membership=memberships.find(m=>m.shop_id===preferredShopId)||memberships[0], sid=membership.shop_id;
   const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]=await Promise.all([
     sb.from('shops').select('*').eq('shop_id',sid).single(),
     sb.from('customers').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('vehicles').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
-    sb.rpc('get_my_shop_jobs'),
+    sb.rpc('get_my_shop_jobs',{p_shop_id:sid}),
     sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid),
     sb.from('addon_catalog').select('code,name,description,monthly_price,quantity,unit_label,available_on_plans').eq('active',true).order('sort_order'),
     sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active')
