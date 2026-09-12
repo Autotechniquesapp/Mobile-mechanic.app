@@ -22,7 +22,7 @@ test('OneDrive Learn More dead-end is converted into a real connect or disconnec
 });
 
 test('Dropbox is removed from the shop integration surface while OneDrive remains available', () => {
-  assert.match(automation, /data-business-details=\\?"dropbox\\?"/);
+  assert.match(automation, /data-business-details="dropbox"/);
   assert.match(automation, /dropbox\.remove\(\)/);
   assert.match(automation, /Connect OneDrive/);
 });
