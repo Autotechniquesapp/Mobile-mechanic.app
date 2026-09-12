@@ -2,6 +2,7 @@
 'use strict';
 
 const DBKEY='mobile_mechanic_ai_approved_v7';
+const sb=window.MobileMechanicSupabase;
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
@@ -19,7 +20,8 @@ function routeCalendar(){if(location.hash.split('?')[0]!=='#calendar')location.h
 function modal(title,body){$('.calendar-live-modal')?.remove();const d=document.createElement('div');d.className='modal-backdrop calendar-live-modal';d.innerHTML=`<div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" type="button" data-cal-live-close>×</button></div>${body}</div>`;document.body.appendChild(d);}
 function close(){ $('.calendar-live-modal')?.remove(); }
 function status(msg,type='good'){if(typeof window.toast==='function')window.toast(msg,type);}
-function jobs(){return (shop()?.jobs||[]).filter(j=>j.status!=='Cancelled');}
+function isClosedJob(j){const state=String(j?.status||'').trim().toLowerCase();return !!j?.completedAt||state==='completed'||state==='cancelled'||state.includes('declined');}
+function jobs(){return (shop()?.jobs||[]).filter(j=>!isClosedJob(j));}
 function scheduled(){return jobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return jobs().filter(j=>!j.scheduledStart);}
 function openSchedule(jobId,start=''){
@@ -31,14 +33,27 @@ function openSchedule(jobId,start=''){
     if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input)input.value=start;},80);
   },80);
 }
-function removeSchedule(jobId){
-  const db=read(),s=shop();if(!s)return;
-  const j=s.jobs.find(x=>x.id===jobId);if(!j)return;
+async function removeSchedule(jobId){
+  const db=read(),sid=db.session?.shopId,s=sid?db.shops?.[sid]:null;if(!s)return;
+  const j=s.jobs?.find(x=>String(x.id)===String(jobId));if(!j)return;
   if(!confirm(`Remove ${j.customerName||'this job'} from the calendar? The job stays saved and can be rescheduled.`))return;
-  j.scheduledStart=null;j.scheduledEnd=null;j.scheduleNotes=j.scheduleNotes||'';if(j.status==='Scheduled')j.status='AI Pre-Workup';
-  write(db);close();status('Removed from calendar. Job is still saved.','good');location.hash='#calendar';setTimeout(()=>location.reload(),250);
+  try{
+    if(!sb)throw new Error('The live database connection is not available.');
+    const {error}=await sb.from('jobs').update({scheduled_start_at:null,scheduled_end_at:null}).eq('id',jobId).eq('shop_id',sid);
+    if(error)throw error;
+    j.scheduledStart=null;j.scheduledEnd=null;j.scheduleNotes=j.scheduleNotes||'';
+    write(db);close();status('Removed from calendar. Job is still saved.','good');location.hash='#calendar';setTimeout(()=>location.reload(),250);
+  }catch(err){status(err?.message||'Could not remove this job from the calendar.','bad');}
 }
-function openJob(jobId){location.hash=`#findings?id=${encodeURIComponent(jobId)}`;}
+function openJob(jobId){
+  const db=read();
+  if(!db.session||!jobById(jobId))return status('That job could not be opened.','bad');
+  db.session.activeJobId=jobId;
+  write(db);
+  close();
+  location.hash='#findings';
+}
+function jobById(id){return jobs().find(j=>String(j.id)===String(id))||null;}
 function openDay(date){
   const d=new Date(`${date}T12:00:00`),dayJobs=scheduled().filter(j=>sameDay(j.scheduledStart,d)),needs=unscheduled();
   const list=dayJobs.length?dayJobs.map(j=>`<div class="list-item"><div class="list-icon">📅</div><div class="list-main"><b>${esc(fmtTime(j.scheduledStart))} - ${esc(j.customerName||'Customer')}</b><p>${esc(vehicle(j.vehicle))}<br>${esc(j.location||'No location')}</p><div class="list-actions"><button class="btn btn-primary" data-cal-live-job="${esc(j.id)}">Open Job</button><button class="btn btn-soft" data-cal-live-edit="${esc(j.id)}">Edit Time</button><button class="btn btn-soft" data-action="open-maps" data-location="${esc(j.location||'')}">Google Maps</button><button class="btn btn-soft" data-cal-live-remove="${esc(j.id)}">Remove</button></div></div></div>`).join(''):'<button class="btn btn-soft btn-wide" data-cal-live-need-time>No jobs on this day. Pick a job and time below.</button>';
@@ -50,7 +65,15 @@ function openList(title,items,empty){
 }
 function handleMetric(metric){const label=metric.textContent.toLowerCase();if(label.includes('today'))return openDay(dayKey(new Date()));if(label.includes('need time'))return openList('Jobs Needing Time',unscheduled(),'Everything has a scheduled time.');if(label.includes('scheduled')||label.includes('hours booked'))return openList('Scheduled Jobs',scheduled(),'No scheduled jobs yet.');}
 function upgradeMetrics(){if(location.hash.split('?')[0]!=='#calendar')return;$$('.metric-grid .metric').forEach(m=>{if(m.dataset.calLiveMetric)return;m.dataset.calLiveMetric='1';m.setAttribute('role','button');m.tabIndex=0;m.style.cursor='pointer';});}
-function bind(){upgradeMetrics();}
+function ensureDayStrip(){
+  if(location.hash.split('?')[0]!=='#calendar'||$('[data-cal-live-days]'))return;
+  const metrics=$('.metric-grid');if(!metrics)return;
+  const start=new Date();start.setHours(12,0,0,0);
+  const days=Array.from({length:14},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);const key=dayKey(d),count=scheduled().filter(j=>sameDay(j.scheduledStart,d)).length;return `<button type="button" class="btn btn-soft" data-cal-open-day="${key}" aria-label="Open ${esc(fmtDate(d))}"><b style="display:block">${i===0?'Today':esc(d.toLocaleDateString([],{weekday:'short'}))}</b><span>${esc(d.toLocaleDateString([],{month:'short',day:'numeric'}))}</span><small style="display:block">${count} job${count===1?'':'s'}</small></button>`;}).join('');
+  const section=document.createElement('section');section.className='card card-pad';section.dataset.calLiveDays='1';section.style.marginTop='10px';section.innerHTML=`<div class="card-title">OPEN A DAY</div><div class="section-note">Tap a day to see its jobs, edit times, or schedule an unscheduled job.</div><div class="divider"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px">${days}</div>`;
+  metrics.insertAdjacentElement('afterend',section);
+}
+function bind(){upgradeMetrics();ensureDayStrip();}
 
 document.addEventListener('click',e=>{
   const closeBtn=e.target.closest('[data-cal-live-close]');if(closeBtn||e.target.classList?.contains('calendar-live-modal')){close();return;}
