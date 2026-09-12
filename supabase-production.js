@@ -47,7 +47,7 @@ function planToDb(v){ return v==='pro' ? 'pro_fleet' : (['solo','shop'].includes
 function planFromDb(v){ return v==='pro_fleet' ? 'pro' : (['solo','shop'].includes(v)?v:'shop'); }
 function roleFromDb(v){ return v==='shop_owner' ? 'owner' : v; }
 function statusToUi(v){
-  return ({new:'AI Pre-Workup',ai_workup:'AI Pre-Workup',diagnosing:'Diagnosis / Findings',estimate_sent:'Awaiting Approval',authorized:'Approved / Ready for Work',repairing:'In Progress',invoiced:'Invoiced',paid:'Paid',completed:'Completed',declined:'Customer Declined',warranty:'Warranty',comeback:'Comeback'})[v] || 'AI Pre-Workup';
+  return ({new:'AI Pre-Workup',ai_workup:'AI Pre-Workup',scheduled:'Scheduled',diagnosing:'Diagnosis / Findings',estimate_sent:'Awaiting Approval',authorized:'Approved / Ready for Work',repairing:'In Progress',invoiced:'Invoiced',paid:'Paid',completed:'Completed',declined:'Customer Declined',warranty:'Warranty',comeback:'Comeback'})[v] || 'AI Pre-Workup';
 }
 const PPI_MARKER='\n\n[PPI DRAFT]\n';
 function ppiFromFindings(value){const text=String(value||''),at=text.lastIndexOf(PPI_MARKER);if(at<0)return null;try{return JSON.parse(text.slice(at+PPI_MARKER.length));}catch{return null;}}
