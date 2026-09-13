@@ -11,6 +11,12 @@ test('the job-row button itself is not mistaken for a nested control', () => {
   assert.match(actions, /const nestedControl=control&&control!==tile/);
   assert.match(actions, /if\(nameClickedInTile\(e,tile,j\)\|\|!nestedControl\)/);
 });
+test('customer tiles open the saved intake even when no local job is linked yet', () => {
+  assert.match(actions, /function patchCustomerTiles\(\)/);
+  assert.match(actions, /from\('intake_submissions'\)/);
+  assert.match(actions, /openSavedIntake\(customer,intake,jobs\[0\]\|\|null\)/);
+  assert.match(actions, /openCustomerRecord\(customer\)/);
+});
 test('complete and decline actions use production persistence', () => {
   assert.match(actions, /dispatchPersistentAction\('complete-job',id\)/);
   assert.match(actions, /dispatchPersistentAction\('decline-job',id\)/);
