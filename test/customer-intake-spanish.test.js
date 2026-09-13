@@ -23,3 +23,10 @@ test('switching languages does not rebuild the form or alter field values',()=>{
   assert.doesNotMatch(source,/location\.reload|innerHTML\s*=\s*ROOT|\.reset\(/);
   assert.match(source,/form\.dataset\.lang/);
 });
+
+test('translation observer cannot recursively rewrite unchanged intake text',()=>{
+  assert.match(source,/el&&el\.textContent!==value/);
+  assert.match(source,/el&&el\.innerHTML!==value/);
+  assert.match(source,/requestAnimationFrame/);
+  assert.doesNotMatch(source,/MutationObserver\(\(\)=>queueMicrotask\(apply\)\)/);
+});

@@ -18,7 +18,7 @@ test('the production shell loads the Square sync controller with the current cac
   assert.match(html, /styles\.css\?v=20260912-square-tile1/);
   assert.match(browser, /data-square-sync-slot/);
   assert.match(processors, /data-square-sync-slot/);
-  assert.match(html, /app\.js\?v=20260912-owner-layout1/);
+  assert.match(html, /app\.js\?v=20260912-intakefix1/);
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {
