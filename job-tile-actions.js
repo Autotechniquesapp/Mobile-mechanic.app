@@ -38,7 +38,8 @@ function ensureStyles(){if(document.getElementById('jobTileActionsDarkStyles'))r
 .mma-vehicle-title{display:block;color:#fff!important;font-size:1.08rem!important;font-weight:900!important;line-height:1.25!important;margin-bottom:5px;}
 .mma-vehicle-meta{display:flex;flex-wrap:wrap;gap:6px;}
 .mma-vehicle-chip{background:#151922!important;border:1px solid rgba(255,255,255,.12)!important;color:#d7dbe3!important;border-radius:999px!important;padding:5px 8px!important;font-size:.86rem!important;}
-[data-open-customer-intake]{cursor:pointer!important;}
+[data-open-customer-intake]{cursor:pointer!important;touch-action:manipulation;position:relative;}
+[data-open-customer-intake]:active{border-color:rgba(239,42,49,.8)!important;background:#11151b!important;}
 .mma-clickable-name{cursor:pointer!important;text-decoration:underline;text-decoration-color:#ef2a31;text-underline-offset:3px;}
 `;document.head.appendChild(s);}
 function shop(){const db=read();return db.shops?.[db.session?.shopId]||null;}
@@ -55,7 +56,44 @@ function customerJobs(customer){
     return (phone&&jobPhone===phone)||(name&&jobName===name);
   }).sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')));
 }
-function openCustomerIntake(id){const customer=customerById(id),jobs=customerJobs(customer);if(!customer)return toast('Customer not found.','bad');if(!jobs.length)return toast('No saved intake is attached to this customer yet.','bad');openPanel(jobs[0].id);}
+function phoneKey(value){const digits=String(value||'').replace(/\D/g,'');return digits.length>10?digits.slice(-10):digits;}
+async function findCustomerIntake(customer){
+  const sb=window.MobileMechanicSupabase,s=shop();
+  if(!sb||!s?.id||!customer)return null;
+  const {data,error}=await sb.from('intake_submissions')
+    .select('id,customer_name,phone,email,address,current_location,availability,vehicle,customer_states,status,created_at,ai_workup')
+    .eq('shop_id',s.id).order('created_at',{ascending:false}).limit(150);
+  if(error)throw error;
+  const phone=phoneKey(customer.phone),email=String(customer.email||'').trim().toLowerCase(),name=String(customer.name||'').trim().toLowerCase();
+  return (data||[]).find(row=>{
+    const rowPhone=phoneKey(row.phone),rowEmail=String(row.email||'').trim().toLowerCase(),rowName=String(row.customer_name||'').trim().toLowerCase();
+    return (email&&rowEmail===email)||(phone&&rowPhone===phone)||(name&&rowName===name);
+  })||null;
+}
+function intakeModel(customer,intake){
+  const v=intake?.vehicle||{},loc=intake?.current_location?.raw||intake?.address||'';
+  return {
+    customerName:intake?.customer_name||customer?.name||'Customer',phone:intake?.phone||customer?.phone||'',email:intake?.email||customer?.email||'',
+    vehicle:{year:v.year||'',make:v.make||'',model:v.model||'',trim:v.submodel||v.trim||'',engine:v.engine||'',drive:v.drivetrain||v.drive||'',vin:v.vin||'',plate:v.license_plate||v.plate||'',mileage:v.mileage||''},
+    complaint:intake?.customer_states||'',availability:intake?.availability||'',location:loc,createdAt:intake?.created_at||'',status:'Customer Intake'
+  };
+}
+function openSavedIntake(customer,intake,job){
+  ensureStyles();close();const model=intakeModel(customer,intake),d=document.createElement('div');d.className='modal-backdrop';d.dataset.jobTileActionsModal='1';
+  d.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="Customer intake form"><div class="modal-head"><h2>${esc(model.customerName)}</h2><button class="close-btn" type="button" data-job-panel-close aria-label="Close">×</button></div><div class="job-banner" style="margin-bottom:10px"><div class="avatar">${esc(String(model.customerName||'C').split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div><div class="job-banner-main"><b>${esc(model.customerName)}</b><p>${esc(model.complaint||'No complaint entered')}</p></div><span class="badge ${job?'red':'orange'}">${esc(job?.status||'Intake')}</span></div>${vehicleCard(model)}<div class="work-card"><h3>Customer Intake Form</h3>${intakeTable(model)}</div><div class="btn-row" style="margin-top:10px">${job?`<button class="btn btn-primary" data-job-panel-open="${esc(job.id)}">${ic('wrench')} Open Full Job</button><button class="btn btn-soft" data-job-panel-schedule="${esc(job.id)}">${ic('calendar')} ${job.scheduledStart?'Edit Time':'Schedule'}</button>`:'<span class="badge orange">Saved intake only — no linked job yet</span>'}</div></div>`;
+  document.body.appendChild(d);
+}
+function openCustomerRecord(customer){
+  ensureStyles();close();const v=(customer?.vehicles||[])[0]||{},model={customerName:customer?.name||'Customer',phone:customer?.phone||'',email:customer?.email||'',vehicle:v,complaint:'',availability:'',location:customer?.address||'',status:'Customer Record'},d=document.createElement('div');d.className='modal-backdrop';d.dataset.jobTileActionsModal='1';
+  d.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="Customer record"><div class="modal-head"><h2>${esc(model.customerName)}</h2><button class="close-btn" type="button" data-job-panel-close aria-label="Close">×</button></div>${vehicleCard(model)}<div class="work-card"><h3>Customer Intake Form</h3><p>No saved intake submission is attached to this customer yet.</p><div class="table-wrap"><table><tbody><tr><th>Phone</th><td>${esc(model.phone||'Not entered')}</td></tr><tr><th>Email</th><td>${esc(model.email||'Not entered')}</td></tr><tr><th>Address</th><td>${esc(model.location||'Not entered')}</td></tr></tbody></table></div></div></div>`;
+  document.body.appendChild(d);
+}
+async function openCustomerIntake(id){
+  const customer=customerById(id),jobs=customerJobs(customer);if(!customer)return toast('Customer not found.','bad');
+  try{const intake=await findCustomerIntake(customer);if(intake){openSavedIntake(customer,intake,jobs[0]||null);return;}}catch(err){console.warn('Customer intake lookup failed',err);}
+  if(jobs.length){openPanel(jobs[0].id);return;}
+  openCustomerRecord(customer);
+}
 function scheduleEnd(start,j){const mins=Math.max(15,Math.round(Number(j.estimatedLaborHours||1)*60)+Number(j.travelMinutes||0)+Number(j.bufferMinutes??15));return new Date(new Date(start).getTime()+mins*60000);}
 function scheduleWindow(j){if(!j?.scheduledStart)return j?.availability||j?.preferredTime||j?.preferredDate||'Schedule time not set';const start=new Date(j.scheduledStart),end=j.scheduledEnd?new Date(j.scheduledEnd):scheduleEnd(j.scheduledStart,j);return `${start.toLocaleDateString()} ${start.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} - ${end.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`;}
 function toast(msg,type='good'){document.querySelector('.toast')?.remove();const d=document.createElement('div');d.className=`toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),2700);}
@@ -109,6 +147,14 @@ function patchCustomerNames(){
     });
   });
 }
+function patchCustomerTiles(){
+  document.querySelectorAll('[data-open-customer-intake]').forEach(tile=>{
+    if(tile.dataset.mmaCustomerTileBound==='1')return;tile.dataset.mmaCustomerTileBound='1';
+    tile.setAttribute('aria-label',`Open ${customerById(tile.dataset.openCustomerIntake)?.name||'customer'} intake form`);
+    tile.addEventListener('click',e=>{if(e.target.closest('button,a,input,select,textarea'))return;e.preventDefault();e.stopPropagation();openCustomerIntake(tile.dataset.openCustomerIntake);});
+    tile.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;e.preventDefault();e.stopPropagation();openCustomerIntake(tile.dataset.openCustomerIntake);});
+  });
+}
 function intakeTable(j){const rows=intakeRows(j);if(!rows.length)return '<p>No intake answers saved on this job.</p>';return `<div class="table-wrap"><table class="estimate-table"><tbody>${rows.map(([k,v])=>`<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table></div>`;}
 function isCompleted(j){return String(j?.status||'').toLowerCase()==='completed'||!!j?.completedAt;}
 function completedJobs(){const s=shop();const seen=new Set(),out=[];[...(s?.completedJobs||[]),...(s?.jobs||[]).filter(isCompleted)].forEach(j=>{const id=String(j.id||'');if(id&&!seen.has(id)){seen.add(id);out.push(j);}});return out.sort((a,b)=>String(b.completedAt||b.updatedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.updatedAt||a.createdAt||'')));}
@@ -148,7 +194,7 @@ function patchLabels(){document.querySelectorAll('[data-open-job],[data-job]').f
 document.addEventListener('click',e=>{const customerTile=e.target.closest?.('[data-open-customer-intake]');if(customerTile){const nested=e.target.closest('button,a,input,select,textarea');if(!nested||nested===customerTile){e.preventDefault();e.stopImmediatePropagation();openCustomerIntake(customerTile.dataset.openCustomerIntake);return;}}const completedOpen=e.target.closest('[data-mma-completed-open]');if(completedOpen){e.preventDefault();openPanel(completedOpen.dataset.mmaCompletedOpen);return;}const closeBtn=e.target.closest('[data-job-panel-close]');if(closeBtn||e.target.matches('[data-job-tile-actions-modal]')){e.preventDefault();close();return;}const del=e.target.closest('[data-job-panel-delete]');if(del){e.preventDefault();deleteJob(del.dataset.jobPanelDelete);return;}const complete=e.target.closest('[data-job-panel-complete]');if(complete){e.preventDefault();completeJob(complete.dataset.jobPanelComplete);return;}const schedule=e.target.closest('[data-job-panel-schedule]');if(schedule){e.preventDefault();openSchedule(schedule.dataset.jobPanelSchedule);return;}const mapsBtn=e.target.closest('[data-job-panel-maps]');if(mapsBtn){e.preventDefault();maps(jobById(mapsBtn.dataset.jobPanelMaps));return;}const full=e.target.closest('[data-job-panel-open],[data-job-panel-estimate]');if(full){e.preventDefault();openNativeJob(full.dataset.jobPanelOpen||full.dataset.jobPanelEstimate);return;}const findings=e.target.closest('[data-job-panel-findings]');if(findings){e.preventDefault();setActive(findings.dataset.jobPanelFindings);close();location.hash='#findings';return;}const tile=e.target.closest('[data-open-job],.mmp-job-row[data-job]');if(tile&&!tile.dataset.mmaNativeOpen){const id=tile.dataset.openJob||tile.dataset.job;const j=jobById(id);const control=e.target.closest('button,a,input,select,textarea');const nestedControl=control&&control!==tile;if(nameClickedInTile(e,tile,j)||!nestedControl){e.preventDefault();e.stopImmediatePropagation();openPanel(id);return;}}},true);
 document.addEventListener('keydown',e=>{const customerTile=e.target.closest?.('[data-open-customer-intake]');if(customerTile&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openCustomerIntake(customerTile.dataset.openCustomerIntake);return;}const tile=e.target.closest?.('[data-open-job],.mmp-job-row[data-job]');if(tile&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openPanel(tile.dataset.openJob||tile.dataset.job);}},true);
 let patchTimer=0;
-function schedulePatch(){clearTimeout(patchTimer);patchTimer=setTimeout(()=>{patchLabels();patchCustomerNames();renderCompletedSection();},180);}
+function schedulePatch(){clearTimeout(patchTimer);patchTimer=setTimeout(()=>{patchLabels();patchCustomerNames();patchCustomerTiles();renderCompletedSection();},180);}
 const appRoot=document.getElementById('app')||document.body;
 new MutationObserver(schedulePatch).observe(appRoot,{subtree:true,childList:true});
 window.addEventListener('hashchange',schedulePatch);
