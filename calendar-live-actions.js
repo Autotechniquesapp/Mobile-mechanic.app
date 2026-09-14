@@ -5,7 +5,7 @@ const DBKEY='mobile_mechanic_ai_approved_v7';
 const sb=window.MobileMechanicSupabase;
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));}
 function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function write(db){localStorage.setItem(DBKEY,JSON.stringify(db));}
 function shop(){const d=read(),sid=d.session?.shopId;return sid?d.shops?.[sid]:null;}
@@ -21,7 +21,11 @@ function modal(title,body){$('.calendar-live-modal')?.remove();const d=document.
 function close(){ $('.calendar-live-modal')?.remove(); }
 function status(msg,type='good'){if(typeof window.toast==='function')window.toast(msg,type);}
 function isClosedJob(j){const state=String(j?.status||'').trim().toLowerCase();return !!j?.completedAt||state==='completed'||state==='cancelled'||state.includes('declined');}
-function jobs(){return (shop()?.jobs||[]).filter(j=>!isClosedJob(j));}
+function customerStillExists(j,s=shop()){
+  if(!j?.customerId)return true;
+  return (s?.customers||[]).some(c=>String(c.id)===String(j.customerId));
+}
+function jobs(){const s=shop();return (s?.jobs||[]).filter(j=>!isClosedJob(j)&&customerStillExists(j,s));}
 function scheduled(){return jobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return jobs().filter(j=>!j.scheduledStart);}
 function openSchedule(jobId,start=''){
@@ -53,6 +57,12 @@ function openJob(jobId){
   close();
   location.hash='#findings';
 }
+function openJobPanel(jobId){
+  const j=jobById(jobId);if(!j)return status('That customer/job is no longer active.','bad');
+  const db=read();if(db.session){db.session.activeJobId=jobId;write(db);}
+  const trigger=document.createElement('button');trigger.type='button';trigger.hidden=true;trigger.dataset.openJob=String(jobId);document.body.appendChild(trigger);trigger.click();
+  setTimeout(()=>{trigger.remove();if(!$('[data-job-tile-actions-modal]'))openJob(jobId);},80);
+}
 function jobById(id){return jobs().find(j=>String(j.id)===String(id))||null;}
 function openDay(date){
   const d=new Date(`${date}T12:00:00`),dayJobs=scheduled().filter(j=>sameDay(j.scheduledStart,d)),needs=unscheduled();
@@ -65,6 +75,21 @@ function openList(title,items,empty){
 }
 function handleMetric(metric){const label=metric.textContent.toLowerCase();if(label.includes('today'))return openDay(dayKey(new Date()));if(label.includes('need time'))return openList('Jobs Needing Time',unscheduled(),'Everything has a scheduled time.');if(label.includes('scheduled')||label.includes('hours booked'))return openList('Scheduled Jobs',scheduled(),'No scheduled jobs yet.');}
 function upgradeMetrics(){if(location.hash.split('?')[0]!=='#calendar')return;$$('.metric-grid .metric').forEach(m=>{if(m.dataset.calLiveMetric)return;m.dataset.calLiveMetric='1';m.setAttribute('role','button');m.tabIndex=0;m.style.cursor='pointer';});}
+function patchMetricCounts(){
+  if(location.hash.split('?')[0]!=='#calendar')return;
+  const list=scheduled(),needs=unscheduled(),today=dayKey(new Date());
+  $$('.metric-grid .metric').forEach(m=>{const label=(m.querySelector('span')?.textContent||'').toLowerCase(),num=m.querySelector('b');if(!num)return;if(label==='today')num.textContent=String(list.filter(j=>dayKey(j.scheduledStart)===today).length);else if(label==='scheduled')num.textContent=String(list.length);else if(label.includes('need time'))num.textContent=String(needs.length);});
+}
+function patchCalendarCards(){
+  if(location.hash.split('?')[0]!=='#calendar')return;
+  const s=shop();
+  $$('[data-action="schedule-job"][data-job]').forEach(btn=>{
+    const id=btn.dataset.job,j=(s?.jobs||[]).find(x=>String(x.id)===String(id)),card=btn.closest('.list-item');if(!card||!j)return;
+    if(isClosedJob(j)||!customerStillExists(j,s)){card.remove();return;}
+    card.dataset.calCardJob=String(id);card.setAttribute('role','button');card.tabIndex=0;card.style.cursor='pointer';
+    const name=card.querySelector('.list-main > b');if(name){name.style.cursor='pointer';name.title='Open customer intake / job';}
+  });
+}
 function ensureDayStrip(){
   if(location.hash.split('?')[0]!=='#calendar'||$('[data-cal-live-days]'))return;
   const metrics=$('.metric-grid');if(!metrics)return;
@@ -73,7 +98,46 @@ function ensureDayStrip(){
   const section=document.createElement('section');section.className='card card-pad';section.dataset.calLiveDays='1';section.style.marginTop='10px';section.innerHTML=`<div class="card-title">OPEN A DAY</div><div class="section-note">Tap a day to see its jobs, edit times, or schedule an unscheduled job.</div><div class="divider"></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px">${days}</div>`;
   metrics.insertAdjacentElement('afterend',section);
 }
-function bind(){upgradeMetrics();ensureDayStrip();}
+function normalize(v){return String(v||'').trim().toLowerCase();}
+function phoneKey(v){const d=String(v||'').replace(/\D/g,'');return d.length>10?d.slice(-10):d;}
+function rowValue(modal,label){const row=$$('tr',modal).find(r=>normalize(r.querySelector('th')?.textContent)===normalize(label));return row?.querySelector('td')?.textContent?.trim()||'';}
+function findModalJob(modal){
+  const s=shop();if(!s)return null;const db=read(),active=(s.jobs||[]).find(j=>String(j.id)===String(db.session?.activeJobId||''));
+  const name=normalize(rowValue(modal,'Customer')||modal.querySelector('.modal-head h2')?.textContent),phone=phoneKey(rowValue(modal,'Phone'));
+  if(active&&(!name||normalize(active.customerName||active.name)===name)&&(!phone||phoneKey(active.phone)===phone))return active;
+  return [...(s.jobs||[])].filter(j=>(!name||normalize(j.customerName||j.name)===name)&&(!phone||phoneKey(j.phone||j.intake?.phone)===phone)).sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')))[0]||null;
+}
+function upsertIntakeTimeRows(modal,requested,job){
+  const table=$('.work-card table tbody',modal);if(!table)return;
+  let preferred=$$('tr',table).find(r=>['preferred time','customer requested date & time'].includes(normalize(r.querySelector('th')?.textContent)));
+  if(requested){
+    if(!preferred){preferred=document.createElement('tr');preferred.innerHTML='<th>Customer Requested Date & Time</th><td></td>';table.appendChild(preferred);}
+    preferred.querySelector('th').textContent='Customer Requested Date & Time';preferred.querySelector('td').textContent=requested;
+  }else if(preferred&&job?.scheduledStart){preferred.querySelector('th').textContent='Scheduled Appointment';}
+  if(job?.scheduledStart){
+    let scheduledRow=$$('tr',table).find(r=>normalize(r.querySelector('th')?.textContent)==='scheduled appointment');
+    const start=new Date(job.scheduledStart),end=job.scheduledEnd?new Date(job.scheduledEnd):null;
+    const text=`${start.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric',year:'numeric'})} at ${start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}${end?` - ${end.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`:''}`;
+    if(!scheduledRow){scheduledRow=document.createElement('tr');scheduledRow.innerHTML='<th>Scheduled Appointment</th><td></td>';table.appendChild(scheduledRow);}
+    scheduledRow.querySelector('td').textContent=text;
+  }
+}
+async function lookupRequestedTime(modal,job){
+  if(!sb||modal.dataset.mmaRequestedLookup==='1')return;modal.dataset.mmaRequestedLookup='1';
+  const s=shop();if(!s?.id)return;const name=rowValue(modal,'Customer')||job?.customerName||'',phone=rowValue(modal,'Phone')||job?.phone||'',email=rowValue(modal,'Email')||job?.email||'';
+  try{
+    const {data,error}=await sb.from('intake_submissions').select('customer_name,phone,email,availability,created_at').eq('shop_id',s.id).order('created_at',{ascending:false}).limit(100);if(error)throw error;
+    const p=phoneKey(phone),e=normalize(email),n=normalize(name),row=(data||[]).find(r=>(p&&phoneKey(r.phone)===p)||(e&&normalize(r.email)===e)||(n&&normalize(r.customer_name)===n));
+    if(row?.availability)upsertIntakeTimeRows(modal,row.availability,job);
+  }catch(err){console.warn('Could not load customer requested time',err);}
+}
+function patchIntakeRequestedTime(){
+  $$('[data-job-tile-actions-modal]').forEach(modal=>{
+    const heading=$$('.work-card h3',modal).find(h=>normalize(h.textContent)==='customer intake form');if(!heading)return;
+    const job=findModalJob(modal),requested=job?.availability||'';upsertIntakeTimeRows(modal,requested,job);if(!requested)lookupRequestedTime(modal,job);
+  });
+}
+function bind(){upgradeMetrics();patchMetricCounts();patchCalendarCards();ensureDayStrip();patchIntakeRequestedTime();}
 
 document.addEventListener('click',e=>{
   const closeBtn=e.target.closest('[data-cal-live-close]');if(closeBtn||e.target.classList?.contains('calendar-live-modal')){close();return;}
@@ -81,13 +145,17 @@ document.addEventListener('click',e=>{
   const day=e.target.closest('[data-cal-open-day]');if(day){e.preventDefault();openDay(day.dataset.calOpenDay);return;}
   const slot=e.target.closest('[data-cal-live-slot]');if(slot){e.preventDefault();const id=$('#calLiveJob')?.value;if(id){close();openSchedule(id,`${slot.dataset.calLiveDate}T${slot.dataset.calLiveSlot}`);}return;}
   const edit=e.target.closest('[data-cal-live-edit]');if(edit){e.preventDefault();close();openSchedule(edit.dataset.calLiveEdit);return;}
-  const job=e.target.closest('[data-cal-live-job]');if(job){e.preventDefault();openJob(job.dataset.calLiveJob);return;}
+  const job=e.target.closest('[data-cal-live-job]');if(job){e.preventDefault();openJobPanel(job.dataset.calLiveJob);return;}
   const rem=e.target.closest('[data-cal-live-remove]');if(rem){e.preventDefault();removeSchedule(rem.dataset.calLiveRemove);return;}
   const needs=e.target.closest('[data-cal-live-need-time]');if(needs){e.preventDefault();openList('Jobs Needing Time',unscheduled(),'Everything has a scheduled time.');return;}
-  const sched=e.target.closest('[data-cal-live-scheduled]');if(sched){e.preventDefault();openList('Scheduled Jobs',scheduled(),'No scheduled jobs yet.');}
+  const sched=e.target.closest('[data-cal-live-scheduled]');if(sched){e.preventDefault();openList('Scheduled Jobs',scheduled(),'No scheduled jobs yet.');return;}
+  const card=e.target.closest('[data-cal-card-job]');if(card&&!e.target.closest('button,a,input,select,textarea')){e.preventDefault();e.stopPropagation();openJobPanel(card.dataset.calCardJob);}
 },true);
 
-document.addEventListener('keydown',e=>{const metric=e.target.closest?.('.metric-grid .metric[data-cal-live-metric]');if(metric&&(e.key==='Enter'||e.key===' ')){e.preventDefault();handleMetric(metric);}});
+document.addEventListener('keydown',e=>{
+  const metric=e.target.closest?.('.metric-grid .metric[data-cal-live-metric]');if(metric&&(e.key==='Enter'||e.key===' ')){e.preventDefault();handleMetric(metric);return;}
+  const card=e.target.closest?.('[data-cal-card-job]');if(card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openJobPanel(card.dataset.calCardJob);}
+});
 new MutationObserver(()=>setTimeout(bind,60)).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(bind,120));
 setTimeout(bind,300);
