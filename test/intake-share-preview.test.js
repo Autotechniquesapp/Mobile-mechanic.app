@@ -16,7 +16,7 @@ const shareSources = [
 test('AutoTechniques clean intake route has complete message-preview metadata', () => {
   assert.match(page, /<link rel="canonical" href="https:\/\/mobile-mechanic\.app\/intake\/autotechniques">/);
   assert.match(page, /property="og:title" content="AutoTechniques Mobile Mechanic Service"/);
-  assert.match(page, /property="og:image" content="https:\/\/mobile-mechanic\.app\/assets\/autotechniques-intake-preview\.jpg"/);
+  assert.match(page, /property="og:image" content="https:\/\/mobile-mechanic\.app\/assets\/autotechniques-intake-preview\.jpg\?v=20260914-refined"/);
   assert.match(page, /name="twitter:card" content="summary_large_image"/);
   assert.match(page, /location\.replace\('https:\/\/mobile-mechanic\.app\/\?intake=autotechniques'\)/);
 });
