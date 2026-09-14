@@ -1,13 +1,14 @@
 (() => {
 'use strict';
+const INTAKE_ORIGIN = 'https://mobile-mechanic.app';
 
 function stableIntakeUrlFromValue(value='') {
   try {
     const u = new URL(value, location.origin);
     const existing = u.searchParams.get('intake');
-    if (existing) return `${location.origin}/?intake=${encodeURIComponent(existing)}`;
+    if (existing) return `${INTAKE_ORIGIN}/intake/${encodeURIComponent(existing)}`;
     const parts = u.pathname.split('/').filter(Boolean);
-    if (parts[0] === 'intake' && parts[1]) return `${location.origin}/?intake=${encodeURIComponent(decodeURIComponent(parts[1]))}`;
+    if (parts[0] === 'intake' && parts[1]) return `${INTAKE_ORIGIN}/intake/${encodeURIComponent(decodeURIComponent(parts[1]))}`;
   } catch {}
   return '';
 }
@@ -19,7 +20,7 @@ function currentStableUrl() {
   try {
     const db = JSON.parse(localStorage.getItem('mobile_mechanic_ai_approved_v7') || '{}');
     const shop = db.shops?.[db.session?.shopId];
-    if (shop?.slug) return `${location.origin}/?intake=${encodeURIComponent(shop.slug)}`;
+    if (shop?.slug) return `${INTAKE_ORIGIN}/intake/${encodeURIComponent(shop.slug)}`;
   } catch {}
   return '';
 }

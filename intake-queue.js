@@ -320,6 +320,6 @@ setTimeout(()=>{refreshQueueOnResume();startVisiblePolling();},250);
   if (window.__MMAIntakeRepairLoaded) return;
   window.__MMAIntakeRepairLoaded = true;
   const s=document.createElement('script');
-  s.src='intake-repair.js?v=20260828-2355';
+  s.src='intake-repair.js?v=20260914-share-card1';
   document.head.appendChild(s);
 })();

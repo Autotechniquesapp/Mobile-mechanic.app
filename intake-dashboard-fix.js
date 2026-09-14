@@ -10,7 +10,7 @@ let lastShopId=null;
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function shopId(){return cache()?.session?.shopId||null;}
 function shop(){const d=cache(),sid=d?.session?.shopId;return sid?d?.shops?.[sid]||null:null;}
-function intakeUrl(){const s=shop();return s?.slug?`${location.origin}/?intake=${encodeURIComponent(s.slug)}`:'';}
+function intakeUrl(){const s=shop();return s?.slug?`https://mobile-mechanic.app/intake/${encodeURIComponent(s.slug)}`:'';}
 function isDashboard(){return (location.hash||'#dashboard').split('?')[0]==='#dashboard';}
 function dashboardVisible(){return isDashboard()&&!!document.querySelector('.mmp-page-head,.dash-head,.dashboard,[data-dashboard],.mmp-quick,.quick-actions,main.content');}
 
