@@ -180,6 +180,7 @@ function aiWorkupMarkup(i){
       ${partsSuggestions(i,w,i.vehicle||{})}
       ${laborSuggestions(w)}
       ${safety.note?`<div style="margin-top:8px;padding:7px 8px;border-left:3px solid #ef2a31;background:#1a1012;border-radius:6px"><b>Safety — ${esc(safety.level||'check')}:</b> ${esc(safety.note)}</div>`:''}
+      ${w.source==='built_in'?'<div class="small" style="margin-top:8px;color:#ffb454"><b>Built-in fallback:</b> Paid AI did not run. '+esc(i.ai_error||'Provider unavailable')+'</div>':''}
       <p class="small muted" style="margin:8px 0 0">AI pre-workup only. Mechanic must verify the diagnosis before repair or estimate.</p>
     </div>`;
   }
