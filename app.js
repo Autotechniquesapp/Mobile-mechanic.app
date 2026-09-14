@@ -234,7 +234,8 @@ function dashboard(){
   const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)).length;
   const revenue=s.jobs.filter(j=>j.status==='Completed').reduce((sum,j)=>sum+Number(j.invoice?.total||j.estimate?.better?.price||0),0);
   const financial=canViewShopFinancials();
-  const metrics=financial?`<button data-route="reports"><small>Revenue MTD</small><b>${money(revenue)}</b></button><button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${s.customers.length}</b></button>`:`<button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${s.customers.length}</b></button>`;
+  const customerCount=combinedCustomers(s).length;
+  const metrics=financial?`<button data-route="reports"><small>Revenue MTD</small><b>${money(revenue)}</b></button><button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${customerCount}</b></button>`:`<button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${customerCount}</b></button>`;
   const revenueCard=financial?`<section class="card card-pad mmp-revenue"><div class="mmp-section-head"><b>REVENUE — THIS MONTH</b><button data-route="reports">View reports</button></div><div class="mmp-revenue-value">${money(revenue)}</div><div class="mmp-revenue-track"><i style="width:${Math.min(100,Math.max(8,revenue/100))}%"></i></div></section>`:'';
   const invoiceButton=financial?`<button type="button" data-open-invoices>${ic('money')}<span><b>OPEN INVOICES</b><small data-open-invoices-summary>Syncing Square…</small></span></button>`:'';
   const content=`<div class="mmp-page-head"><div><h1>Dashboard</h1><p>${new Date().toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div>
@@ -250,6 +251,28 @@ function dashboard(){
 }
 
 function vehicleText(v={}){ return [v.year,v.make,v.model,v.trim].filter(Boolean).join(' '); }
+function customerPhoneKey(value){ const digits=String(value||'').replace(/\D/g,''); if(digits.length<10)return ''; return digits.length>10?digits.slice(-10):digits; }
+function customerEmailKey(value){ return String(value||'').trim().toLowerCase(); }
+function combinedCustomers(s=currentShop()){
+  const groups=[],byPhone=new Map(),byEmail=new Map();
+  for(const row of s?.customers||[]){
+    const phone=customerPhoneKey(row.phone),email=customerEmailKey(row.email);
+    let group=(email&&byEmail.get(email))||(phone&&byPhone.get(phone));
+    if(!group){group={...row,vehicles:[...(row.vehicles||[])],_customerIds:[row.id]};groups.push(group);}
+    else{
+      if(!group._customerIds.includes(row.id))group._customerIds.push(row.id);
+      group.name=group.name||row.name;group.phone=group.phone||row.phone;group.email=group.email||row.email;group.address=group.address||row.address;
+      const vehicleIds=new Set((group.vehicles||[]).map(v=>String(v.id||'')));
+      for(const vehicle of row.vehicles||[]){const id=String(vehicle.id||'');if(!id||!vehicleIds.has(id)){group.vehicles.push(vehicle);if(id)vehicleIds.add(id);}}
+    }
+    if(phone)byPhone.set(phone,group);if(email)byEmail.set(email,group);
+  }
+  return groups;
+}
+function customerJobsFor(s,c){
+  const ids=new Set((c?._customerIds||[c?.id]).filter(Boolean).map(String));
+  return (s?.jobs||[]).filter(j=>ids.has(String(j.customerId||''))).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+}
 function shopIntake(s, publicMode=false){
   const vehMakes=['Chevrolet','Ford','GMC','Toyota','Honda','Nissan','Dodge','Ram','Jeep','Mazda','Hyundai','Kia','Subaru','BMW','Mercedes-Benz','Volkswagen','Other'];
   ROOT.innerHTML=`<section class="customer-shell"><div class="customer-frame"><header class="customer-top">${logo(s)}<div><h1>Mobile <span>Mechanic</span> AI</h1><p>Customer Intake</p></div><div class="customer-shop"><b>${esc(s.name)}</b><span>${esc(s.phone||'')}</span></div></header><div class="customer-body"><div class="customer-stepbar"><span class="customer-step active"></span><span class="customer-step active"></span><span class="customer-step"></span><span class="customer-step"></span></div>
@@ -276,7 +299,8 @@ function sendIntake(){
 
 function customers(){
   const s=currentShop();
-  const content=`${pageTitle('Customers',`${s.customers.length} customer records`)}<section class="card card-pad"><div class="btn-row"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Customer</button><button class="btn btn-soft" data-route="send-intake">${ic('send')} Send Intake</button></div><div class="divider"></div><div class="list">${s.customers.map(c=>`<div class="list-item" role="button" tabindex="0" data-open-customer-intake="${c.id}"><div class="list-icon">${ic('user')}</div><div class="list-main"><b>${esc(c.name)}</b><p>${esc(c.phone||'')} • ${esc(c.email||'No email')}<br>${(c.vehicles||[]).map(vehicleText).map(esc).join(' • ')||'No vehicles'}</p><div class="list-actions"><button class="btn btn-soft" data-action="add-vehicle" data-customer="${c.id}">Add Vehicle</button><button class="btn btn-soft" data-action="customer-history" data-customer="${c.id}">Vehicle Timeline</button></div></div></div>`).join('')||'<div class="muted">No customers yet.</div>'}</div></section>`;
+  const customerList=combinedCustomers(s);
+  const content=`${pageTitle('Customers',`${customerList.length} customers • repeat visits stay together`)}<section class="card card-pad"><div class="btn-row"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Customer</button><button class="btn btn-soft" data-route="send-intake">${ic('send')} Send Intake</button></div><div class="divider"></div><div class="list">${customerList.map(c=>{const vehicles=c.vehicles||[],visits=customerJobsFor(s,c);return `<div class="list-item" role="button" tabindex="0" data-open-customer-intake="${c.id}"><div class="list-icon">${ic('user')}</div><div class="list-main"><b>${esc(c.name)}</b><p>${esc(c.phone||'')} • ${esc(c.email||'No email')}<br><strong>${vehicles.length} vehicle${vehicles.length===1?'':'s'} • ${visits.length} visit${visits.length===1?'':'s'}</strong><br>${vehicles.map(v=>esc(vehicleText(v)||'Vehicle details pending')).join('<br>')||'No vehicles'}</p><div class="list-actions"><button class="btn btn-soft" data-action="add-vehicle" data-customer="${c.id}">Add Vehicle</button><button class="btn btn-soft" data-action="customer-history" data-customer="${c.id}">Combined History</button></div></div></div>`;}).join('')||'<div class="muted">No customers yet.</div>'}</div></section>`;
   shopShell(content,'customers');
 }
 
@@ -645,7 +669,7 @@ function bind(){
   document.querySelectorAll('[data-admin]').forEach(b=>b.onclick=()=>{const s=db.shops[b.dataset.shop];if(!s)return;if(b.dataset.admin==='open'&&platformCan('shops_open')){logAdmin('Opened shop workspace',s.id);const pu=platformUser();const owner=s.users.find(x=>x.role==='owner')||s.users[0];db.session={role:'shop',shopId:s.id,userId:owner.id,supportMode:true,platformReturn:{role:pu.role==='platform_owner'?'platform_owner':'platform_admin',adminId:pu.id}};save();return dashboard();}if(b.dataset.admin==='extend'&&platformCan('trial_extend')){s.trialEnds=new Date(Math.max(Date.now(),new Date(s.trialEnds).getTime())+30*86400000).toISOString();if(s.subscriptionStatus==='suspended')s.subscriptionStatus='trialing';logAdmin('Extended trial 30 days',s.id);toast('Trial extended 30 days.','good');platformAdmin();}if(b.dataset.admin==='comp'&&platformCan('comp')){s.comped=!s.comped;s.subscriptionStatus=s.comped?'active':'trialing';logAdmin(s.comped?'Comped shop account':'Removed comp',s.id);platformAdmin();}if(b.dataset.admin==='suspend'&&platformCan('suspend')){s.subscriptionStatus=s.subscriptionStatus==='suspended'?'trialing':'suspended';logAdmin(s.subscriptionStatus==='suspended'?'Suspended shop':'Reactivated shop',s.id);platformAdmin();}});
 
   document.querySelectorAll('[data-action="add-vehicle"]').forEach(b=>b.onclick=()=>addVehicle(b.dataset.customer));
-  document.querySelectorAll('[data-action="customer-history"]').forEach(b=>b.onclick=()=>{const s=currentShop(),c=s.customers.find(x=>x.id===b.dataset.customer),js=s.jobs.filter(j=>j.customerId===c.id);modal('Vehicle Timeline',`<h3>${esc(c.name)}</h3><div class="list">${js.map(j=>`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle))} — ${esc(j.status)}</b><p>${new Date(j.createdAt).toLocaleString()}<br>${esc(j.complaint)}</p></div></div>`).join('')||'<p class="muted">No job history.</p>'}</div>`);});
+  document.querySelectorAll('[data-action="customer-history"]').forEach(b=>b.onclick=()=>{const s=currentShop(),c=combinedCustomers(s).find(x=>x.id===b.dataset.customer),js=customerJobsFor(s,c),vehicles=c?.vehicles||[];if(!c)return;modal('Combined Customer History',`<h3>${esc(c.name)}</h3><p class="muted">${vehicles.length} vehicle${vehicles.length===1?'':'s'} • ${js.length} visit${js.length===1?'':'s'}</p><div class="list">${vehicles.map(v=>`<div class="list-item"><div class="list-icon">${ic('car')}</div><div class="list-main"><b>${esc(vehicleText(v)||'Vehicle details pending')}</b><p>${esc([v.engine,v.vin&&`VIN ${v.vin}`,v.plate&&`Plate ${v.plate}`].filter(Boolean).join(' • ')||'Saved vehicle')}</p></div></div>`).join('')||'<p class="muted">No vehicles saved.</p>'}</div><div class="divider"></div><h3>Visit History</h3><div class="list">${js.map(j=>`<button type="button" class="list-item" data-open-job="${j.id}" style="width:100%;color:inherit;text-align:left"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(vehicleText(j.vehicle)||'Vehicle details pending')} — ${esc(j.status)}</b><p>${new Date(j.createdAt).toLocaleString()}<br>${esc(j.complaint)}</p></div></button>`).join('')||'<p class="muted">No job history.</p>'}</div>`);});
   document.getElementById('addVehicleForm')?.addEventListener('submit',e=>{e.preventDefault();const s=currentShop(),c=s.customers.find(x=>x.id===e.currentTarget.dataset.customer),d=Object.fromEntries(new FormData(e.currentTarget));c.vehicles.push({id:uid('veh'),year:d.year,make:d.make,model:d.model,engine:d.engine,vin:d.vin,trim:'',drive:'',plate:'',mileage:''});save();document.querySelector('.modal-backdrop')?.remove();toast('Vehicle added to returning customer.','good');customers();});
 
   document.querySelectorAll('[data-action="prepare-carfax"]').forEach(b=>b.onclick=()=>{const j=jobById(b.dataset.job);j.carfax={status:'Ready',preparedAt:nowISO(),record:{vin:j.vehicle.vin,mileage:j.vehicle.mileage,date:j.completedAt||nowISO(),services:j.findings||j.complaint,shop:currentShop().name}};save();toast('Service record prepared. Not submitted to CARFAX.','good');carfax();});
