@@ -18,7 +18,7 @@ test('voice findings save to the active job', () => {
 test('supplier shortcuts use Google Maps and do not fake inventory', () => {
   assert.match(tools, /google\.com\/maps\/search\/\?api=1/);
   for (const supplier of ['AutoZone','NAPA Auto Parts','Advance Auto Parts','Dealership Parts']) {
-    assert.match(tools, new RegExp(supplier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.ok(tools.includes(supplier));
   }
   assert.match(tools, /Live inventory\/pricing still requires a supplier integration/);
 });
