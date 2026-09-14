@@ -12,6 +12,12 @@ let queuePollTimer=null;
 function esc(v=''){return String(v).replace(/[&<>'\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[m]));}
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY))||{};}catch{return {};}}
 function shopId(){return cache().session?.shopId||null;}
+function customerPhoneKey(value){const digits=String(value||'').replace(/\D/g,'');if(digits.length<10)return '';return digits.length>10?digits.slice(-10):digits;}
+function customerEmailKey(value){return String(value||'').trim().toLowerCase();}
+function sameCustomerIdentity(customer,phone,email){
+  const phoneKey=customerPhoneKey(phone),emailKey=customerEmailKey(email);
+  return Boolean((emailKey&&customerEmailKey(customer?.email)===emailKey)||(phoneKey&&customerPhoneKey(customer?.phone)===phoneKey));
+}
 function vehicleText(v={}){return [v.year,v.make,v.model,v.submodel].filter(Boolean).join(' ')||'Vehicle details pending';}
 function notice(message,type=''){
   document.querySelector('.intake-queue-notice')?.remove();
@@ -247,9 +253,39 @@ async function carryWorkupToJob(intakeId,jobId){
   }catch(err){console.warn('Could not carry AI workup to job',err);return false;}
 }
 
+/*
+ * The conversion RPC intentionally owns customer/job creation. Before calling
+ * it, align equivalent phone/email formatting with an existing customer in the
+ * same shop so a returning customer is reused instead of inserted again.
+ */
+async function alignRepeatCustomerIdentity(intakeId){
+  const sid=shopId();
+  if(!sid)return false;
+  const [intakeRes,customersRes]=await Promise.all([
+    sb.from('intake_submissions').select('id,phone,email').eq('shop_id',sid).eq('id',intakeId).maybeSingle(),
+    sb.from('customers').select('id,phone,email').eq('shop_id',sid)
+  ]);
+  if(intakeRes.error)throw intakeRes.error;
+  if(customersRes.error)throw customersRes.error;
+  const intake=intakeRes.data;
+  if(!intake)return false;
+  const match=(customersRes.data||[]).find(c=>sameCustomerIdentity(c,intake.phone,intake.email));
+  if(!match)return false;
+  const patch={};
+  const intakePhone=customerPhoneKey(intake.phone),matchPhone=customerPhoneKey(match.phone);
+  const intakeEmail=customerEmailKey(intake.email),matchEmail=customerEmailKey(match.email);
+  if(intakePhone&&matchPhone===intakePhone&&match.phone!==intake.phone)patch.phone=match.phone;
+  if(intakeEmail&&matchEmail===intakeEmail&&match.email!==intake.email)patch.email=match.email;
+  if(!Object.keys(patch).length)return true;
+  const {error}=await sb.from('intake_submissions').update({...patch,updated_at:new Date().toISOString()}).eq('shop_id',sid).eq('id',intakeId);
+  if(error)throw error;
+  return true;
+}
+
 async function convertIntake(id,button){
   button.disabled=true;button.textContent='Converting…';
   try{
+    await alignRepeatCustomerIdentity(id);
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
     await carryWorkupToJob(id,data);

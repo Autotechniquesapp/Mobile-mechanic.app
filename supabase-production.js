@@ -43,6 +43,12 @@ function writeCache(value){ localStorage.setItem(DBKEY, JSON.stringify(value)); 
 function readCache(){ try{return JSON.parse(localStorage.getItem(DBKEY)) || blankCache();}catch{return blankCache();} }
 function slugify(v){ return String(v||'shop').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,42)||'shop'; }
 function shopId(){ return `shp_${crypto.randomUUID().replace(/-/g,'').slice(0,12)}`; }
+function customerPhoneKey(value){ const digits=String(value||'').replace(/\D/g,''); if(digits.length<10)return ''; return digits.length>10?digits.slice(-10):digits; }
+function customerEmailKey(value){ return String(value||'').trim().toLowerCase(); }
+function sameCustomerIdentity(customer,phone,email){
+  const phoneKey=customerPhoneKey(phone),emailKey=customerEmailKey(email);
+  return Boolean((emailKey&&customerEmailKey(customer?.email)===emailKey)||(phoneKey&&customerPhoneKey(customer?.phone)===phoneKey));
+}
 function planToDb(v){ return v==='pro' ? 'pro_fleet' : (['solo','shop'].includes(v)?v:'shop'); }
 function planFromDb(v){ return v==='pro_fleet' ? 'pro' : (['solo','shop'].includes(v)?v:'shop'); }
 function roleFromDb(v){ return v==='shop_owner' ? 'owner' : v; }
@@ -193,12 +199,22 @@ async function submitPublicIntake(form,d){
 
 async function submitShopIntake(form,d){
   const sid=form.dataset.shop;
-  let customer=null;
-  if(d.phone){const r=await sb.from('customers').select('*').eq('shop_id',sid).eq('phone',d.phone).limit(1).maybeSingle();if(r.error)throw r.error;customer=r.data;}
-  if(!customer&&d.email){const r=await sb.from('customers').select('*').eq('shop_id',sid).eq('email',d.email).limit(1).maybeSingle();if(r.error)throw r.error;customer=r.data;}
+  const existing=await sb.from('customers').select('*').eq('shop_id',sid);
+  if(existing.error)throw existing.error;
+  let customer=(existing.data||[]).find(c=>sameCustomerIdentity(c,d.phone,d.email))||null;
   if(!customer){
     const r=await sb.from('customers').insert({shop_id:sid,name:d.customerName,phone:d.phone||null,email:d.email||null,address:d.location||null}).select('id').single();
     if(r.error)throw r.error; customer={id:r.data.id};
+  }else{
+    const patch={
+      name:String(d.customerName||'').trim()||customer.name,
+      phone:String(d.phone||'').trim()||customer.phone||null,
+      email:String(d.email||'').trim()||customer.email||null,
+      address:String(d.location||'').trim()||customer.address||null,
+      updated_at:new Date().toISOString()
+    };
+    const r=await sb.from('customers').update(patch).eq('shop_id',sid).eq('id',customer.id).select('*').single();
+    if(r.error)throw r.error; customer=r.data;
   }
   let vehicle=null; const vin=(d.vin||'').trim().toUpperCase();
   if(vin){const r=await sb.from('vehicles').select('*').eq('shop_id',sid).eq('vin',vin).limit(1).maybeSingle();if(r.error)throw r.error;vehicle=r.data;}
