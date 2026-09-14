@@ -4,7 +4,7 @@
 const DBKEY='mobile_mechanic_ai_approved_v7';
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function shop(){const d=cache(),sid=d.session?.shopId;return sid?d.shops?.[sid]:null;}
-function intakeUrl(){const s=shop();return s?.slug?`${location.origin}/?intake=${encodeURIComponent(s.slug)}`:'';}
+function intakeUrl(){const s=shop();return s?.slug?`https://mobile-mechanic.app/intake/${encodeURIComponent(s.slug)}`:'';}
 function toast(msg,type=''){document.querySelector('.settings-enh-toast')?.remove();const d=document.createElement('div');d.className=`toast settings-enh-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),4200);}
 
 async function copyText(text){
@@ -14,7 +14,7 @@ async function copyText(text){
 async function shareLink(url){
   const s=shop();
   if(navigator.share){
-    try{await navigator.share({title:`${s?.name||'Shop'} customer intake`,text:`Fill out your vehicle information here: ${url}`,url});return;}catch(err){if(err?.name==='AbortError')return;}
+    try{await navigator.share({title:`${s?.name||'Shop'} customer intake`,text:`Please fill out this vehicle intake for ${s?.name||'the shop'}.`,url});return;}catch(err){if(err?.name==='AbortError')return;}
   }
   await copyText(url);
 }

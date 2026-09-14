@@ -68,7 +68,7 @@ function trialDays(s){ return Math.max(0, Math.ceil((new Date(s.trialEnds).getTi
 function subscriptionOK(s){ return !!s && (s.subscriptionStatus==='active' || s.comped || new Date(s.trialEnds)>new Date()); }
 function currentShop(){ return db.session?.shopId ? db.shops[db.session.shopId] : null; }
 function currentUser(){ const s=currentShop(); return s?.users?.find(u=>u.id===db.session?.userId) || null; }
-function intakeUrl(s){ return `${location.origin}/intake/${encodeURIComponent(s.slug)}`; }
+function intakeUrl(s){ return `https://mobile-mechanic.app/intake/${encodeURIComponent(s.slug)}`; }
 function approvalUrl(s,j){ const payload = btoa(unescape(encodeURIComponent(JSON.stringify({shop:s.id,slug:s.slug,job:j.id})))); return `${location.origin}${location.pathname}?estimate=${encodeURIComponent(payload)}`; }
 function yearOptions(){ let out=''; for(let y=new Date().getFullYear()+1;y>=1930;y--) out += `<option value="${y}">${y}</option>`; return out; }
 function ic(name, cls=''){ return `<svg class="svg-icon ${cls}" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
