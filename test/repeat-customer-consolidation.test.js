@@ -60,7 +60,7 @@ test('public intake conversion aligns repeat-customer identity before the conver
 });
 
 test('changed customer scripts are cache-busted together', () => {
-  assert.match(html, /supabase-production\.js\?v=20260914-repeat-customer1/);
+  assert.match(html, /supabase-production\.js\?v=20260915-square-deposit1/);
   assert.match(html, /intake-queue\.js\?v=20260914-release-blockers1/);
   assert.match(html, /app\.js\?v=20260914-repeat-customer1/);
 });

@@ -44,6 +44,8 @@ function localStatus(squareStatus: unknown) {
 }
 function invoiceAmounts(square: Row, fallbackTotal = 0) {
   const requests = Array.isArray(square.payment_requests) ? square.payment_requests : [];
+  const depositRequest = requests.find((request: Row) => String(request.request_type || "").toUpperCase() === "DEPOSIT");
+  const balanceRequest = requests.find((request: Row) => String(request.request_type || "").toUpperCase() === "BALANCE");
   const computed = requests.reduce((sum: number, request: Row) => sum + dollars(request.computed_amount_money), 0);
   const paid = requests.reduce((sum: number, request: Row) => sum + dollars(request.total_completed_amount_money), 0);
   const total = computed || Number(fallbackTotal || 0);
@@ -54,6 +56,9 @@ function invoiceAmounts(square: Row, fallbackTotal = 0) {
     balance: Math.max(0, total - paid),
     currency: String(requests[0]?.computed_amount_money?.currency || "USD"),
     dueDate: unpaidRequest?.due_date || requests[0]?.due_date || null,
+    deposit: dollars(depositRequest?.computed_amount_money),
+    depositPaid: dollars(depositRequest?.total_completed_amount_money),
+    balanceDueDate: balanceRequest?.due_date || null,
   };
 }
 
@@ -171,6 +176,11 @@ Deno.serve(async (req) => {
         version: square.version ?? null,
         total_paid: amounts.paid,
         remaining_calculated: amounts.balance,
+        deposit_amount: amounts.deposit,
+        deposit_paid: amounts.depositPaid,
+        final_balance_amount: Math.max(0, amounts.total - amounts.deposit),
+        balance_due_on_completion: amounts.deposit > 0,
+        balance_due_date: amounts.balanceDueDate,
         due_date: amounts.dueDate,
         last_square_sync_at: now,
       };
@@ -331,6 +341,41 @@ Deno.serve(async (req) => {
       }
       return json({ ok: true, refunds, status: refunds.every((refund) => refund.status === "completed") ? "completed" : "pending", amount: requestedCents / 100 });
     }
+    if (action === "balance_due") {
+      if (!squareInvoiceId) return json({ error: "This invoice is not linked to Square." }, 409);
+      const current = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
+      if (!current.invoice) throw new Error("Square did not return the invoice.");
+      const status = String(current.invoice.status || "").toUpperCase();
+      if (status === "PAID") {
+        const synced = await syncInvoice(current.invoice);
+        return json({ ok: true, already_paid: true, status: synced.status.toLowerCase(), balance: 0 });
+      }
+      if (status === "PAYMENT_PENDING") return json({ error: "Wait for the pending Square payment before requesting the final balance." }, 409);
+      if (!["DRAFT", "SCHEDULED", "UNPAID", "PARTIALLY_PAID"].includes(status)) {
+        return json({ error: `The final balance cannot be requested while this Square invoice is ${status.toLowerCase()}.` }, 409);
+      }
+      const requests = Array.isArray(current.invoice.payment_requests) ? current.invoice.payment_requests : [];
+      const balanceRequest = requests.find((request: Row) => String(request.request_type || "").toUpperCase() === "BALANCE");
+      if (!balanceRequest?.uid) return json({ error: "Square did not return a final balance payment request." }, 409);
+      const today = dueDate(0);
+      if (balanceRequest.due_date === today) {
+        const synced = await syncInvoice(current.invoice);
+        return json({ ok: true, already_due: true, status: synced.status.toLowerCase(), balance: synced.amounts.balance, due_date: today });
+      }
+      const data = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          idempotency_key: `mma-balance-due-${invoice.id}-${current.invoice.version}`,
+          invoice: {
+            version: current.invoice.version,
+            payment_requests: [{ uid: balanceRequest.uid, due_date: today }],
+          },
+        }),
+      });
+      if (!data.invoice) throw new Error("Square did not return the updated invoice.");
+      const synced = await syncInvoice(data.invoice);
+      return json({ ok: true, status: synced.status.toLowerCase(), balance: synced.amounts.balance, due_date: today, payment_url: data.invoice.public_url || null });
+    }
     if (action !== "create" && action !== "create_draft") return json({ error: "Unknown invoice action." }, 400);
     if (squareInvoiceId || metadata.kind === "square_invoice") {
       return json({
@@ -349,6 +394,39 @@ Deno.serve(async (req) => {
     const { data: customer } = job?.customer_id ? await admin.from("customers").select("*")
       .eq("id", job.customer_id).eq("shop_id", membership.shop_id).maybeSingle() : { data: null };
     const { data: shop } = await admin.from("shops").select("name").eq("shop_id", membership.shop_id).single();
+
+    const source = Array.isArray(invoice.line_items) && invoice.line_items.length
+      ? invoice.line_items
+      : [{ description: "Automotive repair services", amount: Number(invoice.subtotal || invoice.total || 0), quantity: 1 }];
+    const lineItems: Row[] = [];
+    for (let index = 0; index < source.length; index++) {
+      const item = source[index] || {};
+      const quantity = Math.max(1, Number(item.quantity || 1));
+      const lineTotal = Number(item.amount ?? item.total ?? item.price ?? 0);
+      const unit = Number(item.unit_price ?? (lineTotal / quantity));
+      if (!(unit > 0)) continue;
+      lineItems.push({
+        name: String(item.description || item.name || `Repair item ${index + 1}`).slice(0, 120),
+        quantity: String(quantity),
+        base_price_money: { amount: Math.max(1, cents(unit)), currency: "USD" },
+      });
+    }
+    const tax = Number(invoice.tax || 0);
+    if (tax > 0) lineItems.push({ name: "Sales tax", quantity: "1", base_price_money: { amount: cents(tax), currency: "USD" } });
+    if (!lineItems.length) return json({ error: "This invoice has no priced line items." }, 409);
+    const orderTotalCents = Math.round(lineItems.reduce((sum: number, item: Row) => {
+      return sum + Number(item.base_price_money?.amount || 0) * Number(item.quantity || 1);
+    }, 0));
+    const depositCents = cents(body.deposit_amount);
+    if (!(depositCents > 0)) return json({ error: "Choose a deposit amount for this job." }, 400);
+    if (depositCents >= orderTotalCents) return json({ error: "The deposit must be less than the invoice total so a final balance remains." }, 400);
+    const requestedBalanceDays = Number(body.balance_days_until_due ?? 365);
+    const balanceDays = Number.isFinite(requestedBalanceDays)
+      ? Math.min(3650, Math.max(1, Math.round(requestedBalanceDays)))
+      : 365;
+    metadata.deposit_amount = depositCents / 100;
+    metadata.final_balance_amount = (orderTotalCents - depositCents) / 100;
+    metadata.balance_due_on_completion = true;
 
     let squareCustomerId = String(metadata.square_customer_id || "");
     if (!squareCustomerId && customer?.id) {
@@ -382,26 +460,6 @@ Deno.serve(async (req) => {
       await saveMapping("customer", String(customer.id), squareCustomerId, null, { environment });
     }
 
-    const source = Array.isArray(invoice.line_items) && invoice.line_items.length
-      ? invoice.line_items
-      : [{ description: "Automotive repair services", amount: Number(invoice.subtotal || invoice.total || 0), quantity: 1 }];
-    const lineItems: Row[] = [];
-    for (let index = 0; index < source.length; index++) {
-      const item = source[index] || {};
-      const quantity = Math.max(1, Number(item.quantity || 1));
-      const lineTotal = Number(item.amount ?? item.total ?? item.price ?? 0);
-      const unit = Number(item.unit_price ?? (lineTotal / quantity));
-      if (!(unit > 0)) continue;
-      lineItems.push({
-        name: String(item.description || item.name || `Repair item ${index + 1}`).slice(0, 120),
-        quantity: String(quantity),
-        base_price_money: { amount: Math.max(1, cents(unit)), currency: "USD" },
-      });
-    }
-    const tax = Number(invoice.tax || 0);
-    if (tax > 0) lineItems.push({ name: "Sales tax", quantity: "1", base_price_money: { amount: cents(tax), currency: "USD" } });
-    if (!lineItems.length) return json({ error: "This invoice has no priced line items." }, 409);
-
     const orderData = await squareRequest("/v2/orders", {
       method: "POST",
       body: JSON.stringify({
@@ -425,12 +483,21 @@ Deno.serve(async (req) => {
           order_id: orderData.order.id,
           primary_recipient: { customer_id: squareCustomerId },
           delivery_method: "SHARE_MANUALLY",
-          payment_requests: [{
-            request_type: "BALANCE",
-            due_date: dueDate(Number(body.days_until_due || 7)),
-            tipping_enabled: false,
-            automatic_payment_source: "NONE",
-          }],
+          payment_requests: [
+            {
+              request_type: "DEPOSIT",
+              due_date: dueDate(0),
+              fixed_amount_requested_money: { amount: depositCents, currency: "USD" },
+              tipping_enabled: false,
+              automatic_payment_source: "NONE",
+            },
+            {
+              request_type: "BALANCE",
+              due_date: dueDate(balanceDays),
+              tipping_enabled: false,
+              automatic_payment_source: "NONE",
+            },
+          ],
           accepted_payment_methods: {
             card: true,
             square_gift_card: false,
@@ -439,7 +506,7 @@ Deno.serve(async (req) => {
             cash_app_pay: true,
           },
           title: "Automotive Repair",
-          description: `${shop?.name || "Repair Shop"} repair invoice`,
+          description: `${shop?.name || "Repair Shop"} repair invoice. Deposit due now; remaining balance due when the job is completed.`,
         },
       }),
     });
@@ -453,7 +520,9 @@ Deno.serve(async (req) => {
       dashboard_url: squareInvoicesAppUrl,
       dashboard_web_url: dashboardWebUrl,
       amount_due: synced.amounts.balance,
-      message: "Draft created in Square. Review it before sending.",
+      deposit_amount: synced.amounts.deposit,
+      final_balance_amount: Math.max(0, synced.amounts.total - synced.amounts.deposit),
+      message: "Draft created in Square. Review the deposit and final balance before sending.",
     });
   } catch (error) {
     console.error(error);

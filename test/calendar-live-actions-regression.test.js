@@ -34,5 +34,5 @@ test('completed, cancelled, and declined work stays out of the active calendar',
   assert.match(calendar,/state==='completed'/);
   assert.match(calendar,/state==='cancelled'/);
   assert.match(calendar,/state\.includes\('declined'\)/);
-  assert.match(calendar,/filter\(j=>!isClosedJob\(j\)\)/);
+  assert.match(calendar,/filter\(j=>!isClosedJob\(j\)&&customerStillExists\(j,s\)\)/);
 });

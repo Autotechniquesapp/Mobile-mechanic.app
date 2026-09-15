@@ -5,7 +5,7 @@ const DBKEY='mobile_mechanic_ai_approved_v7';
 const sb=window.MobileMechanicSupabase;
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
 function write(db){localStorage.setItem(DBKEY,JSON.stringify(db));}
 function shop(){const d=read(),sid=d.session?.shopId;return sid?d.shops?.[sid]:null;}
