@@ -4,7 +4,10 @@ const fs = require('node:fs');
 
 const html = fs.readFileSync('index.html', 'utf8');
 const app = fs.readFileSync('app.js', 'utf8');
+const production = fs.readFileSync('supabase-production.js', 'utf8');
 const browser = fs.readFileSync('square-sync.js', 'utf8');
+const nextInvoice = fs.readFileSync('next-invoice.js', 'utf8');
+const jobPayments = fs.readFileSync('shop-job-payment.js', 'utf8');
 const processors = fs.readFileSync('payment-processors.js', 'utf8');
 const invoiceFunction = fs.readFileSync('supabase/functions/square-invoice/index.ts', 'utf8');
 const syncFunction = fs.readFileSync('supabase/functions/square-sync/index.ts', 'utf8');
@@ -13,11 +16,13 @@ const processorFunction = fs.readFileSync('supabase/functions/payment-processors
 const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_sync.sql', 'utf8');
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
-  assert.match(html, /square-sync\.js\?v=20260912-square-tile1/);
+  assert.match(html, /square-sync\.js\?v=20260915-square-deposit1/);
   assert.match(html, /payment-processors\.js\?v=20260912-square-tile1/);
   assert.match(html, /styles\.css\?v=20260912-square-tile1/);
   assert.match(browser, /data-square-sync-slot/);
   assert.match(processors, /data-square-sync-slot/);
+  assert.match(html, /supabase-production\.js\?v=20260915-square-deposit1/);
+  assert.match(html, /youtube-repair\.js\?v=20260915-square-deposit1/);
   assert.match(html, /app\.js\?v=20260914-repeat-customer1/);
 });
 
@@ -36,6 +41,8 @@ test('financial controls are not rendered for technicians', () => {
   assert.match(app, /const financial=canViewShopFinancials\(\)/);
   assert.match(app, /const invoiceButton=financial\?`<button type="button" data-open-invoices/);
   assert.match(browser, /\['owner','manager','service_writer'\]/);
+  assert.match(nextInvoice, /\['owner','shop_owner','manager','service_writer'\]/);
+  assert.match(nextInvoice, /!canManagePayments\(\)/);
 });
 
 test('Square sync covers customers, invoices, payments, mappings, and shop scope', () => {
@@ -57,6 +64,29 @@ test('Square invoice lifecycle stays draft-first and supports publish, cancel, a
   assert.match(invoiceFunction, /maximum refundable amount/i);
   assert.match(invoiceFunction, /idempotency_key/);
   assert.doesNotMatch(invoiceFunction, /\/publish[^\n]+create_draft/);
+});
+
+test('Square invoices use a manually chosen deposit and request the balance when work is completed', () => {
+  assert.match(nextInvoice, /data-nxe-deposit-amount/);
+  assert.match(jobPayments, /data-square-deposit-amount/);
+  assert.match(nextInvoice, /deposit_amount:deposit,balance_days_until_due:365/);
+  assert.match(jobPayments, /deposit_amount:deposit,balance_days_until_due:365/);
+  assert.match(invoiceFunction, /request_type: "DEPOSIT"/);
+  assert.match(invoiceFunction, /fixed_amount_requested_money: \{ amount: depositCents, currency: "USD" \}/);
+  assert.match(invoiceFunction, /request_type: "BALANCE"/);
+  assert.match(invoiceFunction, /action === "balance_due"/);
+  assert.match(invoiceFunction, /payment_requests: \[\{ uid: balanceRequest\.uid, due_date: today \}\]/);
+  assert.match(browser, /async function requestFinalBalances\(jobId\)/);
+  assert.match(browser, /action:'balance_due',invoice_id:invoice\.id/);
+  assert.match(production, /requestFinalBalances\?\.\(jid\)/);
+});
+
+test('the server rejects missing or full-total deposits before creating a Square order', () => {
+  const validationAt = invoiceFunction.indexOf('if (!(depositCents > 0))');
+  const orderAt = invoiceFunction.indexOf('squareRequest("/v2/orders"');
+  assert.ok(validationAt > -1 && orderAt > validationAt);
+  assert.match(invoiceFunction, /depositCents >= orderTotalCents/);
+  assert.match(invoiceFunction, /deposit must be less than the invoice total/i);
 });
 
 test('Square webhooks are authenticated, idempotent, and do not persist raw payloads', () => {

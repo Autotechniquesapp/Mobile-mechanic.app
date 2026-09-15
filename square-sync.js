@@ -134,6 +134,20 @@ async function invoiceAction(action,invoiceId,extra={}){
   catch(error){toast(error.message||`Square ${action} failed.`,'bad');return null;}
 }
 
+async function requestFinalBalances(jobId){
+  const {sid}=context();if(!sid||!jobId||!canView())return {updated:0,errors:[]};
+  const {data,error}=await sb.from('invoices').select('id,processor_status,processor_payment_id,processor_metadata').eq('shop_id',sid).eq('job_id',jobId).eq('payment_processor','square');
+  if(error)throw error;
+  const terminal=new Set(['PAID','REFUNDED','PARTIALLY_REFUNDED','CANCELED','CANCELLED','FAILED']),eligible=(data||[]).filter(invoice=>{
+    const metadata=invoice.processor_metadata||{},linked=metadata.square_invoice_id||invoice.processor_payment_id,status=String(invoice.processor_status||'DRAFT').toUpperCase();
+    return linked&&metadata.balance_due_on_completion===true&&!terminal.has(status);
+  });
+  const results=[];for(const invoice of eligible){try{results.push(await invoke('square-invoice',{action:'balance_due',invoice_id:invoice.id}));}catch(actionError){results.push({error:actionError?.message||'Square balance update failed.'});}}
+  const errors=results.filter(result=>result?.error).map(result=>result.error),updated=results.length-errors.length;
+  if(updated)await Promise.all([renderDashboardSummary(true),modalOpen?refreshInvoiceModal():Promise.resolve()]);
+  return {updated,errors};
+}
+
 document.addEventListener('click',async event=>{
   const openTile=event.target.closest?.('[data-open-invoices]');
   if(openTile){event.preventDefault();event.stopImmediatePropagation();await openInvoices();return;}
@@ -143,6 +157,7 @@ document.addEventListener('click',async event=>{
   const link=event.target.closest?.('[data-square-open-url]');if(link){event.preventDefault();window.open(link.dataset.squareOpenUrl,'_blank','noopener');return;}
   const share=event.target.closest?.('[data-square-share-url]');if(share){event.preventDefault();const url=share.dataset.squareShareUrl||'';try{if(navigator.share)await navigator.share({title:'Square invoice',text:'Here is your repair invoice and secure payment link.',url});else{await navigator.clipboard.writeText(url);toast('Square payment link copied.','good');}}catch(error){if(error?.name!=='AbortError')toast('Could not share the Square payment link.','bad');}return;}
   const publish=event.target.closest?.('[data-square-publish]');if(publish){event.preventDefault();if(!confirm('Publish this Square draft and make it payable? This does not automatically email or text the customer; share the payment link after publishing.'))return;const data=await invoiceAction('publish',publish.dataset.squarePublish);if(data)toast('Square invoice published. Share its payment link with the customer.','good');return;}
+  const balanceDue=event.target.closest?.('[data-square-balance-due]');if(balanceDue){event.preventDefault();if(!confirm('Make the remaining Square balance due now? Use this when the work is complete.'))return;const data=await invoiceAction('balance_due',balanceDue.dataset.squareBalanceDue);if(data)toast('The Square final balance is now due.','good');return;}
   const cancel=event.target.closest?.('[data-square-cancel]');if(cancel){event.preventDefault();if(!confirm('Cancel this Square invoice? The customer will no longer be able to pay it.'))return;const data=await invoiceAction('cancel',cancel.dataset.squareCancel);if(data)toast('Square invoice canceled.','good');return;}
   const refund=event.target.closest?.('[data-square-refund]');if(refund){event.preventDefault();const maximum=Number(refund.dataset.squareRefundable||0),raw=prompt(`Refund amount (maximum ${money(maximum)}):`,maximum.toFixed(2));if(raw===null)return;const amount=Number(raw);if(!(amount>0)||amount>maximum){toast('Enter a valid refund amount.','bad');return;}if(!confirm(`Refund ${money(amount)} through Square?`))return;const idempotency_key=window.crypto?.randomUUID?.()||`refund-${Date.now()}-${Math.random().toString(36).slice(2)}`;const data=await invoiceAction('refund',refund.dataset.squareRefund,{amount,idempotency_key});if(data)toast(`Square refund ${data.status||'submitted'}.`,'good');return;}
 },true);
@@ -157,5 +172,5 @@ window.addEventListener('hashchange',()=>setTimeout(mount,150));
 window.addEventListener('focus',()=>{if(route()==='dashboard')sync(false,false);});
 setInterval(()=>{if(document.visibilityState==='visible'&&['dashboard','settings'].includes(route()))sync(false,false);},AUTO_SYNC_MS);
 setTimeout(mount,900);
-window.MobileMechanicSquareSync={sync,openInvoices,refreshDashboard:renderDashboardSummary};
+window.MobileMechanicSquareSync={sync,openInvoices,refreshDashboard:renderDashboardSummary,requestFinalBalances};
 })();

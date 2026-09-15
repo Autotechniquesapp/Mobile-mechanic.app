@@ -300,7 +300,7 @@ document.addEventListener('click',async e=>{
   }
   if(action==='complete-job'){
     e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs',jid);}catch(err){showStatus(err.message||'Could not complete job.','bad');}
+    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid);if(error)throw error;let balances={updated:0,errors:[]};try{balances=await window.MobileMechanicSquareSync?.requestFinalBalances?.(jid)||balances;}catch(balanceError){balances.errors=[balanceError?.message||'Square balance update failed.'];}await refreshWorkspace('#jobs',jid);if(balances.errors.length)showStatus('Job completed, but Square could not make the final balance due. Open the invoice and retry before handing off the vehicle.','bad');else if(balances.updated)showStatus(`Job completed. ${balances.updated===1?'The Square final balance is':'Square final balances are'} now due.`,'good');}catch(err){showStatus(err.message||'Could not complete job.','bad');}
     return;
   }
   if(action==='decline-job'){
