@@ -2,13 +2,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
+const html = fs.readFileSync('index.html', 'utf8');
 const tools = fs.readFileSync('job-workflow-tools.js', 'utf8');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 
-test('the live job workflow loads the simple payment controller', () => {
+test('the production shell cache-busts and loads the simple payment controller', () => {
+  assert.match(html, /job-workflow-tools\.js\?v=20260915-simple-job-payment1/);
   assert.match(tools, /next-invoice\.js\?v=20260915-simple-job-payment1/);
   assert.match(tools, /__MMASimpleJobPaymentLoaded/);
-  assert.match(tools, /route\(\)==='workup'/);
+  assert.match(tools, /document\.querySelector\('\[data-job-work-order\]'\)/);
 });
 
 test('the owner job screen is intentionally limited to parts, labor, payment, and history', () => {
@@ -25,9 +27,9 @@ test('the owner job screen is intentionally limited to parts, labor, payment, an
   assert.doesNotMatch(payment, /ADDITIONAL WORK ESTIMATE/);
 });
 
-test('AI second opinion is removed from the active UI and old links redirect to workup', () => {
+test('AI second opinion is removed from the active UI and stale links return to jobs', () => {
   assert.match(tools, /\[data-route="ai-second"\],\[data-action="second-opinion"\]/);
-  assert.match(tools, /if\(route\(\)==='ai-second'\)\{location\.hash='#workup';\}/);
+  assert.match(tools, /route\(\)==='ai-second'\)location\.hash='#jobs'/);
 });
 
 test('manual Square deposit rules stay enforced', () => {
@@ -37,10 +39,12 @@ test('manual Square deposit rules stay enforced', () => {
   assert.match(payment, /balance_due_on_completion:true/);
 });
 
-test('previous jobs stay scoped to the current customer or VIN and exclude the active job', () => {
+test('previous jobs stay scoped to the current customer or VIN and are view only', () => {
   assert.match(payment, /String\(x\.id\)!==String\(job\.id\)/);
   assert.match(payment, /x\.customerId\|\|x\.customer_id/);
   assert.match(payment, /x\.vehicle\?\.vin/);
+  assert.doesNotMatch(payment, /data-nxe-history-job/);
+  assert.doesNotMatch(payment, /location\.hash='#workup'/);
 });
 
 test('financial payment view remains limited to financial shop roles', () => {
