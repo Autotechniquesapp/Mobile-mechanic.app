@@ -6,19 +6,22 @@ const tools = await readFile(new URL('../job-workflow-tools.js', import.meta.url
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('mechanic job workflow tools are loaded', () => {
-  assert.match(index, /job-workflow-tools\.js\?v=20260914-voice-suppliers1/);
+  assert.match(index, /job-workflow-tools\.js\?v=20260915-simple-job-payment1/);
 });
 
 test('voice findings save to the active job', () => {
   assert.match(tools, /SpeechRecognition\|\|window\.webkitSpeechRecognition/);
   assert.match(tools, /from\('jobs'\)\.update\(\{findings:text/);
   assert.match(tools, /data-jwt-findings/);
+  assert.match(tools, /data-action="voice-findings"/);
 });
 
-test('supplier shortcuts use Google Maps and do not fake inventory', () => {
+test('supplier shortcuts remain available on findings, not the payment card', () => {
+  assert.match(tools, /Technician Findings/);
   assert.match(tools, /google\.com\/maps\/search\/\?api=1/);
   for (const supplier of ['AutoZone','NAPA Auto Parts','Advance Auto Parts','Dealership Parts']) {
     assert.ok(tools.includes(supplier));
   }
   assert.match(tools, /Live inventory\/pricing still requires a supplier integration/);
+  assert.match(tools, /data-jwt-suppliers/);
 });
