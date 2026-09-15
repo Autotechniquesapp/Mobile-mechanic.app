@@ -15,7 +15,7 @@ test('job payment hides the global completed jobs section',()=>{
 });
 
 test('previous job history is exact-customer scoped',()=>{
-  assert.match(ui,/String\(row\.customerId\|\|row\.customer_id\|\|'?'?'?\)/);
+  assert.ok(ui.includes("String(row.customerId||row.customer_id||'')===customerId"));
   assert.match(ui,/Previous jobs for this customer/);
   assert.doesNotMatch(ui,/vehicle\?\.vin/);
 });
