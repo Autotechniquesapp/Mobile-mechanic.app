@@ -2,45 +2,134 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#b9000b">
-  <title>Request Mobile Service | AutoTechniques</title>
-  <meta name="description" content="Tell AutoTechniques what your vehicle needs and request mobile mechanic service in Yuma, Arizona.">
+  <title>Customer Intake | Autotechniques</title>
+  <meta name="description" content="Tell Autotechniques what your vehicle needs and request mobile mechanic service in Yuma, Arizona.">
   <link rel="canonical" href="https://mobile-mechanic.app/intake/autotechniques">
-
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="AutoTechniques Mobile Mechanic Service">
-  <meta property="og:title" content="AutoTechniques Mobile Mechanic Service">
-  <meta property="og:description" content="Request mobile service. Tell us about your vehicle and what it needs.">
+  <meta property="og:site_name" content="Autotechniques Mobile Mechanic Service">
+  <meta property="og:title" content="Autotechniques Mobile Mechanic Service">
+  <meta property="og:description" content="Customer intake for mobile mechanic service. Tell us about your vehicle and what it needs.">
   <meta property="og:url" content="https://mobile-mechanic.app/intake/autotechniques">
-  <meta property="og:image" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260914-refined">
-  <meta property="og:image:secure_url" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260914-refined">
+  <meta property="og:image" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260917-intakefix">
+  <meta property="og:image:secure_url" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260917-intakefix">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="AutoTechniques Mobile Mechanic Service — Request Mobile Service">
-
+  <meta property="og:image:alt" content="Autotechniques Mobile Mechanic Service">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AutoTechniques Mobile Mechanic Service">
-  <meta name="twitter:description" content="Request mobile service. Tell us about your vehicle and what it needs.">
-  <meta name="twitter:image" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260914-refined">
-  <meta name="twitter:image:alt" content="Red muscle car with AutoTechniques Mobile Mechanic Service lettering">
-
-  <script>
-    location.replace('https://mobile-mechanic.app/?intake=autotechniques');
-  </script>
+  <meta name="twitter:title" content="Autotechniques Mobile Mechanic Service">
+  <meta name="twitter:description" content="Customer intake for mobile mechanic service.">
+  <meta name="twitter:image" content="https://mobile-mechanic.app/assets/autotechniques-intake-preview.jpg?v=20260917-intakefix">
   <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#f4f5f7;color:#15171a;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.card{width:min(560px,100%);overflow:hidden;border:1px solid #d7d9dd;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(10,12,15,.16);text-align:center}.card img{display:block;width:100%;height:auto}.content{padding:20px}.content h1{margin:0 0 8px;font-size:1.45rem}.content p{margin:0 0 18px;color:#555b63}.button{display:inline-block;border-radius:10px;background:#bd0711;color:#fff;padding:12px 18px;font-weight:800;text-decoration:none}
+    *{box-sizing:border-box}html{background:#08090b}body{margin:0;background:#08090b;color:#f7f7f8;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .shell{max-width:760px;margin:0 auto;min-height:100vh;background:#0d0f12}.hero{position:relative;border-bottom:1px solid #341014;background:#111318}
+    .hero img{display:block;width:100%;max-height:360px;object-fit:cover}.brand{padding:18px 20px 20px}.brand h1{margin:0;font-size:1.75rem}.brand h1 span{color:#ef2735}.brand p{margin:6px 0 0;color:#b9bec7}
+    .lang{display:flex;gap:8px;margin-top:14px}.lang button{border:1px solid #4a4e55;background:#171a1f;color:#fff;padding:8px 13px;border-radius:999px;font-weight:700}.lang button.active{background:#c30d18;border-color:#ef2735}
+    form{padding:18px}.card{background:#13161a;border:1px solid #292d34;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 8px 26px rgba(0,0,0,.2)}
+    h2{font-size:1rem;margin:0 0 14px;color:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.full{grid-column:1/-1}
+    label{font-size:.86rem;color:#c5c9cf;font-weight:700}input,select,textarea{width:100%;border:1px solid #3a3f47;background:#0b0d10;color:#fff;border-radius:10px;padding:12px;font:inherit;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:#ef2735;box-shadow:0 0 0 3px rgba(239,39,53,.14)}textarea{min-height:120px;resize:vertical}
+    .submit{width:100%;border:0;border-radius:12px;padding:15px 18px;background:#c80d19;color:#fff;font-weight:900;font-size:1rem}.submit:disabled{opacity:.6}
+    .notice{display:none;margin:0 18px 18px;padding:13px 14px;border-radius:12px;background:#18231b;border:1px solid #2b6a38;color:#dff7e4}.notice.bad{background:#2a1518;border-color:#7e2630;color:#ffd9dd}.muted{font-size:.82rem;color:#90969f;text-align:center;padding:0 20px 24px}
+    @media(max-width:620px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.hero img{max-height:260px}.brand h1{font-size:1.5rem}}
   </style>
 </head>
 <body>
-  <main class="card">
-    <img src="/assets/autotechniques-intake-preview.jpg?v=20260914-refined" alt="AutoTechniques Mobile Mechanic Service">
-    <div class="content">
-      <h1>Opening the AutoTechniques intake form…</h1>
-      <p>If it does not open automatically, use the button below.</p>
-      <a class="button" href="/?intake=autotechniques">Open Intake Form</a>
-    </div>
+  <main class="shell">
+    <header class="hero">
+      <img src="../../assets/autotechniques-intake-preview.jpg?v=20260917-intakefix" alt="Autotechniques Mobile Mechanic Service">
+      <div class="brand">
+        <h1>Autotechniques <span>Mobile Mechanic Service</span></h1>
+        <p id="subtitle">Customer Intake · Yuma, Arizona</p>
+        <div class="lang"><button type="button" class="active" data-lang="en">English</button><button type="button" data-lang="es">Español</button></div>
+      </div>
+    </header>
+
+    <form id="intakeForm">
+      <section class="card">
+        <h2 data-t="contact">1 · Your Information</h2>
+        <div class="grid">
+          <div class="field full"><label data-t="name">Name</label><input name="customerName" autocomplete="name" required></div>
+          <div class="field"><label data-t="phone">Phone</label><input name="phone" type="tel" autocomplete="tel" required></div>
+          <div class="field"><label data-t="email">Email</label><input name="email" type="email" autocomplete="email"></div>
+          <div class="field full"><label data-t="location">Service Location</label><input name="location" autocomplete="street-address" placeholder="Address or current location"></div>
+          <div class="field full"><label data-t="availability">Availability</label><input name="availability" placeholder="Best day / time window"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-t="vehicle">2 · Your Vehicle</h2>
+        <div class="grid">
+          <div class="field"><label data-t="year">Year</label><input name="year" inputmode="numeric" maxlength="4"></div>
+          <div class="field"><label data-t="make">Make</label><input name="make"></div>
+          <div class="field"><label data-t="model">Model</label><input name="model"></div>
+          <div class="field"><label data-t="trim">Trim</label><input name="trim"></div>
+          <div class="field"><label data-t="engine">Engine</label><input name="engine"></div>
+          <div class="field"><label data-t="drive">Drive</label><select name="drive"><option value="">Select</option><option>FWD</option><option>RWD</option><option>AWD</option><option>4WD</option></select></div>
+          <div class="field full"><label>VIN</label><input name="vin" maxlength="17" autocapitalize="characters"></div>
+          <div class="field"><label data-t="plate">License Plate</label><input name="plate"></div>
+          <div class="field"><label data-t="mileage">Mileage</label><input name="mileage" inputmode="numeric"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-t="concern">3 · What is going on?</h2>
+        <div class="field"><label data-t="describe">Describe the problem, warning lights, noises, and when it happens.</label><textarea name="complaint" required></textarea></div>
+      </section>
+
+      <button id="submitButton" class="submit" type="submit" data-t="submit">Send Request to Autotechniques</button>
+    </form>
+    <div id="notice" class="notice"></div>
+    <p class="muted" data-t="privacy">Your information is sent directly to Autotechniques so we can review your service request and contact you.</p>
   </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4"></script>
+  <script>
+  (() => {
+    'use strict';
+    const SUPABASE_URL='https://rapcejqlydedceegbcrs.supabase.co';
+    const SUPABASE_KEY='sb_publishable_w8kcE-A3iHqL9YHr_MiTNQ_WtkWaNJx';
+    const SHOP_ID='shp_autotechniques';
+    const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+    const form=document.getElementById('intakeForm'),button=document.getElementById('submitButton'),notice=document.getElementById('notice');
+    let lang='en';
+    const copy={
+      en:{subtitle:'Customer Intake · Yuma, Arizona',contact:'1 · Your Information',name:'Name',phone:'Phone',email:'Email',location:'Service Location',availability:'Availability',vehicle:'2 · Your Vehicle',year:'Year',make:'Make',model:'Model',trim:'Trim',engine:'Engine',drive:'Drive',plate:'License Plate',mileage:'Mileage',concern:'3 · What is going on?',describe:'Describe the problem, warning lights, noises, and when it happens.',submit:'Send Request to Autotechniques',privacy:'Your information is sent directly to Autotechniques so we can review your service request and contact you.',sending:'Sending…',sent:'Request sent. Autotechniques received your intake and will contact you.',error:'Could not send the request. Please try again or call Autotechniques.'},
+      es:{subtitle:'Formulario del cliente · Yuma, Arizona',contact:'1 · Su información',name:'Nombre',phone:'Teléfono',email:'Correo electrónico',location:'Lugar del servicio',availability:'Disponibilidad',vehicle:'2 · Su vehículo',year:'Año',make:'Marca',model:'Modelo',trim:'Versión / Acabado',engine:'Motor',drive:'Tracción',plate:'Placa',mileage:'Millaje',concern:'3 · ¿Qué problema tiene el vehículo?',describe:'Describa el problema, luces de advertencia, ruidos y cuándo ocurre.',submit:'Enviar solicitud a Autotechniques',privacy:'Su información se envía directamente a Autotechniques para revisar su solicitud y comunicarnos con usted.',sending:'Enviando…',sent:'Solicitud enviada. Autotechniques recibió su formulario y se comunicará con usted.',error:'No se pudo enviar la solicitud. Inténtelo de nuevo o llame a Autotechniques.'}
+    };
+    function applyLang(next){
+      lang=next;document.documentElement.lang=next;
+      document.getElementById('subtitle').textContent=copy[next].subtitle;
+      document.querySelectorAll('[data-t]').forEach(el=>{const k=el.dataset.t;if(copy[next][k])el.textContent=copy[next][k];});
+      document.querySelectorAll('[data-lang]').forEach(el=>el.classList.toggle('active',el.dataset.lang===next));
+    }
+    document.querySelectorAll('[data-lang]').forEach(el=>el.addEventListener('click',()=>applyLang(el.dataset.lang)));
+    function show(message,bad=false){notice.textContent=message;notice.className='notice'+(bad?' bad':'');notice.style.display='block';notice.scrollIntoView({behavior:'smooth',block:'center'});}
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();
+      if(!form.reportValidity())return;
+      const d=Object.fromEntries(new FormData(form));
+      const vehicle={
+        year:d.year?Number(d.year):null,make:d.make||null,model:d.model||null,submodel:d.trim||null,engine:d.engine||null,drivetrain:d.drive||null,
+        vin:String(d.vin||'').trim().toUpperCase()||null,license_plate:String(d.plate||'').trim()||null,mileage:d.mileage?Number(d.mileage):null,request_type:'Repair / Diagnostic'
+      };
+      button.disabled=true;button.textContent=copy[lang].sending;notice.style.display='none';
+      try{
+        const {error}=await sb.rpc('submit_public_intake',{
+          p_shop_id:SHOP_ID,p_customer_name:String(d.customerName||'').trim(),p_phone:String(d.phone||'').trim()||null,p_email:String(d.email||'').trim()||null,
+          p_address:String(d.location||'').trim()||null,p_availability:String(d.availability||'').trim()||null,p_current_location:d.location?{raw:d.location}:null,
+          p_vehicle:vehicle,p_customer_states:String(d.complaint||'').trim()
+        });
+        if(error)throw error;
+        form.reset();show(copy[lang].sent);button.textContent=copy[lang].submit;
+      }catch(err){
+        console.error('Autotechniques intake submit failed',err);
+        show(copy[lang].error,true);button.textContent=copy[lang].submit;
+      }finally{button.disabled=false;}
+    });
+  })();
+  </script>
 </body>
 </html>
