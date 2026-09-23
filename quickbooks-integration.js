@@ -15,7 +15,9 @@ function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt
 function toast(msg,type=''){document.querySelector('.biz-toast')?.remove();const d=document.createElement('div');d.className=`toast biz-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);}
 async function invoke(fn,body){
   if(!sb)throw new Error('Business integrations are not available.');
-  const {data,error}=await sb.functions.invoke(fn,{body});
+  const shop_id=shopContext().shopId;
+  if(!shop_id)throw new Error('Open the shop you want to manage first.');
+  const {data,error}=await sb.functions.invoke(fn,{body:{...body,shop_id}});
   if(error){
     let detail;
     try{detail=await error.context?.clone().json();}catch{}
