@@ -311,9 +311,6 @@ document.addEventListener('click',async e=>{
   if(action==='send-estimate'){
     e.preventDefault();e.stopImmediatePropagation();showStatus('Secure cross-device estimate approval is the next production module. The browser-only demo link is disabled.','');return;
   }
-  if(el.hasAttribute('data-plan')){
-    e.preventDefault();e.stopImmediatePropagation();showStatus('Stripe billing is not connected yet, so no subscription was charged or activated.','');return;
-  }
 },true);
 
 document.addEventListener('submit',async e=>{
