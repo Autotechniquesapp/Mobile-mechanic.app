@@ -311,11 +311,13 @@ Deno.serve(async (req) => {
   const userClient = createClient(supabaseUrl, anon, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return json({ error: "Authentication required." }, 401);
-  const { data: member } = await admin.from("shop_members").select("shop_id,role,status").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
-  if (!member) return json({ error: "Active shop membership required." }, 403);
+  const body = await req.json().catch(() => ({}));
+  const shopId = String(body.shop_id || "").trim();
+  if (!shopId) return json({ error: "Select a shop before managing connected apps." }, 400);
+  const { data: member } = await admin.from("shop_members").select("shop_id,role,status").eq("user_id", user.id).eq("shop_id", shopId).eq("status", "active").maybeSingle();
+  if (!member) return json({ error: "Active membership in the selected shop is required." }, 403);
   if (!["shop_owner", "manager"].includes(String(member.role))) return json({ error: "Only a shop owner or manager can manage connected apps." }, 403);
 
-  const body = await req.json().catch(() => ({}));
   const action = String(body.action || "status");
 
   const { data: catalogRows, error: catalogError } = await admin.from("mcp_connector_catalog").select("*").eq("enabled", true).order("category").order("display_name");
