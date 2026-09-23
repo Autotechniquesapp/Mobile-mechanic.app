@@ -42,7 +42,7 @@ test('public estimate backend is tracked and validates its signed link input',()
 });
 
 test('the fallback disclosure is cache-busted into production',()=>{
-  assert.match(html,/intake-queue\.js\?v=20260914-release-blockers1/);
+  assert.match(html,/intake-queue\.js\?v=20260923-clean-workup1/);
 });
 
 

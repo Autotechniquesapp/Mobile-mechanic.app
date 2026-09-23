@@ -137,7 +137,18 @@ function patchIntakeRequestedTime(){
     const job=findModalJob(modal),requested=job?.availability||'';upsertIntakeTimeRows(modal,requested,job);if(!requested)lookupRequestedTime(modal,job);
   });
 }
-function bind(){upgradeMetrics();patchMetricCounts();patchCalendarCards();ensureDayStrip();patchIntakeRequestedTime();}
+function openPendingIntakeSchedule(){
+  if(location.hash.split('?')[0]!=='#calendar')return;
+  let pending=null;
+  try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}
+  if(!pending?.jobId)return;
+  if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}
+  const selector=`[data-action="schedule-job"][data-job="${CSS.escape(String(pending.jobId))}"]`;
+  if(!$(selector))return;
+  localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');
+  openSchedule(String(pending.jobId),String(pending.start||''));
+}
+function bind(){upgradeMetrics();patchMetricCounts();patchCalendarCards();ensureDayStrip();patchIntakeRequestedTime();openPendingIntakeSchedule();}
 
 document.addEventListener('click',e=>{
   const closeBtn=e.target.closest('[data-cal-live-close]');if(closeBtn||e.target.classList?.contains('calendar-live-modal')){close();return;}

@@ -207,59 +207,13 @@ describe('intake queue live render', () => {
     assert.match(modal.textContent, /Dana Ruiz/);
   });
 
-  test('extracted parts are rendered as real elements, not just computed', () => {
+  test('AI workup, generated parts, supplier links, and AI map are not rendered in the incoming intake card', () => {
     const doc = ctx.window.document;
-    const text = doc.querySelector('[data-intake-queue-modal]').textContent;
-    // Brake work: none of these are the four parts the old code knew about.
-    for (const part of ['Brake pads', 'Brake rotors', 'Caliper']) {
-      assert.ok(text.includes(part), `"${part}" was not rendered into the card`);
-    }
-    assert.ok(text.includes('2014 Ford F-150'), 'part search terms are missing the vehicle');
-  });
-
-  test('each rendered part carries working supplier lookup links', () => {
-    const doc = ctx.window.document;
-    const links = [...doc.querySelectorAll('[data-intake-queue-modal] a[href*="autozonepro.com"]')];
-    assert.ok(links.length >= 3, `expected a supplier link per part, found ${links.length}`);
-    const href = links[0].getAttribute('href');
-    assert.ok(/searchText=.+/.test(href), 'the supplier link has no search term');
-    assert.ok(/Ford|F-150/.test(decodeURIComponent(href)), 'the supplier link does not identify the vehicle');
-  });
-
-  test('the parts map mount point is filled in by open-map.js', () => {
-    const doc = ctx.window.document;
-    const slot = doc.querySelector('[data-intake-parts-map]');
-    assert.ok(slot, 'the parts map container was never rendered');
-    assert.equal(slot.dataset.partsLocation, ADDRESS);
-    assert.ok(slot.dataset.partsNames.includes('|'), 'part names were not passed to the map');
-    assert.equal(slot.dataset.partsMapReady, '1', 'the map was never mounted');
-    assert.ok(slot.querySelector('.mma-map-canvas'), 'open-map.js did not build a map canvas in the slot');
-  });
-
-  test('the customer address is geocoded and plotted', () => {
-    assert.ok(ctx.fetched.some(u => u.includes('nominatim')), 'the address was never geocoded');
-    assert.ok(ctx.calls.markers.length >= 1, 'no marker was placed on the map');
-    const status = ctx.window.document.querySelector('[data-intake-parts-map] .mma-map-status');
-    assert.ok(status, 'the map has no status line');
-    assert.doesNotMatch(status.textContent, /busy right now/, 'the nearby-store search failed');
-  });
-
-  test('nearby stores are rendered with distances and per-part stock links', () => {
-    const doc = ctx.window.document;
-    const results = doc.querySelector('[data-intake-parts-map] .mma-map-results');
-    assert.ok(results, 'the store results container is missing');
-    const stores = [...results.querySelectorAll('[data-store]')];
-    assert.equal(stores.length, 2, `expected the two stubbed stores, rendered ${stores.length}`);
-    assert.match(results.textContent, /AutoZone/);
-    assert.match(stores[0].textContent, /\d+\.\d mi/, 'store distance was not rendered');
-    const stock = [...results.querySelectorAll('.mma-map-part-link')];
-    assert.ok(stock.length >= 3, `expected a stock link per part, found ${stock.length}`);
-    assert.match(results.textContent, /Live inventory needs a supplier account/);
-  });
-
-  test('the map fits its bounds around the customer and the stores', () => {
-    assert.ok(ctx.calls.fitBounds.length >= 1, 'the map never fit bounds to the results');
-    assert.ok(ctx.calls.markers.length >= 3, 'expected the customer plus both stores to be plotted');
+    const modal = doc.querySelector('[data-intake-queue-modal]');
+    assert.ok(modal, 'the intake modal failed to render');
+    assert.doesNotMatch(modal.textContent, /AI PRE-WORKUP|Likely causes|Confirmation tests|Parts to inspect|Labor guidance/i);
+    assert.equal(modal.querySelector('[data-intake-parts-map]'), null, 'AI parts map should not appear in the incoming intake card');
+    assert.equal(modal.querySelector('a[href*="autozonepro.com"]'), null, 'AI supplier links should not appear in the incoming intake card');
   });
 
   test('no part is rendered when the workup names none', async () => {

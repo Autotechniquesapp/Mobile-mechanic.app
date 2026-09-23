@@ -189,15 +189,48 @@ function aiWorkupMarkup(i){
   return `<div style="margin-top:9px;padding:9px;border:1px solid #303945;border-radius:9px"><b>🤖 AI pre-workup:</b> queued for analysis… <button class="btn btn-soft" style="margin-left:6px" data-retry-intake-ai="${esc(i.id)}">Run Now</button></div>`;
 }
 
+function intakeVehicleDetails(v={}){
+  const primary=[v.year,v.make,v.model,v.submodel||v.trim].filter(Boolean).join(' ')||'Vehicle details pending';
+  const details=[];
+  if(v.engine)details.push(`Engine: ${v.engine}`);
+  if(v.vin)details.push(`VIN: ${v.vin}`);
+  if(v.mileage)details.push(`Mileage: ${v.mileage}`);
+  return {primary,details};
+}
+function calendarStartHint(value=''){
+  const raw=String(value||'').trim();
+  if(!raw||/as soon as possible/i.test(raw))return '';
+  const parsed=new Date(raw.replace(/\s+at\s+/i,' '));
+  if(Number.isNaN(parsed.getTime()))return '';
+  const pad=n=>String(n).padStart(2,'0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth()+1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
 function intakeCard(i){
   const v=i.vehicle||{};
+  const vehicle=intakeVehicleDetails(v);
+  const address=i.address||i.current_location?.raw||'No service location';
   const when=i.created_at?new Date(i.created_at).toLocaleString():'';
   return `<div class="list-item" style="align-items:flex-start">
     <div class="list-icon">📥</div>
     <div class="list-main">
-      <b>${esc(i.customer_name)} — ${esc(vehicleText(v))}</b>
-      <p>${esc(i.phone||'No phone')} ${i.email?`• ${esc(i.email)}`:''}<br><b>Customer states:</b> ${esc(i.customer_states||'No complaint entered')}<br><span class="muted">${esc(i.address||i.current_location?.raw||'No service location')} ${i.availability?`• Preferred: ${esc(i.availability)}`:''} ${when?`• ${esc(when)}`:''}</span></p>
-      ${aiWorkupMarkup(i)}
+      <h3 style="margin:0 0 5px">${esc(i.customer_name||'Customer')}</h3>
+      <div style="display:grid;gap:3px;margin-bottom:10px">
+        <div><b>Phone:</b> ${esc(i.phone||'No phone')}</div>
+        <div><b>Address:</b> ${esc(address)}</div>
+        ${i.email?`<div><b>Email:</b> ${esc(i.email)}</div>`:''}
+      </div>
+      <div style="padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px;margin-bottom:9px">
+        <b>Vehicle</b>
+        <div style="margin-top:4px">${esc(vehicle.primary)}</div>
+        ${vehicle.details.length?`<div class="small muted" style="margin-top:3px">${vehicle.details.map(esc).join(' • ')}</div>`:''}
+      </div>
+      <div style="margin-bottom:8px"><b>Customer states:</b><br>${esc(i.customer_states||'No complaint entered')}</div>
+      <div style="padding:9px;border:1px solid #39434e;border-radius:9px">
+        <b>Requested Date & Time</b>
+        <div style="margin-top:4px">${esc(i.availability||'No requested date or time')}</div>
+        ${when?`<div class="small muted" style="margin-top:3px">Intake received ${esc(when)}</div>`:''}
+        <button class="btn btn-primary" style="margin-top:9px" data-convert-intake-calendar="${esc(i.id)}" data-calendar-start="${esc(calendarStartHint(i.availability||''))}">📅 Add to Calendar</button>
+      </div>
       <div class="list-actions" style="margin-top:10px"><button class="btn btn-primary" data-convert-intake="${esc(i.id)}">Convert to Job</button><button class="btn btn-soft" data-close-intake="${esc(i.id)}">Close Intake</button></div>
     </div>
   </div>`;
@@ -209,7 +242,7 @@ async function openQueue(){
     renderQueueButton(items.length);
     document.querySelector('.modal-backdrop')?.remove();
     const d=document.createElement('div');d.className='modal-backdrop';d.dataset.intakeQueueModal='1';
-    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer concern and AI preliminary workup before converting it to a job.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
+    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer details, vehicle, concern, and requested appointment before converting it to a job.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
     document.body.appendChild(d);
     mountIntakePartsMaps();
   }catch(err){notice(err.message||'Could not open intake queue.','bad');}
@@ -283,6 +316,23 @@ async function alignRepeatCustomerIdentity(intakeId){
   return true;
 }
 
+async function convertIntakeToCalendar(id,button){
+  if(!id||button?.disabled)return;
+  const original=button.textContent;
+  button.disabled=true;button.textContent='Opening Calendar…';
+  try{
+    await alignRepeatCustomerIdentity(id);
+    const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
+    if(error)throw error;
+    await carryWorkupToJob(id,data);
+    const c=cache();
+    if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
+    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:data,start:button.dataset.calendarStart||'',createdAt:Date.now()}));
+    document.querySelector('.modal-backdrop')?.remove();
+    location.hash='#calendar';
+    location.reload();
+  }catch(err){button.disabled=false;button.textContent=original;notice(err.message||'Could not open this intake on the calendar.','bad');}
+}
 async function convertIntake(id,button){
   button.disabled=true;button.textContent='Converting…';
   try{
@@ -290,7 +340,7 @@ async function convertIntake(id,button){
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
     await carryWorkupToJob(id,data);
-    notice('Customer, vehicle, job, and AI workup carried forward.','good');
+    notice('Customer, vehicle, and job created.','good');
     document.querySelector('.modal-backdrop')?.remove();
     const c=cache();
     if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
@@ -336,6 +386,7 @@ document.addEventListener('click',e=>{
   const q=e.target.closest('[data-production-intake-queue]');if(q){e.preventDefault();openQueue();return;}
   const close=e.target.closest('[data-close-intake-modal]');if(close){document.querySelector('.modal-backdrop')?.remove();return;}
   const retry=e.target.closest('[data-retry-intake-ai]');if(retry){e.preventDefault();retryAiWorkup(retry.dataset.retryIntakeAi,retry);return;}
+  const calendar=e.target.closest('[data-convert-intake-calendar]');if(calendar){e.preventDefault();convertIntakeToCalendar(calendar.dataset.convertIntakeCalendar,calendar);return;}
   const convert=e.target.closest('[data-convert-intake]');if(convert){e.preventDefault();convertIntake(convert.dataset.convertIntake,convert);return;}
   const closeItem=e.target.closest('[data-close-intake]');if(closeItem){e.preventDefault();closeIntake(closeItem.dataset.closeIntake,closeItem);return;}
 },true);
