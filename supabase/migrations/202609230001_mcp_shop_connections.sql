@@ -100,3 +100,28 @@ create index if not exists mcp_oauth_states_user_idx
   on public.mcp_oauth_states(user_id);
 create index if not exists mcp_oauth_states_provider_idx
   on public.mcp_oauth_states(provider);
+
+
+create policy "mcp catalog service only"
+on public.mcp_connector_catalog
+as restrictive
+for all
+to anon, authenticated
+using (false)
+with check (false);
+
+create policy "mcp connections service only"
+on public.shop_mcp_connections
+as restrictive
+for all
+to anon, authenticated
+using (false)
+with check (false);
+
+create policy "mcp oauth states service only"
+on public.mcp_oauth_states
+as restrictive
+for all
+to anon, authenticated
+using (false)
+with check (false);
