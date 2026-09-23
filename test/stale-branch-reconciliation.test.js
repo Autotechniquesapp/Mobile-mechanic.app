@@ -8,6 +8,8 @@ const production=fs.readFileSync('supabase-production.js','utf8');
 const intakeSchedule=fs.readFileSync('intake-scheduling.js','utf8');
 const admin=fs.readFileSync('admin.js','utf8');
 const integrations=fs.readFileSync('quickbooks-integration.js','utf8');
+const html=fs.readFileSync('index.html','utf8');
+const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
 
 test('first-100 launch billing UI matches production eligibility',()=>{
   assert.match(billing,/launch_promo_eligible/);
@@ -47,4 +49,12 @@ test('critical deployed OAuth and billing function source is tracked',()=>{
     'supabase/functions/stripe-billing/index.ts',
     'supabase/functions/platform-admin/index.ts'
   ]) assert.ok(fs.existsSync(path), `missing production source: ${path}`);
+});
+
+
+test('MCP connected-app source is loaded cleanly and validated',()=>{
+  assert.match(html,/src="mcp-connections\.js/);
+  assert.doesNotMatch(html,/<\\/script>\\\\n\s*<script src="mcp-connections\.js/);
+  assert.match(pkg.scripts.check,/node --check mcp-connections\.js/);
+  assert.match(pkg.scripts.check,/supabase\/functions\/mcp-connections\/index\.ts/);
 });
