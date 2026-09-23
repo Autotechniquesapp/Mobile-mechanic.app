@@ -54,7 +54,7 @@ test('critical deployed OAuth and billing function source is tracked',()=>{
 
 test('MCP connected-app source is loaded cleanly and validated',()=>{
   assert.match(html,/src="mcp-connections\.js/);
-  assert.doesNotMatch(html,/<\\/script>\\\\n\s*<script src="mcp-connections\.js/);
+  assert.equal(html.includes('</script>\\n  <script src="mcp-connections.js'),false);
   assert.match(pkg.scripts.check,/node --check mcp-connections\.js/);
   assert.match(pkg.scripts.check,/supabase\/functions\/mcp-connections\/index\.ts/);
 });
