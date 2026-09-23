@@ -26,12 +26,12 @@ Deno.serve(async(req)=>{
     await checked(admin.from("shop_integrations").upsert({shop_id:shopId,provider:"quickbooks",...patch,updated_at:new Date().toISOString()},{onConflict:"shop_id,provider"}));
   }
 
-  async function authShop(){
+  async function authShop(shopId:string){
     const auth=req.headers.get("Authorization")||"";
     const userClient=createClient(supabaseUrl,publishable,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});
     const {data:{user}}=await userClient.auth.getUser();
     if(!user)return {error:json({error:"Authentication required."},401)};
-    const {data:member}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("status","active").limit(1).maybeSingle();
+    const {data:member}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("shop_id",shopId).eq("status","active").maybeSingle();
     if(!member||!["shop_owner","manager"].includes(member.role))return {error:json({error:"Only a shop owner or manager can manage QuickBooks."},403)};
     return {user,member};
   }
@@ -96,10 +96,12 @@ Deno.serve(async(req)=>{
     }
 
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
-    const authResult=await authShop();
+    const body=await req.json().catch(()=>({}));
+    const shopId=String(body.shop_id||"").trim();
+    if(!shopId)return json({error:"Select a shop before managing QuickBooks."},400);
+    const authResult=await authShop(shopId);
     if("error" in authResult)return authResult.error;
     const {member}=authResult;
-    const body=await req.json().catch(()=>({}));
     const action=String(body.action||"status");
 
     if(action==="status"){
