@@ -31,7 +31,8 @@ This audit compares the repository's old branches with current `main` and with t
 - Remove obsolete frontend guards that still claimed Stripe billing was not connected.
 - Decouple Platform Owner UI from the AutoTechniques shop identity; protect permanent complimentary shops by `comped_permanent`, not slug.
 - Preserve detailed backend integration errors in the shop integration UI.
-- Recover exact deployed source for QuickBooks OAuth, Xero OAuth, PayPal onboarding, Stripe subscription billing, Platform Admin, and the shared OAuth safety helper.
+- Force MCP, QuickBooks, Xero, PayPal, Google, and business-integration requests to authorize against the shop currently selected in the app instead of the user's first membership.
+- Recover exact deployed source for QuickBooks OAuth, Xero OAuth, PayPal onboarding, Google OAuth, Stripe subscription billing, Platform Admin, and the shared OAuth safety helper.
 
 ## Production / GitHub source drift
 
@@ -63,7 +64,7 @@ At audit time, deployed functions not represented by a same-named source directo
 - `vehicle-data`
 - `xero-oauth`
 
-This reconciliation PR recovers the critical branch-related OAuth/billing/admin source listed above. The remaining deployed-only functions should be synchronized from production in a dedicated source-of-truth pass, using the deployed versions as the reference.
+This reconciliation PR recovers the critical branch-related OAuth/billing/admin source listed above, including Google OAuth after the multi-shop audit exposed the same first-membership problem. The remaining deployed-only functions should be synchronized from production in a dedicated source-of-truth pass, using the deployed versions as the reference.
 
 The production migration history also includes migrations that are absent from the repository, including the first-100 launch promotion and the newer MCP shop-connections migration. Do not invent replacement historical migration files from memory. Reconcile the remote schema/migration history with a linked Supabase CLI workflow (`supabase db pull` / migration-history review) and commit the resulting canonical migration state.
 
