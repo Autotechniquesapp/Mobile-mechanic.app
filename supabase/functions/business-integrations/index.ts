@@ -24,8 +24,9 @@ Deno.serve(async(req)=>{
  const auth=req.headers.get("Authorization")||"";
  const userClient=createClient(supabaseUrl,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});const admin=createClient(supabaseUrl,service,{auth:{persistSession:false}});
  const {data:{user}}=await userClient.auth.getUser();if(!user)return json({error:"Authentication required."},401);
- const {data:member}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("status","active").limit(1).maybeSingle();if(!member)return json({error:"Active shop membership required."},403);
- const body=await req.json().catch(()=>({}));const action=String(body.action||"status");const provider=String(body.provider||"");const item:any=catalog.find((x:any)=>x.provider===provider);
+ const body=await req.json().catch(()=>({}));const shopId=String(body.shop_id||"").trim();if(!shopId)return json({error:"Select a shop before managing integrations."},400);
+ const {data:member}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("shop_id",shopId).eq("status","active").maybeSingle();if(!member)return json({error:"Active membership in the selected shop is required."},403);
+ const action=String(body.action||"status");const provider=String(body.provider||"");const item:any=catalog.find((x:any)=>x.provider===provider);
  if(action==="disconnect"){
   if(!item)return json({error:"Unknown integration."},400);
   if(item.alwaysOn)return json({error:"This built-in integration cannot be disconnected."},409);

@@ -215,11 +215,6 @@ document.addEventListener('click',e=>{
     return;
   }
 
-  const plan=e.target.closest('[data-plan]');
-  if(!plan)return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  notice('Stripe billing is not connected yet. No subscription was charged or activated.');
 },true);
 
 document.addEventListener('invalid',e=>{

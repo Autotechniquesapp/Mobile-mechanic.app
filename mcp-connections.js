@@ -3,9 +3,11 @@
 const sb=window.MobileMechanicSupabase;
 if(!sb)return;
 let busy=false,timer=null;
+const DBKEY='mobile_mechanic_ai_approved_v7';
+function selectedShopId(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}')?.session?.shopId||'';}catch{return '';}}
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function toast(msg,type=''){document.querySelector('.mcp-toast')?.remove();const d=document.createElement('div');d.className=`toast mcp-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5000);}
-async function call(action,provider=''){const {data,error}=await sb.functions.invoke('mcp-connections',{body:{action,...(provider?{provider}:{})}});if(error)throw new Error(error.message||'Connected-app request failed.');if(data?.error)throw new Error(data.error);return data;}
+async function call(action,provider=''){const shop_id=selectedShopId();if(!shop_id)throw new Error('Open the shop you want to manage first.');const {data,error}=await sb.functions.invoke('mcp-connections',{body:{action,shop_id,...(provider?{provider}:{})}});if(error)throw new Error(error.message||'Connected-app request failed.');if(data?.error)throw new Error(data.error);return data;}
 function main(){if(!location.hash.startsWith('#settings'))return null;return document.querySelector('.content');}
 function badge(status){const map={connected:['Connected','green'],connecting:['Connecting','orange'],needs_attention:['Needs attention','orange'],not_connected:['Not connected','red'],disabled:['Disabled','red']};const [label,cls]=map[status]||[status||'Not connected','red'];return `<span class="badge ${cls}">${esc(label)}</span>`;}
 function cardMarkup(c){const connected=c.status==='connected';const working=c.status==='connecting';return `<div class="list-item" data-mcp-provider="${esc(c.provider)}"><div class="list-icon">↔</div><div class="list-main"><b>${esc(c.name)} ${badge(c.status)} <span class="badge">MCP</span></b><p>${esc(c.notes||'Connect an existing account without pasting API keys.')}</p>${c.last_error?`<p class="small red">${esc(c.last_error)}</p>`:''}<div class="list-actions">${connected?`<button class="btn btn-soft" data-mcp-test="${esc(c.provider)}">Check Connection</button><button class="btn btn-danger" data-mcp-disconnect="${esc(c.provider)}">Disconnect</button>`:`<button class="btn btn-primary" data-mcp-connect="${esc(c.provider)}" ${working?'disabled':''}>${working?'Connecting…':'Connect '+esc(c.name)}</button>`}</div></div></div>`;}

@@ -273,11 +273,11 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(action==='save-schedule'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job;if(!jid)return;
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job,sid=currentShopId();if(!jid||!sid)return;
     const startVal=document.getElementById('scheduleStart')?.value;if(!startVal)return showStatus('Pick a start time.','bad');
     const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
     const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
-    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
+    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
   if(action==='toggle-addon'){
@@ -294,25 +294,22 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(action==='save-findings'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({findings:document.getElementById('findingText')?.value||'',codes:document.getElementById('codeInput')?.value||'',status:'diagnosing'}).eq('id',jid);if(error)throw error;await refreshWorkspace('#findings',jid);}catch(err){showStatus(err.message||'Could not save findings.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({findings:document.getElementById('findingText')?.value||'',codes:document.getElementById('codeInput')?.value||'',status:'diagnosing'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#findings',jid);}catch(err){showStatus(err.message||'Could not save findings.','bad');}
     return;
   }
   if(action==='complete-job'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid);if(error)throw error;let balances={updated:0,errors:[]};try{balances=await window.MobileMechanicSquareSync?.requestFinalBalances?.(jid)||balances;}catch(balanceError){balances.errors=[balanceError?.message||'Square balance update failed.'];}await refreshWorkspace('#jobs',jid);if(balances.errors.length)showStatus('Job completed, but Square could not make the final balance due. Open the invoice and retry before handing off the vehicle.','bad');else if(balances.updated)showStatus(`Job completed. ${balances.updated===1?'The Square final balance is':'Square final balances are'} now due.`,'good');}catch(err){showStatus(err.message||'Could not complete job.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;let balances={updated:0,errors:[]};try{balances=await window.MobileMechanicSquareSync?.requestFinalBalances?.(jid)||balances;}catch(balanceError){balances.errors=[balanceError?.message||'Square balance update failed.'];}await refreshWorkspace('#jobs',jid);if(balances.errors.length)showStatus('Job completed, but Square could not make the final balance due. Open the invoice and retry before handing off the vehicle.','bad');else if(balances.updated)showStatus(`Job completed. ${balances.updated===1?'The Square final balance is':'Square final balances are'} now due.`,'good');}catch(err){showStatus(err.message||'Could not complete job.','bad');}
     return;
   }
   if(action==='decline-job'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId();if(!jid)return;
-    try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
     return;
   }
   if(action==='send-estimate'){
     e.preventDefault();e.stopImmediatePropagation();showStatus('Secure cross-device estimate approval is the next production module. The browser-only demo link is disabled.','');return;
-  }
-  if(el.hasAttribute('data-plan')){
-    e.preventDefault();e.stopImmediatePropagation();showStatus('Stripe billing is not connected yet, so no subscription was charged or activated.','');return;
   }
 },true);
 

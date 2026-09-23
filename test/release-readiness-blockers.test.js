@@ -44,3 +44,11 @@ test('public estimate backend is tracked and validates its signed link input',()
 test('the fallback disclosure is cache-busted into production',()=>{
   assert.match(html,/intake-queue\.js\?v=20260914-release-blockers1/);
 });
+
+
+test('production job writes stay scoped to the selected shop',()=>{
+  assert.match(production,/save-schedule'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
+  assert.match(production,/save-findings'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
+  assert.match(production,/complete-job'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
+  assert.match(production,/decline-job'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
+});

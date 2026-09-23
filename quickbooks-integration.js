@@ -11,9 +11,21 @@ const PARTS_PORTALS=[
   {provider:'napa_prolink',name:'NAPA PROLink',initials:'NP',url:'https://www.napaprolink.com/',note:'Open NAPA PROLink and sign in with this shop\'s commercial account.'},
   {provider:'advance_professional',name:'Advance Professional',initials:'AP',url:'https://my.advancepro.com/',note:'Open MyAdvance and sign in with this shop\'s Advance Professional account.'}
 ];
-function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function toast(msg,type=''){document.querySelector('.biz-toast')?.remove();const d=document.createElement('div');d.className=`toast biz-toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);}
-async function invoke(fn,body){if(!sb)throw new Error('Business integrations are not available.');const {data,error}=await sb.functions.invoke(fn,{body});if(error)throw new Error(error.message||'Integration request failed.');if(data?.error)throw new Error(data.error);return data;}
+async function invoke(fn,body){
+  if(!sb)throw new Error('Business integrations are not available.');
+  const shop_id=shopContext().shopId;
+  if(!shop_id)throw new Error('Open the shop you want to manage first.');
+  const {data,error}=await sb.functions.invoke(fn,{body:{...body,shop_id}});
+  if(error){
+    let detail;
+    try{detail=await error.context?.clone().json();}catch{}
+    throw new Error(typeof detail?.error==='string'?detail.error:error.message||'Integration request failed.');
+  }
+  if(data?.error)throw new Error(data.error);
+  return data;
+}
 function settingsMain(){if(location.hash.split('?')[0]!=='#settings')return null;return document.querySelector('.content');}
 function returnUrl(){return `${location.origin}${location.pathname}#settings`;}
 function portalKey(){const sid=shopContext().shopId||'unknown';return `mma_parts_portals_${sid}`;}
