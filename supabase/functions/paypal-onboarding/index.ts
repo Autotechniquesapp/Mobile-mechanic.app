@@ -100,11 +100,10 @@ Deno.serve(async(req)=>{
     const userClient=createClient(supabaseUrl,publishable,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});
     const {data:{user}}=await userClient.auth.getUser();
     if(!user)return json({error:"Authentication required."},401);
-    const {data:m}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("status","active").limit(1).maybeSingle();
-    if(!m||!["shop_owner","owner","manager"].includes(m.role))return json({error:"Only a shop owner or manager can connect PayPal."},403);
+    const body=await req.json().catch(()=>({}));const shopId=String(body.shop_id||"").trim();if(!shopId)return json({error:"Select a shop before connecting PayPal."},400);
+    const {data:m}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("shop_id",shopId).eq("status","active").maybeSingle();
+    if(!m||!["shop_owner","owner","manager"].includes(m.role))return json({error:"Only a shop owner or manager in the selected shop can connect PayPal."},403);
     if(!clientId||!clientSecret||!partnerId)return json({error:"PayPal is wired into Mobile Mechanic AI, but the platform still needs PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_PARTNER_ID in Supabase Edge Function secrets before seller onboarding can start.",code:"paypal_needs_keys"},503);
-
-    const body=await req.json().catch(()=>({}));
     const state=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-","");
     const returnUrl=safeReturn(String(body.return_url||"https://mobile-mechanic.app/#settings"));
     await checked(admin.from("payment_oauth_states").insert({state_token:state,shop_id:m.shop_id,provider:"paypal",user_id:user.id,return_url:returnUrl}));
