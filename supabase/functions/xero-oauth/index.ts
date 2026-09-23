@@ -40,10 +40,10 @@ Deno.serve(async(req)=>{
   const auth=req.headers.get("Authorization")||"";
   const userClient=createClient(supabaseUrl,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false}});
   const {data:{user}}=await userClient.auth.getUser();if(!user)return json({error:"Authentication required."},401);
-  const {data:m}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("status","active").limit(1).maybeSingle();
-  if(!m||!["shop_owner","manager"].includes(m.role))return json({error:"Only a shop owner or manager can connect Xero."},403);
+  const body=await req.json().catch(()=>({}));const shopId=String(body.shop_id||"").trim();if(!shopId)return json({error:"Select a shop before connecting Xero."},400);
+  const {data:m}=await admin.from("shop_members").select("shop_id,role,status").eq("user_id",user.id).eq("shop_id",shopId).eq("status","active").maybeSingle();
+  if(!m||!["shop_owner","manager"].includes(m.role))return json({error:"Only a shop owner or manager in the selected shop can connect Xero."},403);
   if(!clientId||!clientSecret){await setIntegration(m.shop_id,{status:"needs_keys",last_error:"Xero OAuth credentials are missing."});return json({error:"Xero is ready in the app, but XERO_CLIENT_ID and XERO_CLIENT_SECRET still need to be added to Supabase secrets.",code:"xero_needs_keys",redirect_uri:redirectUri},503);}
-  const body=await req.json().catch(()=>({}));
   const state=crypto.randomUUID().replaceAll("-","")+crypto.randomUUID().replaceAll("-","");
   const returnUrl=safeReturn(String(body.return_url||"https://mobile-mechanic.app/#settings"));
   await checked(admin.from("integration_oauth_states").insert({state_token:state,shop_id:m.shop_id,provider:"xero",user_id:user.id,return_url:returnUrl}));
