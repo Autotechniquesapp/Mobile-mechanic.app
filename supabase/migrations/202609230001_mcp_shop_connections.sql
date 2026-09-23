@@ -91,3 +91,12 @@ create index if not exists shop_mcp_connections_shop_idx
 
 create index if not exists mcp_oauth_states_expiry_idx
   on public.mcp_oauth_states(expires_at);
+
+create index if not exists shop_mcp_connections_provider_idx
+  on public.shop_mcp_connections(provider);
+create index if not exists mcp_oauth_states_shop_idx
+  on public.mcp_oauth_states(shop_id);
+create index if not exists mcp_oauth_states_user_idx
+  on public.mcp_oauth_states(user_id);
+create index if not exists mcp_oauth_states_provider_idx
+  on public.mcp_oauth_states(provider);
