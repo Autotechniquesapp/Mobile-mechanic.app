@@ -39,7 +39,7 @@ test('customer intake link buttons use delegated handlers', () => {
 });
 
 test('job rows do not nest an action button inside another button', () => {
-  assert.match(source, /class="list-item job-list-item" role="button"/);
+  assert.match(source, /class="ops-job-card job-list-item" role="button"/);
   assert.doesNotMatch(source, /<button class="list-item"[^`]*data-job=/);
 });
 
