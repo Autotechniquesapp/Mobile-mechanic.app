@@ -19,7 +19,7 @@ function activeJobs(){return (shop()?.jobs||[]).filter(j=>!j.completedAt&&!['Com
 function scheduled(){return activeJobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return activeJobs().filter(j=>!j.scheduledStart);}
 function notify(msg,type='good'){if(typeof window.toast==='function')return window.toast(msg,type);document.querySelector('.toast')?.remove();const d=document.createElement('div');d.className=`toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3000);}
-function openJob(id){const trigger=document.createElement('div');trigger.setAttribute('data-open-job',String(id));trigger.setAttribute('role','button');trigger.hidden=true;document.body.appendChild(trigger);trigger.click();setTimeout(()=>trigger.remove(),0);}
+function openJob(id){if(typeof window.MobileMechanicOpenJob==='function')return window.MobileMechanicOpenJob(id);location.hash='#jobs';}
 function openSchedule(id,start=''){const b=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(id))}"]`);if(!b)return notify('That job could not be opened for scheduling.','bad');b.click();if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input)input.value=start;},80);}
 function openPendingIntakeSchedule(){let pending=null;try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}if(!pending?.jobId)return;if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');if(pending.start){const d=new Date(pending.start);if(!Number.isNaN(d.getTime())){selected=d;week=startWeek(d);render();}}openSchedule(String(pending.jobId),String(pending.start||''));}
 async function removeSchedule(id){
@@ -37,21 +37,21 @@ function maps(loc){if(!loc)return notify('No service location saved.','bad');win
 function render(){
   if(location.hash.split('?')[0]!=='#calendar')return;
   const root=$('[data-mma-calendar]');if(!root)return;
-  const strip=$('[data-cal-week-strip]'),agenda=$('[data-cal-agenda]'),needs=$('[data-cal-unscheduled]'),title=$('[data-cal-week-title]'),dayTitle=$('[data-cal-day-title]');
+  const grid=$('[data-cal-week-grid]'),needs=$('[data-cal-unscheduled]'),title=$('[data-cal-week-title]');
   const end=addDays(week,6);title.textContent=`${week.toLocaleDateString([],{month:'short',day:'numeric'})} – ${end.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}`;
-  strip.innerHTML=Array.from({length:7},(_,i)=>{const d=addDays(week,i),count=scheduled().filter(j=>sameDay(j.scheduledStart,d)).length;return `<button type="button" class="ops-cal-day ${sameDay(d,new Date())?'today':''} ${sameDay(d,selected)?'active':''}" data-cal-day="${dayKey(d)}"><small>${esc(d.toLocaleDateString([],{weekday:'short'}))}</small><b>${d.getDate()}</b><small>${count?count+' job'+(count===1?'':'s'):''}</small></button>`;}).join('');
-  dayTitle.textContent=dateLabel(selected);
-  const rows=scheduled().filter(j=>sameDay(j.scheduledStart,selected));
-  agenda.innerHTML=rows.length?rows.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-cal-open-job="${esc(j.id)}"><time>${esc(time(j.scheduledStart))}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicle(j.vehicle))}</span><small>${esc(j.location||'No service location')}</small><div class="ops-agenda-actions"><button type="button" class="btn btn-soft" data-cal-edit="${esc(j.id)}">Edit Time</button><button type="button" class="btn btn-soft" data-cal-maps="${esc(j.location||'')}">Maps</button><button type="button" class="btn btn-soft" data-cal-remove="${esc(j.id)}">Remove</button></div></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">No jobs on this day.</div>';
+  const all=scheduled();
+  grid.innerHTML=Array.from({length:7},(_,i)=>{
+    const d=addDays(week,i),rows=all.filter(j=>sameDay(j.scheduledStart,d));
+    return `<section class="ops-week-day ${sameDay(d,new Date())?'today':''}"><header><span>${esc(d.toLocaleDateString([],{weekday:'short'}))}</span><b>${d.getDate()}</b><small>${rows.length} job${rows.length===1?'':'s'}</small></header><div class="ops-week-day-body">${rows.length?rows.map(j=>`<article class="ops-cal-job" role="button" tabindex="0" data-cal-open-job="${esc(j.id)}"><time>${esc(time(j.scheduledStart))}</time><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicle(j.vehicle))}</span><small>${esc(j.location||'No service location')}</small><div class="ops-cal-job-actions"><button type="button" data-cal-edit="${esc(j.id)}">Edit</button><button type="button" data-cal-maps="${esc(j.location||'')}">Map</button><button type="button" data-cal-remove="${esc(j.id)}">Remove</button></div></article>`).join(''):'<div class="ops-week-empty">Open</div>'}</div></section>`;
+  }).join('');
   const pending=unscheduled();
-  needs.innerHTML=pending.length?pending.map(j=>`<div class="ops-need-card"><b>${esc(j.customerName||'Customer')} · ${esc(vehicle(j.vehicle))}</b><span>${esc(j.availability||'No requested time')}</span><small>${esc(j.complaint||'')}</small><div class="list-actions"><button class="btn btn-primary" type="button" data-cal-edit="${esc(j.id)}">Schedule</button><button class="btn btn-soft" type="button" data-cal-open-job="${esc(j.id)}">Open Job</button></div></div>`).join(''):'<div class="mmp-empty">Everything active is scheduled.</div>';
+  needs.innerHTML=pending.length?pending.map(j=>`<div class="ops-need-card" role="button" tabindex="0" data-cal-open-job="${esc(j.id)}"><b>${esc(j.customerName||'Customer')} · ${esc(vehicle(j.vehicle))}</b><span>${esc(j.availability||'No requested time')}</span><small>${esc(j.complaint||'')}</small><div class="list-actions"><button class="btn btn-primary" type="button" data-cal-edit="${esc(j.id)}">Schedule</button></div></div>`).join(''):'<div class="mmp-empty">Everything active is scheduled.</div>';
 }
 document.addEventListener('click',e=>{
   if(location.hash.split('?')[0]!=='#calendar')return;
-  const day=e.target.closest?.('[data-cal-day]');if(day){selected=new Date(`${day.dataset.calDay}T12:00:00`);render();return;}
-  if(e.target.closest?.('[data-cal-week-prev]')){week=addDays(week,-7);selected=week;render();return;}
-  if(e.target.closest?.('[data-cal-week-next]')){week=addDays(week,7);selected=week;render();return;}
-  if(e.target.closest?.('[data-cal-today]')){selected=new Date();week=startWeek(selected);render();return;}
+  if(e.target.closest?.('[data-cal-week-prev]')){week=addDays(week,-7);render();return;}
+  if(e.target.closest?.('[data-cal-week-next]')){week=addDays(week,7);render();return;}
+  if(e.target.closest?.('[data-cal-today]')){week=startWeek(new Date());render();return;}
   const edit=e.target.closest?.('[data-cal-edit]');if(edit){e.preventDefault();e.stopPropagation();openSchedule(edit.dataset.calEdit);return;}
   const map=e.target.closest?.('[data-cal-maps]');if(map){e.preventDefault();e.stopPropagation();maps(map.dataset.calMaps);return;}
   const rem=e.target.closest?.('[data-cal-remove]');if(rem){e.preventDefault();e.stopPropagation();removeSchedule(rem.dataset.calRemove);return;}
