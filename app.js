@@ -143,7 +143,7 @@ function topbar(s,active='dashboard'){
   const u=currentUser();
   return `<header class="topbar">
     <button class="top-btn menu-toggle" data-action="toggle-menu" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
-    <div class="brand" data-route="dashboard">${logo(s,'brand-mark')}<div class="brand-copy"><div class="brand-title">MOBILE <span class="red">MECHANIC</span> AI</div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
+    <div class="brand" data-route="dashboard">${logo(s,'brand-mark')}<div class="brand-copy"><div class="brand-title">MOBILE <span class="red">MECHANIC</span> AI <em class="app-version">V2</em></div><div class="brand-sub">Work Smarter. Fix Faster. Get Paid.</div></div></div>
     <div class="top-spacer"></div>
     ${db.session?.supportMode?`<button class="btn btn-soft" data-action="return-admin">Return to Admin</button>`:''}
     <div class="shop-pill">${ic('shield')}<span>${esc(s?.name||'Shop')}</span></div>
@@ -157,11 +157,11 @@ function mobileDrawer(s,active){
     ['time-clock','clock','Time Clock'],['integrations','settings','Integrations'],['settings','settings','Settings']
   ].filter(([route])=>routeEnabled(route,s));
   const role=currentUser()?.role==='owner'?'Shop Owner':currentUser()?.role||'Technician';
-  return `<div class="drawer-backdrop" data-action="close-menu" aria-hidden="true"></div><aside class="mobile-drawer" aria-hidden="true" aria-label="Main navigation"><div class="drawer-head">${logo(s)}<div><b>Mobile Mechanic AI</b><span>${esc(role)}</span></div><button data-action="close-menu" aria-label="Close navigation">×</button></div><nav>${links.map(([r,i,t])=>`<button class="drawer-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span><strong>›</strong></button>`).join('')}</nav><div class="drawer-account"><b>${esc(s.name)}</b><span>${esc(currentUser()?.name||'Technician')} · ${plans[s.plan]?.name||''}</span></div></aside>`;
+  return `<div class="drawer-backdrop" data-action="close-menu" aria-hidden="true"></div><aside class="mobile-drawer" aria-hidden="true" aria-label="Main navigation"><div class="drawer-head">${logo(s)}<div><b>Mobile Mechanic AI <em class="app-version">V2</em></b><span>${esc(role)}</span></div><button data-action="close-menu" aria-label="Close navigation">×</button></div><nav>${links.map(([r,i,t])=>`<button class="drawer-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span><strong>›</strong></button>`).join('')}</nav><div class="drawer-account"><b>${esc(s.name)}</b><span>${esc(currentUser()?.name||'Technician')} · ${plans[s.plan]?.name||''}</span></div></aside>`;
 }
 function rail(s,active){
   const links=[['dashboard','home','Dashboard'],['calendar','calendar','Schedule'],['jobs','jobs','Work Board'],['customers','users','Customers'],['quote','money','Estimates'],['reports','report','Reports'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
-  return `<aside class="side-rail ops-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div><button class="ops-quick-add" data-route="new-intake">${ic('wrench')}<span>New Job</span></button><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
+  return `<aside class="side-rail ops-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI <em class="app-version">V2</em></b></div><button class="ops-quick-add" data-route="new-intake">${ic('wrench')}<span>New Job</span></button><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
 }
 function bottomNav(active){
   const s=currentShop(),links=[['dashboard','home','Home'],['customers','users','Customers'],['calendar','calendar','Schedule'],['jobs','jobs','Jobs'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
