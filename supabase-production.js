@@ -303,6 +303,22 @@ document.addEventListener('click',async e=>{
     try{const {error}=await sb.from('jobs').update({status:'completed',completed_at:new Date().toISOString(),carfax_status:'Ready'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;let balances={updated:0,errors:[]};try{balances=await window.MobileMechanicSquareSync?.requestFinalBalances?.(jid)||balances;}catch(balanceError){balances.errors=[balanceError?.message||'Square balance update failed.'];}await refreshWorkspace('#jobs',jid);if(balances.errors.length)showStatus('Job completed, but Square could not make the final balance due. Open the invoice and retry before handing off the vehicle.','bad');else if(balances.updated)showStatus(`Job completed. ${balances.updated===1?'The Square final balance is':'Square final balances are'} now due.`,'good');}catch(err){showStatus(err.message||'Could not complete job.','bad');}
     return;
   }
+  if(action==='delete-job'){
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    try{
+      const cleared=await sb.from('jobs').update({scheduled_start_at:null,scheduled_end_at:null}).eq('id',jid).eq('shop_id',sid);
+      if(cleared.error)throw cleared.error;
+      let calendarWarning='';
+      try{const sync=await sb.functions.invoke('calendar-sync',{body:{action:'sync_job',job_id:jid}});if(sync.error)calendarWarning=' External calendar cleanup may need attention.';}catch{calendarWarning=' External calendar cleanup may need attention.';}
+      const removed=await sb.from('jobs').delete().eq('id',jid).eq('shop_id',sid);
+      if(removed.error)throw removed.error;
+      const cache=readCache(),shop=cache.shops?.[sid];
+      if(shop){shop.jobs=(shop.jobs||[]).filter(j=>String(j.id)!==String(jid));shop.completedJobs=(shop.completedJobs||[]).filter(j=>String(j.id)!==String(jid));if(String(cache.session?.activeJobId||'')===String(jid))cache.session.activeJobId=null;writeCache(cache);}
+      await refreshWorkspace('#jobs');
+      showStatus('Job permanently deleted.'+calendarWarning,calendarWarning?'bad':'good');
+    }catch(err){showStatus(err.message||'Could not permanently delete job.','bad');}
+    return;
+  }
   if(action==='decline-job'){
     e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
     try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
