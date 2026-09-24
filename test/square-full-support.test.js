@@ -23,7 +23,7 @@ test('the production shell loads the Square sync controller with the current cac
   assert.match(processors, /data-square-sync-slot/);
   assert.match(html, /supabase-production\.js\?v=20260923-branch-reconcile1/);
   assert.match(html, /youtube-repair\.js\?v=20260915-square-deposit1/);
-  assert.match(html, /app\.js\?v=20260914-repeat-customer1/);
+  assert.match(html, /app\.js\?v=20260924-autoleap1/);
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {

@@ -152,17 +152,16 @@ function topbar(s,active='dashboard'){
 }
 function mobileDrawer(s,active){
   const links=[
-    ['dashboard','home','Dashboard'],['jobs','wrench','Jobs'],['quote','brain','AI Quotes'],
-    ['customers','users','Customers'],['calendar','calendar','Schedule'],['time-clock','clock','Time Clock'],
-    ['reports','report','Reports'],['service-info','book','Resources'],['integrations','settings','Integrations'],
-    ['settings','settings','Settings']
+    ['dashboard','home','Dashboard'],['calendar','calendar','Schedule'],['jobs','jobs','Work Board'],
+    ['customers','users','Customers'],['quote','money','Estimates'],['reports','report','Reports'],
+    ['time-clock','clock','Time Clock'],['integrations','settings','Integrations'],['settings','settings','Settings']
   ].filter(([route])=>routeEnabled(route,s));
   const role=currentUser()?.role==='owner'?'Shop Owner':currentUser()?.role||'Technician';
   return `<div class="drawer-backdrop" data-action="close-menu" aria-hidden="true"></div><aside class="mobile-drawer" aria-hidden="true" aria-label="Main navigation"><div class="drawer-head">${logo(s)}<div><b>Mobile Mechanic AI</b><span>${esc(role)}</span></div><button data-action="close-menu" aria-label="Close navigation">×</button></div><nav>${links.map(([r,i,t])=>`<button class="drawer-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span><strong>›</strong></button>`).join('')}</nav><div class="drawer-account"><b>${esc(s.name)}</b><span>${esc(currentUser()?.name||'Technician')} · ${plans[s.plan]?.name||''}</span></div></aside>`;
 }
 function rail(s,active){
-  const links=[['dashboard','home','Dashboard'],['jobs','jobs','Jobs'],['calendar','calendar','Calendar'],['customers','users','Customers'],['reports','report','Reports'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
-  return `<aside class="side-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
+  const links=[['dashboard','home','Dashboard'],['calendar','calendar','Schedule'],['jobs','jobs','Work Board'],['customers','users','Customers'],['quote','money','Estimates'],['reports','report','Reports'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
+  return `<aside class="side-rail ops-rail"><div class="rail-brand">${logo(s)}<b>MOBILE<br>MECHANIC AI</b></div><button class="ops-quick-add" data-route="new-intake">${ic('wrench')}<span>New Job</span></button><div class="rail-nav">${links.map(([r,i,t])=>`<button class="rail-link ${active===r?'active':''}" data-route="${r}">${ic(i)}<span>${t}</span></button>`).join('')}</div><div class="rail-foot"><b>${esc(currentUser()?.name||'Technician')}</b>${esc(currentUser()?.role||'')} • ${plans[s.plan]?.name||''}<br>${s.subscriptionStatus==='active'?'Subscription active':`${trialDays(s)} trial days remaining`}</div></aside>`;
 }
 function bottomNav(active){
   const s=currentShop(),links=[['dashboard','home','Home'],['customers','users','Customers'],['calendar','calendar','Schedule'],['jobs','jobs','Jobs'],['more','more','More']].filter(([route])=>routeEnabled(route,s));
@@ -171,7 +170,7 @@ function bottomNav(active){
 function shopShell(content, active='dashboard'){
   const s=currentShop();
   if(!s) return login();
-  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}${mobileDrawer(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div>${bottomNav(active)}</div>`;
+  ROOT.innerHTML = `<div class="shell">${topbar(s,active)}${mobileDrawer(s,active)}<div class="layout"><main class="content">${content}</main>${rail(s,active)}</div></div>`;
   applyModuleVisibility(s);
   bind();
 }
@@ -229,27 +228,29 @@ function dashboard(){
   const s=currentShop(); if(!s)return login();
   if(!s.setupComplete) return setup();
   if(!subscriptionOK(s)) return billing(true);
-  const today=s.jobs.filter(j=>['Scheduled','In Progress','AI Pre-Workup'].includes(j.status)).slice(0,4);
-  const pending=s.jobs.filter(j=>j.status==='Awaiting Approval').length;
-  const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)).length;
-  const revenue=s.jobs.filter(j=>j.status==='Completed').reduce((sum,j)=>sum+Number(j.invoice?.total||j.estimate?.better?.price||0),0);
+  const activeJobs=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const financial=canViewShopFinancials();
-  const customerCount=combinedCustomers(s).length;
-  const metrics=financial?`<button data-route="reports"><small>Revenue MTD</small><b>${money(revenue)}</b></button><button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${customerCount}</b></button>`:`<button data-route="jobs"><small>Active Jobs</small><b>${active}</b></button><button data-route="customers"><small>Customers</small><b>${customerCount}</b></button>`;
-  const revenueCard=financial?`<section class="card card-pad mmp-revenue"><div class="mmp-section-head"><b>REVENUE — THIS MONTH</b><button data-route="reports">View reports</button></div><div class="mmp-revenue-value">${money(revenue)}</div><div class="mmp-revenue-track"><i style="width:${Math.min(100,Math.max(8,revenue/100))}%"></i></div></section>`:'';
   const invoiceButton=financial?`<button type="button" data-open-invoices>${ic('money')}<span><b>OPEN INVOICES</b><small data-open-invoices-summary>Syncing Square…</small></span></button>`:'';
-  const content=`<div class="mmp-page-head"><div><h1>Dashboard</h1><p>${new Date().toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div>
-    <button class="mmp-intake-link" data-route="send-intake"><span>${ic('send')}<b>Share Intake Link</b><small>Send customers your shop intake form</small></span><strong>›</strong></button>
-    ${pending?`<button class="mmp-pending" data-route="jobs">${ic('alert')}<span><b>${pending} job${pending===1?'':'s'} waiting for approval</b><small>Review pending work</small></span><strong>View ›</strong></button>`:''}
-    <div class="mmp-metrics">${metrics}</div>
-    ${trialDays(s)<=10 && s.subscriptionStatus!=='active'?`<div class="priority-strip">${ic('alert')}<b>Your free trial ends in ${trialDays(s)} days</b><span data-route="billing">Manage Plan ›</span></div>`:''}
-    ${revenueCard}
-    <section class="card card-pad mmp-quick"><div class="mmp-section-head"><b>QUICK ACTIONS</b></div><div><button data-route="new-intake">${ic('wrench')}<span>New Job</span></button><button data-route="jobs">${ic('clipboard')}<span>View Intakes</span>${pending?`<em>${pending}</em>`:''}</button>${invoiceButton}<button data-route="customers">${ic('users')}<span>Customers</span></button></div></section>
-    <section class="card card-pad mmp-list"><div class="mmp-section-head"><b>TODAY'S SCHEDULE</b><button data-route="calendar">View all</button></div>${today.length?today.map(j=>`<button class="mmp-job-row" data-job="${j.id}"><span class="timeline-dot"></span><div><b>${esc(j.customerName)}</b><small>${esc(vehicleText(j.vehicle))} · ${esc(scheduleWindow(j))}</small></div><em>${esc(j.status)}</em></button>`).join(''):`<div class="mmp-empty">No jobs scheduled today.</div>`}</section>
-    <section class="card card-pad mmp-list"><div class="mmp-section-head"><b>ACTIVE JOBS</b><button data-route="jobs">View all</button></div>${s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)).slice(0,4).map(j=>`<button class="mmp-job-row" data-job="${j.id}"><div><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><small>${esc(j.complaint)}</small></div><em>${esc(j.status)}</em></button>`).join('')||`<div class="mmp-empty">No active jobs.</div>`}<button class="mmp-service-link" data-route="service-info">${ic('book')} Service Information</button></section>`;
+  const now=new Date(),todayKey=now.toDateString();
+  const today=activeJobs.filter(j=>j.scheduledStart&&new Date(j.scheduledStart).toDateString()===todayKey).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));
+  const needsTime=activeJobs.filter(j=>!j.scheduledStart);
+  const approval=activeJobs.filter(j=>j.status==='Awaiting Approval');
+  const working=activeJobs.filter(j=>/in progress|diagnosis|findings|approved|ready for work/i.test(String(j.status||'')));
+  const card=j=>`<div class="ops-mini-job" role="button" tabindex="0" data-open-job="${esc(j.id)}"><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicleText(j.vehicle)||assetTerm(s))}</span></div><small>${esc(j.scheduledStart?scheduleWindow(j):(j.availability||j.status||'Needs time'))}</small></div>`;
+  const content=`<div class="ops-page-head"><div><h1>Dashboard</h1><p>${now.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><div class="ops-head-actions"><button class="btn btn-soft" data-route="send-intake">${ic('send')} Send Intake</button><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div></div>
+  <div class="ops-overview">
+    <button data-route="calendar"><b>${today.length}</b><span>Today</span></button>
+    <button data-route="jobs"><b>${needsTime.length}</b><span>Need Time</span></button>
+    <button data-route="jobs"><b>${approval.length}</b><span>Awaiting Approval</span></button>
+    <button data-route="jobs"><b>${working.length}</b><span>In Progress</span></button>
+  </div>
+  <div class="ops-dashboard-grid">
+    <section class="card card-pad ops-today"><div class="ops-section-head"><div><b>Today's Schedule</b><span>Appointments in time order</span></div><button data-route="calendar">Full calendar ›</button></div><div class="ops-agenda-list">${today.length?today.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-open-job="${esc(j.id)}"><time>${new Date(j.scheduledStart).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicleText(j.vehicle))}</span><small>${esc(j.location||'No service location')}</small></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">Nothing scheduled today.</div>'}</div></section>
+    <section class="card card-pad ops-actions"><div class="ops-section-head"><div><b>Quick Actions</b><span>Common shop tasks</span></div></div><div class="ops-action-grid"><button data-route="calendar">${ic('calendar')}<span>Schedule</span></button><button data-route="jobs">${ic('jobs')}<span>Work Board</span></button><button data-route="customers">${ic('users')}<span>Customers</span></button><button data-route="quote">${ic('money')}<span>Estimate</span></button>${invoiceButton}<button data-route="service-info">${ic('book')}<span>Service Info</span></button></div></section>
+  </div>
+  <section class="card card-pad ops-workboard-preview"><div class="ops-section-head"><div><b>Work Board</b><span>Everything that still needs attention</span></div><button data-route="jobs">Open board ›</button></div><div class="ops-preview-cols"><div><h3>Need Time <span>${needsTime.length}</span></h3>${needsTime.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>Approval <span>${approval.length}</span></h3>${approval.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>In Progress <span>${working.length}</span></h3>${working.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div></div></section>`;
   shopShell(content,'dashboard');
 }
-
 function vehicleText(v={}){ return [v.year,v.make,v.model,v.trim].filter(Boolean).join(' '); }
 function customerPhoneKey(value){ const digits=String(value||'').replace(/\D/g,''); if(digits.length<10)return ''; return digits.length>10?digits.slice(-10):digits; }
 function customerEmailKey(value){ return String(value||'').trim().toLowerCase(); }
@@ -306,12 +307,20 @@ function customers(){
 
 function jobs(){
   const s=currentShop();
-  const content=`${pageTitle('Jobs','Intake → diagnosis → estimate → approval → invoice')}
-  <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-primary" data-route="new-intake">${ic('user')} New Intake</button><button class="btn btn-soft" data-route="quote">${ic('money')} Quick Quote</button></div>
-  <div class="list">${s.jobs.map(j=>`<div class="list-item job-list-item" role="button" tabindex="0" style="width:100%;color:inherit;text-align:left" data-open-job="${j.id}"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} — ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p><div class="list-actions"><span class="badge ${j.status==='Awaiting Approval'?'orange':j.status==='Completed'?'green':'red'}">${esc(j.status)}</span>${j.approval?.status==='approved'?'<span class="badge green">Customer Approved</span>':''}<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">${ic('calendar')} Schedule</button></div></div><div class="list-meta">${scheduleWindow(j)}</div></div>`).join('')||'<section class="card card-pad"><div class="muted">No jobs yet.</div></section>'}</div>`;
+  const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
+  const buckets=[
+    ['Need Time',active.filter(j=>!j.scheduledStart&&j.status!=='Awaiting Approval')],
+    ['Awaiting Approval',active.filter(j=>j.status==='Awaiting Approval')],
+    ['Scheduled',active.filter(j=>j.scheduledStart&&/scheduled|pre-workup/i.test(String(j.status||'')))],
+    ['In Progress',active.filter(j=>/in progress|diagnosis|findings|approved|ready for work/i.test(String(j.status||'')))],
+    ['Ready / Invoice',active.filter(j=>/estimate ready|invoice|ready for pickup|ready/i.test(String(j.status||''))&&!/ready for work/i.test(String(j.status||'')))]
+  ];
+  const seen=new Set(buckets.flatMap(([,rows])=>rows.map(j=>String(j.id))));
+  const other=active.filter(j=>!seen.has(String(j.id)));if(other.length)buckets[3][1].push(...other);
+  const card=j=>`<div class="ops-job-card job-list-item" role="button" tabindex="0" data-open-job="${esc(j.id)}"><div class="ops-job-card-top"><b>${esc(j.customerName||'Customer')}</b><span class="badge ${j.status==='Awaiting Approval'?'orange':'red'}">${esc(j.status||'Job')}</span></div><strong>${esc(vehicleText(j.vehicle)||assetTerm(s))}</strong><p>${esc(j.complaint||'No complaint recorded')}</p><small>${esc(j.scheduledStart?scheduleWindow(j):(j.availability||'No time selected'))}</small><div class="list-actions">${!j.scheduledStart?`<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${esc(j.id)}">${ic('calendar')} Schedule</button>`:''}</div></div>`;
+  const content=`${pageTitle('Work Board','Move through the day without hunting through screens.')}<div class="ops-board-actions"><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button><button class="btn btn-soft" data-route="calendar">${ic('calendar')} Schedule</button><button class="btn btn-soft" data-route="quote">${ic('money')} Estimate</button></div><div class="ops-board">${buckets.map(([title,rows])=>`<section class="ops-board-col"><header><b>${title}</b><span>${rows.length}</span></header><div>${rows.map(card).join('')||'<div class="ops-board-empty">Nothing here</div>'}</div></section>`).join('')}</div>`;
   shopShell(content,'jobs');
 }
-
 function jobById(id){ const s=currentShop(); return s?.jobs.find(j=>j.id===id) || null; }
 function exactVideoQuery(j,suffix='repair'){ return `${j.vehicle.year||''} ${j.vehicle.make||''} ${j.vehicle.model||''} ${j.vehicle.engine||''} ${j.codes||''} ${suffix} ${j.complaint||''}`.trim(); }
 function youtubeLink(q){ return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`; }
@@ -473,15 +482,16 @@ function more(){
 
 function calendar(){
   const s=currentShop();
-  const sorted=[...s.jobs].sort((a,b)=>new Date(a.scheduledStart||a.createdAt)-new Date(b.scheduledStart||b.createdAt));
-  const today=new Date().toDateString();
-  const scheduled=sorted.filter(j=>j.scheduledStart);
-  const unscheduled=sorted.filter(j=>!j.scheduledStart);
-  const todayJobs=scheduled.filter(j=>new Date(j.scheduledStart).toDateString()===today);
-  const content=`${pageTitle('Calendar','Schedule jobs by estimated labor time, travel, and buffer.')}
-  <div class="metric-grid"><div class="metric red"><b>${todayJobs.length}</b><span>Today</span></div><div class="metric green"><b>${scheduled.length}</b><span>Scheduled</span></div><div class="metric orange"><b>${unscheduled.length}</b><span>Need Time</span></div><div class="metric blue"><b>${Math.round(scheduled.reduce((sum,j)=>sum+scheduleDurationMinutes(j),0)/60)}</b><span>Hours Booked</span></div></div>
-  <section class="card card-pad" style="margin-top:10px"><div class="card-title">${ic('calendar')} SCHEDULED JOBS</div><div class="divider"></div><div class="list">${scheduled.map(j=>`<div class="list-item"><div class="list-icon">${ic('calendar')}</div><div class="list-main"><b>${esc(j.customerName)} - ${esc(vehicleText(j.vehicle))}</b><p>${esc(scheduleWindow(j))}<br>${esc(j.location||'No location')} · ${Number(j.estimatedLaborHours||1)} hr labor + ${Number(j.travelMinutes||0)} min travel + ${Number(j.bufferMinutes??15)} min buffer</p><div class="list-actions"><button class="btn btn-soft" data-action="schedule-job" data-job="${j.id}">Edit Time</button><button class="btn btn-soft" data-action="open-maps" data-location="${esc(j.location||'')}">Maps</button></div></div><div class="list-meta">${esc(j.status)}</div></div>`).join('')||'<div class="muted">No scheduled jobs yet.</div>'}</div></section>
-  <section class="card card-pad" style="margin-top:10px"><div class="card-title">${ic('jobs')} NEEDS SCHEDULE</div><div class="divider"></div><div class="list">${unscheduled.map(j=>`<div class="list-item"><div class="list-icon">${ic('wrench')}</div><div class="list-main"><b>${esc(j.customerName)} - ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.availability||'Customer availability not set')}<br>${esc(j.complaint||'')}</p><div class="list-actions"><button class="btn btn-primary" data-action="schedule-job" data-job="${j.id}">Schedule</button></div></div></div>`).join('')||'<div class="muted">Everything has a scheduled time.</div>'}</div></section>`;
+  const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
+  const content=`${pageTitle('Schedule','Your live shop calendar. Tap a day, open a job, or change a time without leaving the schedule.')}
+  <section class="card card-pad ops-calendar" data-mma-calendar>
+    <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><button class="btn btn-primary" data-route="new-intake">+ New Job</button></div>
+    <div class="ops-week-strip" data-cal-week-strip></div>
+    <div class="ops-day-head"><div><b data-cal-day-title></b><span>Time · customer · vehicle · location</span></div></div>
+    <div class="ops-agenda-list" data-cal-agenda></div>
+  </section>
+  <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests that are not on the calendar yet</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>
+  <div hidden data-cal-schedule-triggers>${active.map(j=>`<button type="button" data-action="schedule-job" data-job="${esc(j.id)}">Schedule</button>`).join('')}</div>`;
   shopShell(content,'calendar');
 }
 function reportJobFacts(s,j){
@@ -720,17 +730,14 @@ document.addEventListener('click',e=>{
     return;
   }
   const job=e.target.closest?.('[data-open-job]');
-  if(job && !e.target.closest?.('button,a,input,select,textarea')){
-    e.preventDefault();
-    workup(job.dataset.openJob);
+  if(job){
+    const control=e.target.closest?.('button,a,input,select,textarea');
+    if(!control||control===job){e.preventDefault();workup(job.dataset.openJob);}
   }
 });
 document.addEventListener('keydown',e=>{
   const job=e.target.closest?.('[data-open-job]');
-  if(job && (e.key==='Enter'||e.key===' ')){
-    e.preventDefault();
-    workup(job.dataset.openJob);
-  }
+  if(job && (e.key==='Enter'||e.key===' ')){e.preventDefault();workup(job.dataset.openJob);}
 });
 
 function setupSpeech(selector,targetId){
