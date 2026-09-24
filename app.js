@@ -229,6 +229,8 @@ function dashboard(){
   if(!s.setupComplete) return setup();
   if(!subscriptionOK(s)) return billing(true);
   const activeJobs=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
+  const financial=canViewShopFinancials();
+  const invoiceButton=financial?`<button type="button" data-open-invoices>${ic('money')}<span>OPEN INVOICES<small data-open-invoices-summary>Syncing Square…</small></span></button>`:'';
   const now=new Date(),todayKey=now.toDateString();
   const today=activeJobs.filter(j=>j.scheduledStart&&new Date(j.scheduledStart).toDateString()===todayKey).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));
   const needsTime=activeJobs.filter(j=>!j.scheduledStart);
@@ -244,7 +246,7 @@ function dashboard(){
   </div>
   <div class="ops-dashboard-grid">
     <section class="card card-pad ops-today"><div class="ops-section-head"><div><b>Today's Schedule</b><span>Appointments in time order</span></div><button data-route="calendar">Full calendar ›</button></div><div class="ops-agenda-list">${today.length?today.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-open-job="${esc(j.id)}"><time>${new Date(j.scheduledStart).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicleText(j.vehicle))}</span><small>${esc(j.location||'No service location')}</small></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">Nothing scheduled today.</div>'}</div></section>
-    <section class="card card-pad ops-actions"><div class="ops-section-head"><div><b>Quick Actions</b><span>Common shop tasks</span></div></div><div class="ops-action-grid"><button data-route="calendar">${ic('calendar')}<span>Schedule</span></button><button data-route="jobs">${ic('jobs')}<span>Work Board</span></button><button data-route="customers">${ic('users')}<span>Customers</span></button><button data-route="quote">${ic('money')}<span>Estimate</span></button></div></section>
+    <section class="card card-pad ops-actions"><div class="ops-section-head"><div><b>Quick Actions</b><span>Common shop tasks</span></div></div><div class="ops-action-grid"><button data-route="calendar">${ic('calendar')}<span>Schedule</span></button><button data-route="jobs">${ic('jobs')}<span>Work Board</span></button><button data-route="customers">${ic('users')}<span>Customers</span></button><button data-route="quote">${ic('money')}<span>Estimate</span></button>${invoiceButton}<button data-route="service-info">${ic('book')}<span>Service Info</span></button></div></section>
   </div>
   <section class="card card-pad ops-workboard-preview"><div class="ops-section-head"><div><b>Work Board</b><span>Everything that still needs attention</span></div><button data-route="jobs">Open board ›</button></div><div class="ops-preview-cols"><div><h3>Need Time <span>${needsTime.length}</span></h3>${needsTime.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>Approval <span>${approval.length}</span></h3>${approval.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>In Progress <span>${working.length}</span></h3>${working.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div></div></section>`;
   shopShell(content,'dashboard');
