@@ -370,7 +370,7 @@ async function mount(){
     const banner=document.querySelector('.job-banner');if(!banner)return;
     banner.insertAdjacentHTML('afterend',markup(currentState));
     simplifyLegacyUI();
-    const ww=document.querySelector('.work-white');if(ww&&!ww.closest('.jwo-ai-wrap')){const d=document.createElement('details');d.className='jwo-ai-wrap';d.innerHTML='<summary>AI / Diagnostic Tools</summary>';ww.parentNode.insertBefore(d,ww);d.appendChild(ww);}
+    const ww=document.querySelector('.work-white');if(ww&&!ww.closest('.jwo-ai-wrap')){const d=document.createElement('details');d.className='jwo-ai-wrap';d.innerHTML='<summary>Diagnostic Tools (optional)</summary>';ww.parentNode.insertBefore(d,ww);d.appendChild(ww);}
   }catch(err){console.error('work order mount',err);}finally{mounting=false;}
 }
 bindGlobal();
