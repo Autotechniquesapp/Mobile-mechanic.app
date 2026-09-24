@@ -237,7 +237,7 @@ function dashboard(){
   const approval=activeJobs.filter(j=>j.status==='Awaiting Approval');
   const working=activeJobs.filter(j=>/in progress|diagnosis|findings|approved|ready for work/i.test(String(j.status||'')));
   const card=j=>`<div class="ops-mini-job" role="button" tabindex="0" data-open-job="${esc(j.id)}"><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicleText(j.vehicle)||assetTerm(s))}</span></div><small>${esc(j.scheduledStart?scheduleWindow(j):(j.availability||j.status||'Needs time'))}</small></div>`;
-  const content=`<div class="ops-page-head"><div><h1>Dashboard</h1><p>${now.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><div class="ops-head-actions"><button class="btn btn-soft" data-route="send-intake">${ic('send')} Send Intake</button><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div></div>
+  const content=`<div class="ops-page-head"><div><h1>Dashboard</h1><p>${now.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric'})}</p></div><div class="ops-head-actions"><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button></div></div>
   <div class="ops-overview">
     <button data-route="calendar"><b>${today.length}</b><span>Today</span></button>
     <button data-route="jobs"><b>${needsTime.length}</b><span>Need Time</span></button>
@@ -246,7 +246,7 @@ function dashboard(){
   </div>
   <div class="ops-dashboard-grid">
     <section class="card card-pad ops-today"><div class="ops-section-head"><div><b>Today's Schedule</b><span>Appointments in time order</span></div><button data-route="calendar">Full calendar ›</button></div><div class="ops-agenda-list">${today.length?today.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-open-job="${esc(j.id)}"><time>${new Date(j.scheduledStart).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicleText(j.vehicle))}</span><small>${esc(j.location||'No service location')}</small></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">Nothing scheduled today.</div>'}</div></section>
-    <section class="card card-pad ops-actions"><div class="ops-section-head"><div><b>Quick Actions</b><span>Common shop tasks</span></div></div><div class="ops-action-grid"><button data-route="calendar">${ic('calendar')}<span>Schedule</span></button><button data-route="jobs">${ic('jobs')}<span>Work Board</span></button><button data-route="customers">${ic('users')}<span>Customers</span></button><button data-route="quote">${ic('money')}<span>Estimate</span></button>${invoiceButton}<button data-route="service-info">${ic('book')}<span>Service Info</span></button></div></section>
+    <section class="card card-pad ops-actions"><div class="ops-section-head"><div><b>Quick Actions</b><span>Common shop tasks</span></div></div><div class="ops-action-grid"><button data-route="calendar">${ic('calendar')}<span>Schedule</span></button><button data-route="jobs">${ic('jobs')}<span>Work Board</span></button><button data-route="customers">${ic('users')}<span>Customers</span></button><button data-route="send-intake">${ic('send')}<span>Send Intake</span></button><button data-route="quote">${ic('money')}<span>Estimate</span></button>${invoiceButton}<button data-route="service-info">${ic('book')}<span>Service Info</span></button></div></section>
   </div>
   <section class="card card-pad ops-workboard-preview"><div class="ops-section-head"><div><b>Work Board</b><span>Everything that still needs attention</span></div><button data-route="jobs">Open board ›</button></div><div class="ops-preview-cols"><div><h3>Need Time <span>${needsTime.length}</span></h3>${needsTime.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>Approval <span>${approval.length}</span></h3>${approval.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div><div><h3>In Progress <span>${working.length}</span></h3>${working.slice(0,3).map(card).join('')||'<small class="muted">Clear</small>'}</div></div></section>`;
   shopShell(content,'dashboard');
@@ -309,19 +309,25 @@ function jobs(){
   const s=currentShop();
   const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const buckets=[
-    ['Need Time',active.filter(j=>!j.scheduledStart&&j.status!=='Awaiting Approval')],
-    ['Awaiting Approval',active.filter(j=>j.status==='Awaiting Approval')],
+    ['Estimate / Needs Time',active.filter(j=>!j.scheduledStart&&j.status!=='Awaiting Approval')],
+    ['Waiting Approval',active.filter(j=>j.status==='Awaiting Approval')],
     ['Scheduled',active.filter(j=>j.scheduledStart&&/scheduled|pre-workup/i.test(String(j.status||'')))],
     ['In Progress',active.filter(j=>/in progress|diagnosis|findings|approved|ready for work/i.test(String(j.status||'')))],
     ['Ready / Invoice',active.filter(j=>/estimate ready|invoice|ready for pickup|ready/i.test(String(j.status||''))&&!/ready for work/i.test(String(j.status||'')))]
   ];
   const seen=new Set(buckets.flatMap(([,rows])=>rows.map(j=>String(j.id))));
   const other=active.filter(j=>!seen.has(String(j.id)));if(other.length)buckets[3][1].push(...other);
-  const card=j=>`<div class="ops-job-card job-list-item" role="button" tabindex="0" data-open-job="${esc(j.id)}"><div class="ops-job-card-top"><b>${esc(j.customerName||'Customer')}</b><span class="badge ${j.status==='Awaiting Approval'?'orange':'red'}">${esc(j.status||'Job')}</span></div><strong>${esc(vehicleText(j.vehicle)||assetTerm(s))}</strong><p>${esc(j.complaint||'No complaint recorded')}</p><small>${esc(j.scheduledStart?scheduleWindow(j):(j.availability||'No time selected'))}</small><div class="list-actions">${!j.scheduledStart?`<button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${esc(j.id)}">${ic('calendar')} Schedule</button>`:''}</div></div>`;
-  const content=`${pageTitle('Work Board','Move through the day without hunting through screens.')}<div class="ops-board-actions"><button class="btn btn-primary" data-route="new-intake">${ic('wrench')} New Job</button><button class="btn btn-soft" data-route="calendar">${ic('calendar')} Schedule</button><button class="btn btn-soft" data-route="quote">${ic('money')} Estimate</button></div><div class="ops-board">${buckets.map(([title,rows])=>`<section class="ops-board-col"><header><b>${title}</b><span>${rows.length}</span></header><div>${rows.map(card).join('')||'<div class="ops-board-empty">Nothing here</div>'}</div></section>`).join('')}</div>`;
+  const tech=j=>{const u=(s.users||[]).find(x=>String(x.id)===String(j.assignedTo));return u?.name||'Unassigned';};
+  const card=j=>{const ro=String(j.id||'').replace(/-/g,'').slice(-6).toUpperCase(),pay=j.invoice?.status||j.approval?.status||'Open';return `<article class="ops-ro-card job-list-item" role="button" tabindex="0" data-open-job="${esc(j.id)}"><div class="ops-ro-head"><span>RO #${esc(ro)}</span><em>${esc(pay)}</em></div><b class="ops-ro-customer">${esc(j.customerName||'Customer')}</b><strong>${esc(vehicleText(j.vehicle)||assetTerm(s))}</strong><p>${esc(j.complaint||'No complaint recorded')}</p><div class="ops-ro-meta"><span>${ic('user')} ${esc(tech(j))}</span><span>${ic('calendar')} ${esc(j.scheduledStart?scheduleWindow(j):(j.availability||'Needs time'))}</span></div>${!j.scheduledStart?`<div class="ops-ro-actions"><button type="button" class="btn btn-soft" data-action="schedule-job" data-job="${esc(j.id)}">Schedule</button></div>`:''}</article>`;};
+  const content=`${pageTitle('Work Board','Repair orders, status, technician and timing in one operating view.')}<div class="ops-board-toolbar"><div class="ops-board-view"><button class="active" type="button">Work Board</button><button type="button" data-route="calendar">Schedule</button></div><div class="ops-board-actions"><button class="btn btn-soft" data-route="reports">Past Jobs</button><button class="btn btn-primary" data-route="new-intake">+ New Repair Order</button></div></div><div class="ops-board autoleap-board">${buckets.map(([title,rows])=>`<section class="ops-board-col"><header><b>${title}</b><span>${rows.length}</span></header><div>${rows.map(card).join('')||'<div class="ops-board-empty">Nothing here</div>'}</div></section>`).join('')}</div>`;
   shopShell(content,'jobs');
 }
-function jobById(id){ const s=currentShop(); return s?.jobs.find(j=>j.id===id) || null; }
+function jobById(id){ const s=currentShop(); return s?.jobs.find(j=>String(j.id)===String(id)) || null; }
+function openJobRecord(id){
+  const j=jobById(id); if(!j)return toast('Job not found.','bad');
+  db.session.activeJobId=j.id; save(); workup(j.id);
+}
+window.MobileMechanicOpenJob=openJobRecord;
 function exactVideoQuery(j,suffix='repair'){ return `${j.vehicle.year||''} ${j.vehicle.make||''} ${j.vehicle.model||''} ${j.vehicle.engine||''} ${j.codes||''} ${suffix} ${j.complaint||''}`.trim(); }
 function youtubeLink(q){ return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`; }
 function scheduleDurationMinutes(j){ return Math.max(15,Math.round(Number(j.estimatedLaborHours||1)*60)+Number(j.travelMinutes||0)+Number(j.bufferMinutes??15)); }
@@ -483,14 +489,12 @@ function more(){
 function calendar(){
   const s=currentShop();
   const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
-  const content=`${pageTitle('Schedule','Your live shop calendar. Tap a day, open a job, or change a time without leaving the schedule.')}
-  <section class="card card-pad ops-calendar" data-mma-calendar>
-    <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><button class="btn btn-primary" data-route="new-intake">+ New Job</button></div>
-    <div class="ops-week-strip" data-cal-week-strip></div>
-    <div class="ops-day-head"><div><b data-cal-day-title></b><span>Time · customer · vehicle · location</span></div></div>
-    <div class="ops-agenda-list" data-cal-agenda></div>
+  const content=`${pageTitle('Schedule','Full-week shop schedule with live jobs and unscheduled work.')}
+  <section class="card card-pad ops-calendar autoleap-calendar" data-mma-calendar>
+    <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><button class="btn btn-primary" data-route="new-intake">+ Appointment</button></div>
+    <div class="ops-week-schedule" data-cal-week-grid></div>
   </section>
-  <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests that are not on the calendar yet</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>
+  <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests waiting to be placed on the schedule</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>
   <div hidden data-cal-schedule-triggers>${active.map(j=>`<button type="button" data-action="schedule-job" data-job="${esc(j.id)}">Schedule</button>`).join('')}</div>`;
   shopShell(content,'calendar');
 }
@@ -732,12 +736,12 @@ document.addEventListener('click',e=>{
   const job=e.target.closest?.('[data-open-job]');
   if(job){
     const control=e.target.closest?.('button,a,input,select,textarea');
-    if(!control||control===job){e.preventDefault();workup(job.dataset.openJob);}
+    if(!control||control===job){e.preventDefault();openJobRecord(job.dataset.openJob);}
   }
 });
 document.addEventListener('keydown',e=>{
   const job=e.target.closest?.('[data-open-job]');
-  if(job && (e.key==='Enter'||e.key===' ')){e.preventDefault();workup(job.dataset.openJob);}
+  if(job && (e.key==='Enter'||e.key===' ')){e.preventDefault();openJobRecord(job.dataset.openJob);}
 });
 
 function setupSpeech(selector,targetId){
