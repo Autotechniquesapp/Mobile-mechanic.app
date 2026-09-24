@@ -230,7 +230,7 @@ function dashboard(){
   if(!subscriptionOK(s)) return billing(true);
   const activeJobs=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const financial=canViewShopFinancials();
-  const invoiceButton=financial?`<button type="button" data-open-invoices>${ic('money')}<span>OPEN INVOICES<small data-open-invoices-summary>Syncing Square…</small></span></button>`:'';
+  const invoiceButton=financial?`<button type="button" data-open-invoices>${ic('money')}<span><b>OPEN INVOICES</b><small data-open-invoices-summary>Syncing Square…</small></span></button>`:'';
   const now=new Date(),todayKey=now.toDateString();
   const today=activeJobs.filter(j=>j.scheduledStart&&new Date(j.scheduledStart).toDateString()===todayKey).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));
   const needsTime=activeJobs.filter(j=>!j.scheduledStart);
