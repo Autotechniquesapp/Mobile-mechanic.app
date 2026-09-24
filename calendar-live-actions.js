@@ -19,8 +19,9 @@ function activeJobs(){return (shop()?.jobs||[]).filter(j=>!j.completedAt&&!['Com
 function scheduled(){return activeJobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return activeJobs().filter(j=>!j.scheduledStart);}
 function notify(msg,type='good'){if(typeof window.toast==='function')return window.toast(msg,type);document.querySelector('.toast')?.remove();const d=document.createElement('div');d.className=`toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3000);}
-function openJob(id){const trigger=document.createElement('div');trigger.dataset.openJob=String(id);trigger.setAttribute('role','button');trigger.hidden=true;document.body.appendChild(trigger);trigger.click();setTimeout(()=>trigger.remove(),0);}
-function openSchedule(id){const b=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(id))}"]`);if(b)b.click();else notify('That job could not be opened for scheduling.','bad');}
+function openJob(id){const trigger=document.createElement('div');trigger.setAttribute('data-open-job',String(id));trigger.setAttribute('role','button');trigger.hidden=true;document.body.appendChild(trigger);trigger.click();setTimeout(()=>trigger.remove(),0);}
+function openSchedule(id,start=''){const b=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(id))}"]`);if(!b)return notify('That job could not be opened for scheduling.','bad');b.click();if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input)input.value=start;},80);}
+function openPendingIntakeSchedule(){let pending=null;try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}if(!pending?.jobId)return;if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');if(pending.start){const d=new Date(pending.start);if(!Number.isNaN(d.getTime())){selected=d;week=startWeek(d);render();}}openSchedule(String(pending.jobId),String(pending.start||''));}
 async function removeSchedule(id){
   if(!confirm('Remove this appointment from the calendar? The job stays saved.'))return;
   const db=read(),sid=db.session?.shopId,j=db.shops?.[sid]?.jobs?.find(x=>String(x.id)===String(id));if(!sid||!j)return;
@@ -58,5 +59,5 @@ document.addEventListener('click',e=>{
 },true);
 document.addEventListener('keydown',e=>{const job=e.target.closest?.('[data-cal-open-job]');if(job&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openJob(job.dataset.calOpenJob);}});
 new MutationObserver(()=>setTimeout(render,40)).observe(document.documentElement,{childList:true,subtree:true});
-window.addEventListener('hashchange',()=>setTimeout(render,80));setTimeout(render,120);
+window.addEventListener('hashchange',()=>setTimeout(()=>{render();openPendingIntakeSchedule();},80));setTimeout(()=>{render();openPendingIntakeSchedule();},120);
 })();
