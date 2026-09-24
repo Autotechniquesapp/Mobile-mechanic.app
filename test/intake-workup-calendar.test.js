@@ -43,7 +43,7 @@ test('Add to Calendar converts the intake then hands the new job to the live sch
 });
 
 test('production shell cache-busts the cleaned intake and calendar scripts',()=>{
-  assert.match(html,/calendar-live-actions\.js\?v=20260923-intake-calendar1/);
+  assert.match(html,/calendar-live-actions\.js\?v=20260924-autoleap1/);
   assert.match(html,/intake-queue\.js\?v=20260923-clean-workup1/);
   assert.match(html,/intake-scheduler\.js\?v=20260924-autoleap1/);
 });
