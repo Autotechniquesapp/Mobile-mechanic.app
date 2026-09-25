@@ -308,6 +308,18 @@ document.addEventListener('click',async e=>{
     try{const {error}=await sb.from('jobs').update({status:'declined',completed_at:null}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#jobs');}catch(err){showStatus(err.message||'Could not move job to declined.','bad');}
     return;
   }
+  if(action==='delete-job'){
+    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job||currentJobId(),sid=currentShopId();if(!jid||!sid)return;
+    if(!confirm('Delete this job permanently? This cannot be undone.'))return;
+    el.disabled=true;
+    try{
+      const {error}=await sb.from('jobs').delete().eq('id',jid).eq('shop_id',sid);
+      if(error)throw error;
+      showStatus('Job deleted.','good');
+      await refreshWorkspace('#jobs');
+    }catch(err){el.disabled=false;showStatus(err.message||'Could not delete job.','bad');}
+    return;
+  }
   if(action==='send-estimate'){
     e.preventDefault();e.stopImmediatePropagation();showStatus('Secure cross-device estimate approval is the next production module. The browser-only demo link is disabled.','');return;
   }
