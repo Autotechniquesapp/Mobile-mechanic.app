@@ -39,15 +39,15 @@ test('calendar day job edit map and remove controls all have click handlers',()=
 test('time clock is production-backed',()=>{
   assert.match(production,/action==='clock-in'/);
   assert.match(production,/action==='clock-out'/);
-  assert.match(production,/from\\('technician_time_entries'\\)/);
-  assert.match(production,/timeEntries:\\(timeEntriesRes\\.data\\|\\|\\[\\]\\)/);
+  assert.ok(production.includes("from('technician_time_entries')"));
+  assert.ok(production.includes("timeEntries:(timeEntriesRes.data||[]).map"));
 });
 
 test('technician and shop identity controls persist to production services',()=>{
-  assert.match(production,/from\\('technician_profiles'\\)\\.upsert/);
-  assert.match(production,/from\\('shop_members'\\)\\.update\\(\\{status:next\\}/);
-  assert.match(production,/storage\\.from\\('technician-avatars'\\)/);
-  assert.match(production,/storage\\.from\\('shop-logos'\\)/);
+  assert.ok(production.includes("from('technician_profiles').upsert"));
+  assert.ok(production.includes("from('shop_members').update({status:next})"));
+  assert.ok(production.includes("storage.from('technician-avatars')"));
+  assert.ok(production.includes("storage.from('shop-logos')"));
   assert.match(production,/carfax_status:'Ready'/);
   assert.match(app,/Login email is managed through the account, not the profile\\./);
 });
