@@ -27,7 +27,7 @@ test('customer names vehicles and previous-job rows are actionable',()=>{
   assert.match(tiles,/data-job-panel-open/);
   assert.match(tiles,/interactiveValue\\(k,v\\)/);
   assert.match(tiles,/href=\"tel:/);
-  assert.match(tiles,/google\\.com\\/maps\\/search/);
+  assert.ok(tiles.includes('google.com/maps/search'));
   assert.match(scope,/data-mma-history-job/);
   assert.match(scope,/function openJob\\(id\\)/);
 });
