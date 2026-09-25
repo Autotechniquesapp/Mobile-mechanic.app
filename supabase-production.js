@@ -124,16 +124,18 @@ async function loadWorkspace(user, allowCreate=true){
   if(!memberships?.length){ writeCache(blankCache()); return null; }
   const preferredShopId=currentShopId();
   const membership=memberships.find(m=>m.shop_id===preferredShopId)||memberships[0], sid=membership.shop_id;
-  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]=await Promise.all([
+  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,profilesRes,timeEntriesRes,addonCatalogRes,shopAddonsRes]=await Promise.all([
     sb.from('shops').select('*').eq('shop_id',sid).single(),
     sb.from('customers').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('vehicles').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.rpc('get_my_shop_jobs',{p_shop_id:sid}),
     sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid),
+    sb.from('technician_profiles').select('*').eq('shop_id',sid),
+    sb.from('technician_time_entries').select('*').eq('shop_id',sid).order('clock_in',{ascending:true}),
     sb.from('addon_catalog').select('code,name,description,monthly_price,quantity,unit_label,available_on_plans').eq('active',true).order('sort_order'),
     sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active')
   ]);
-  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]) if(r.error) throw r.error;
+  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,profilesRes,timeEntriesRes,addonCatalogRes,shopAddonsRes]) if(r.error) throw r.error;
   const shop=shopRes.data, vehicles=vehiclesRes.data||[], customers=customersRes.data||[], jobs=jobsRes.data||[];
   const vehicleMap=new Map(vehicles.map(v=>[v.id,v]));
   const customerMap=new Map(customers.map(c=>[c.id,c]));
@@ -154,9 +156,11 @@ async function loadWorkspace(user, allowCreate=true){
     };
   });
   const currentName=user.user_metadata?.full_name||user.email?.split('@')[0]||'Technician';
-  const uiTeam=(teamRes.data||[]).map(m=>({
-    id:m.user_id,name:m.user_id===user.id?currentName:'Shop Team Member',email:m.user_id===user.id?(user.email||''):'',role:roleFromDb(m.role),active:m.status==='active'
-  }));
+  const profileMap=new Map((profilesRes.data||[]).map(p=>[String(p.user_id),p]));
+  const uiTeam=(teamRes.data||[]).map(m=>{const p=profileMap.get(String(m.user_id))||{};return {
+    id:m.user_id,name:p.display_name||(m.user_id===user.id?currentName:'Shop Team Member'),email:m.user_id===user.id?(user.email||''):'',role:roleFromDb(m.role),active:m.status==='active',
+    phone:p.phone||'',specialties:p.specialties||'',certifications:p.certifications||'',bio:p.bio||'',photo:p.avatar_url||''
+  };});
   const s={
     id:shop.shop_id,slug:shop.slug,name:shop.name,ownerName:currentName,phone:shop.business_phone||'',email:user.email||'',
     plan:planFromDb(shop.plan),trialStarted:shop.trial_started_at,trialEnds:shop.trial_expires_at,
@@ -167,7 +171,9 @@ async function loadWorkspace(user, allowCreate=true){
     specialties:Array.isArray(shop.specialties)&&shop.specialties.length?shop.specialties:['automotive'],modules:Array.isArray(shop.modules)?shop.modules:['estimates','inventory','inspections','scheduling','reporting','time_clock','ai'],customSpecialty:shop.custom_specialty||'',assetLabel:shop.asset_label||'Vehicle / Equipment',
     terms:shop.terms_version?{version:shop.terms_version,acceptedAt:shop.terms_accepted_at,userId:user.id}:null,
     users:uiTeam.length?uiTeam:[{id:user.id,name:currentName,email:user.email||'',role:roleFromDb(membership.role),active:true}],
-    customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[],addonCatalog:addonCatalogRes.data||[],addons:(shopAddonsRes.data||[]).map(a=>a.addon_code)
+    customers:uiCustomers,jobs:uiJobs,inspections:[],warranties:[],declined:[],receipts:[],fleet:[],
+    timeEntries:(timeEntriesRes.data||[]).map(x=>({id:x.id,userId:x.user_id,clockIn:x.clock_in,clockOut:x.clock_out||null,note:x.note||''})),
+    addonCatalog:addonCatalogRes.data||[],addons:(shopAddonsRes.data||[]).map(a=>a.addon_code)
   };
   const prior=readCache();
   const priorActiveJobId=prior.session?.shopId===s.id?prior.session?.activeJobId:null;
@@ -280,6 +286,27 @@ document.addEventListener('click',async e=>{
     try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
+  if(action==='clock-in'){
+    e.preventDefault();e.stopImmediatePropagation();const cache=readCache(),sid=cache.session?.shopId,userId=cache.session?.userId;if(!sid||!userId)return;
+    try{const {data:open,error:readError}=await sb.from('technician_time_entries').select('id').eq('shop_id',sid).eq('user_id',userId).is('clock_out',null).limit(1);if(readError)throw readError;if(open?.length)return showStatus('You are already clocked in.','bad');const {error}=await sb.from('technician_time_entries').insert({shop_id:sid,user_id:userId});if(error)throw error;await refreshWorkspace('#time-clock');}catch(err){showStatus(err.message||'Could not clock in.','bad');}
+    return;
+  }
+  if(action==='clock-out'){
+    e.preventDefault();e.stopImmediatePropagation();const cache=readCache(),sid=cache.session?.shopId,userId=cache.session?.userId;if(!sid||!userId)return;
+    try{const {data:open,error:readError}=await sb.from('technician_time_entries').select('id').eq('shop_id',sid).eq('user_id',userId).is('clock_out',null).order('clock_in',{ascending:false}).limit(1);if(readError)throw readError;if(!open?.length)return showStatus('No open time entry was found.','bad');const {error}=await sb.from('technician_time_entries').update({clock_out:new Date().toISOString()}).eq('id',open[0].id).eq('shop_id',sid).eq('user_id',userId);if(error)throw error;await refreshWorkspace('#time-clock');}catch(err){showStatus(err.message||'Could not clock out.','bad');}
+    return;
+  }
+  if(action==='toggle-user'){
+    e.preventDefault();e.stopImmediatePropagation();const cache=readCache(),sid=cache.session?.shopId,target=el.dataset.user,shop=cache.shops?.[sid],member=shop?.users?.find(x=>String(x.id)===String(target));if(!sid||!target||!member)return;
+    const next=member.active?'disabled':'active';
+    try{const {error}=await sb.from('shop_members').update({status:next}).eq('shop_id',sid).eq('user_id',target);if(error)throw error;await refreshWorkspace('#team');}catch(err){showStatus(err.message||'Could not update technician access.','bad');}
+    return;
+  }
+  if(action==='prepare-carfax'){
+    e.preventDefault();e.stopImmediatePropagation();const sid=currentShopId(),jid=el.dataset.job;if(!sid||!jid)return;
+    try{const {error}=await sb.from('jobs').update({carfax_status:'Ready'}).eq('shop_id',sid).eq('id',jid);if(error)throw error;await refreshWorkspace('#carfax',jid);}catch(err){showStatus(err.message||'Could not prepare the service record.','bad');}
+    return;
+  }
   if(action==='toggle-addon'){
     e.preventDefault();e.stopImmediatePropagation();
     const cache=readCache(), sid=cache.session?.shopId, code=el.dataset.addon, s=cache.shops?.[sid];
@@ -327,6 +354,16 @@ document.addEventListener('click',async e=>{
 
 document.addEventListener('submit',async e=>{
   const form=e.target;
+  if(form.id==='techProfileForm'){
+    e.preventDefault();e.stopImmediatePropagation();const d=Object.fromEntries(new FormData(form)),cache=readCache(),sid=cache.session?.shopId,target=form.dataset.user;if(!sid||!target)return;
+    const profile={shop_id:sid,user_id:target,display_name:String(d.name||'').trim()||null,phone:String(d.phone||'').trim()||null,specialties:String(d.specialties||'').trim()||null,certifications:String(d.certifications||'').trim()||null,bio:String(d.bio||'').trim()||null,updated_at:new Date().toISOString()};
+    try{const {error}=await sb.from('technician_profiles').upsert(profile,{onConflict:'shop_id,user_id'});if(error)throw error;
+      const current=cache.shops?.[sid]?.users?.find(x=>String(x.id)===String(target));
+      const role=String(d.role||current?.role||'');if(role&&current&&role!==current.role){const dbRole=role==='owner'?'shop_owner':role;const {error:roleError}=await sb.from('shop_members').update({role:dbRole}).eq('shop_id',sid).eq('user_id',target);if(roleError)throw roleError;}
+      document.querySelector('.modal-backdrop')?.remove();await refreshWorkspace('#team');
+    }catch(err){showStatus(err.message||'Could not save technician profile.','bad');}
+    return;
+  }
   if(form.id==='changePasswordForm'){
     e.preventDefault();e.stopImmediatePropagation();
     const d=Object.fromEntries(new FormData(form));
