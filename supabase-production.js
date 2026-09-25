@@ -65,6 +65,8 @@ function showStatus(message,type=''){
   const d=document.createElement('div'); d.className=`toast supabase-status ${type}`; d.textContent=message; document.body.appendChild(d);
   setTimeout(()=>d.remove(),4200);
 }
+function fileExt(file){const name=String(file?.name||''),ext=name.includes('.')?name.split('.').pop().toLowerCase():'';return ['jpg','jpeg','png','webp'].includes(ext)?ext:(file?.type==='image/png'?'png':file?.type==='image/webp'?'webp':'jpg');}
+
 function logoFallback(){
   return `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="26" fill="#0b0d10"/><path d="M29 75l18-18 12 12-18 18z" fill="#ef2a31"/><path d="M55 61c8 5 18 4 25-3 6-6 8-15 5-23l-12 12-10-10 12-12c-8-3-17-1-23 5-7 7-8 17-3 25z" fill="#f4f6f8"/><text x="60" y="105" text-anchor="middle" font-family="Arial" font-size="14" font-weight="700" fill="#f4f6f8">MM AI</text></svg>')}`;
 }
@@ -352,13 +354,33 @@ document.addEventListener('click',async e=>{
   }
 },true);
 
+document.addEventListener('change',async e=>{
+  const input=e.target;if(input?.id!=='logoFile')return;
+  e.stopImmediatePropagation();const file=input.files?.[0],sid=currentShopId();if(!file||!sid)return;
+  try{
+    const objectPath=`${sid}/logo.${fileExt(file)}`;
+    const {error:uploadError}=await sb.storage.from('shop-logos').upload(objectPath,file,{upsert:true,contentType:file.type||undefined});if(uploadError)throw uploadError;
+    const publicUrl=sb.storage.from('shop-logos').getPublicUrl(objectPath).data.publicUrl;
+    const {error}=await sb.from('shops').update({logo_url:publicUrl}).eq('shop_id',sid);if(error)throw error;
+    showStatus('Shop logo saved.','good');await refreshWorkspace(location.hash||'#settings');
+  }catch(err){showStatus(err.message||'Could not save shop logo.','bad');}
+},true);
+
 document.addEventListener('submit',async e=>{
   const form=e.target;
   if(form.id==='techProfileForm'){
     e.preventDefault();e.stopImmediatePropagation();const d=Object.fromEntries(new FormData(form)),cache=readCache(),sid=cache.session?.shopId,target=form.dataset.user;if(!sid||!target)return;
-    const profile={shop_id:sid,user_id:target,display_name:String(d.name||'').trim()||null,phone:String(d.phone||'').trim()||null,specialties:String(d.specialties||'').trim()||null,certifications:String(d.certifications||'').trim()||null,bio:String(d.bio||'').trim()||null,updated_at:new Date().toISOString()};
-    try{const {error}=await sb.from('technician_profiles').upsert(profile,{onConflict:'shop_id,user_id'});if(error)throw error;
-      const current=cache.shops?.[sid]?.users?.find(x=>String(x.id)===String(target));
+    const current=cache.shops?.[sid]?.users?.find(x=>String(x.id)===String(target));
+    const profile={shop_id:sid,user_id:target,display_name:String(d.name||'').trim()||null,phone:String(d.phone||'').trim()||null,specialties:String(d.specialties||'').trim()||null,certifications:String(d.certifications||'').trim()||null,bio:String(d.bio||'').trim()||null,avatar_url:current?.photo||null,updated_at:new Date().toISOString()};
+    try{
+      const photo=document.getElementById('techPhotoFile')?.files?.[0];
+      if(photo){
+        if(String(target)!==String(cache.session?.userId))throw new Error('Technicians manage their own profile photo.');
+        const objectPath=`${sid}/${target}/avatar.${fileExt(photo)}`;
+        const {error:uploadError}=await sb.storage.from('technician-avatars').upload(objectPath,photo,{upsert:true,contentType:photo.type||undefined});if(uploadError)throw uploadError;
+        profile.avatar_url=sb.storage.from('technician-avatars').getPublicUrl(objectPath).data.publicUrl;
+      }
+      const {error}=await sb.from('technician_profiles').upsert(profile,{onConflict:'shop_id,user_id'});if(error)throw error;
       const role=String(d.role||current?.role||'');if(role&&current&&role!==current.role){const dbRole=role==='owner'?'shop_owner':role;const {error:roleError}=await sb.from('shop_members').update({role:dbRole}).eq('shop_id',sid).eq('user_id',target);if(roleError)throw roleError;}
       document.querySelector('.modal-backdrop')?.remove();await refreshWorkspace('#team');
     }catch(err){showStatus(err.message||'Could not save technician profile.','bad');}
