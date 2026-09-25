@@ -16,20 +16,20 @@ test('generic routes and job cards are delegated so dynamically rendered control
 });
 
 test('job panel separates decline from permanent delete',()=>{
-  assert.match(tiles,/data-job-panel-decline/);
-  assert.match(tiles,/dispatchPersistentAction\\('decline-job',id\\)/);
-  assert.match(tiles,/dispatchPersistentAction\\('delete-job',id\\)/);
+  assert.ok(tiles.includes('data-job-panel-decline'));
+  assert.ok(tiles.includes("dispatchPersistentAction('decline-job',id)"));
+  assert.ok(tiles.includes("dispatchPersistentAction('delete-job',id)"));
   assert.ok(!tiles.includes("function deleteJob(id){if(!jobById(id))return toast('Job not found.','bad');dispatchPersistentAction('decline-job',id);"));
 });
 
 test('customer names vehicles and previous-job rows are actionable',()=>{
-  assert.match(tiles,/data-job-panel-customer/);
-  assert.match(tiles,/data-job-panel-open/);
-  assert.match(tiles,/interactiveValue\\(k,v\\)/);
-  assert.match(tiles,/href=\"tel:/);
+  assert.ok(tiles.includes('data-job-panel-customer'));
+  assert.ok(tiles.includes('data-job-panel-open'));
+  assert.ok(tiles.includes('interactiveValue(k,v)'));
+  assert.ok(tiles.includes('href="tel:'));
   assert.ok(tiles.includes('google.com/maps/search'));
-  assert.match(scope,/data-mma-history-job/);
-  assert.match(scope,/function openJob\\(id\\)/);
+  assert.ok(scope.includes('data-mma-history-job'));
+  assert.ok(scope.includes('function openJob(id)'));
 });
 
 test('calendar day job edit map and remove controls all have click handlers',()=>{
@@ -37,8 +37,8 @@ test('calendar day job edit map and remove controls all have click handlers',()=
 });
 
 test('time clock is production-backed',()=>{
-  assert.match(production,/action==='clock-in'/);
-  assert.match(production,/action==='clock-out'/);
+  assert.ok(production.includes("action==='clock-in'"));
+  assert.ok(production.includes("action==='clock-out'"));
   assert.ok(production.includes("from('technician_time_entries')"));
   assert.ok(production.includes("timeEntries:(timeEntriesRes.data||[]).map"));
 });
@@ -48,6 +48,6 @@ test('technician and shop identity controls persist to production services',()=>
   assert.ok(production.includes("from('shop_members').update({status:next})"));
   assert.ok(production.includes("storage.from('technician-avatars')"));
   assert.ok(production.includes("storage.from('shop-logos')"));
-  assert.match(production,/carfax_status:'Ready'/);
-  assert.match(app,/Login email is managed through the account, not the profile\\./);
+  assert.ok(production.includes("carfax_status:'Ready'"));
+  assert.ok(app.includes('Login email is managed through the account, not the profile.'));
 });
