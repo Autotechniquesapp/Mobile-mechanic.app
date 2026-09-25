@@ -11,8 +11,8 @@ const scope=read('ui-scope-cleanup.js');
 const calendar=read('calendar-live-actions.js');
 
 test('generic routes and job cards are delegated so dynamically rendered controls still open',()=>{
-  assert.match(app,/closest\\?\\.\\('\[data-route\]'\\)/);
-  assert.match(app,/closest\\?\\.\\('\[data-open-job\]'\\)/);
+  assert.ok(app.includes("closest?.('[data-route]')"));
+  assert.ok(app.includes("closest?.('[data-open-job]')"));
 });
 
 test('job panel separates decline from permanent delete',()=>{
