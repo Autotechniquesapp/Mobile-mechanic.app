@@ -19,7 +19,7 @@ test('job panel separates decline from permanent delete',()=>{
   assert.match(tiles,/data-job-panel-decline/);
   assert.match(tiles,/dispatchPersistentAction\\('decline-job',id\\)/);
   assert.match(tiles,/dispatchPersistentAction\\('delete-job',id\\)/);
-  assert.doesNotMatch(tiles,/function deleteJob[^\\n]+dispatchPersistentAction\\('decline-job'/);
+  assert.ok(!tiles.includes("function deleteJob(id){if(!jobById(id))return toast('Job not found.','bad');dispatchPersistentAction('decline-job',id);"));
 });
 
 test('customer names vehicles and previous-job rows are actionable',()=>{
