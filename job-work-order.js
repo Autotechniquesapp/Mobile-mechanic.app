@@ -25,6 +25,11 @@ function canEditWorkOrderMoney(){
   const activeUsers=users.filter(x=>x.active!==false);
   return u.role==='technician'&&activeUsers.length===1&&activeUsers[0].id===id;
 }
+function canDeleteJob(){
+  const {db,shop}=context(),id=db.session?.userId;
+  const u=shop?.users?.find(x=>x.id===id);
+  return ['owner','manager'].includes(u?.role);
+}
 function pricing(){const {shop}=context();const p=window.MobileMechanicPricing;return p?p.shopPricing(shop):{laborRate:75,partsMarkup:25,taxRate:0,travelFee:0};}
 /* Who is signing. An attestation with no named user is worthless, so the UI
  * refuses to record one when the session cannot identify the person. */
@@ -134,7 +139,7 @@ function rowMarkup(item,type,index){
   const options=task?taskOptions(item.status):partOptions(item.status);
   const detail=item.note||item.purpose||item.source||'';
   const cell=type==='tests'?'':moneyCell(item,type,index);
-  return `<div class="jwo-row${cell?' jwo-row-money':''}"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}</div>${cell}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
+  return `<div class="jwo-row${cell?' jwo-row-money':''}"><div class="jwo-main"><b>${esc(item.name)}</b>${detail?`<small>${esc(detail)}</small>`:''}<button type="button" class="jwo-line-remove" data-jwo-remove="${type}" data-jwo-index="${index}">Remove</button></div>${cell}<select data-jwo-status data-jwo-type="${type}" data-jwo-index="${index}">${options}</select></div>`;
 }
 /*
  * Two totals, never one. Confirmed is what may be quoted to a customer;
@@ -171,7 +176,27 @@ function totalsMarkup(wo){
     ${t.counts.unpricedLines?`<p class="jwo-disclaimer plain">${t.counts.unpricedLines} line${t.counts.unpricedLines===1?'':'s'} have no cost or hours entered yet.</p>`:''}
   </div>`;
 }
-function section(title,type,items,button){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3><button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button></div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
+function section(title,type,items,button=''){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3>${button?`<button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button>`:''}</div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
+function quickEntryMarkup(){
+  const money=canEditWorkOrderMoney();
+  return `<div class="jwo-quick">
+    <div class="jwo-quick-head"><div><b>QUICK ADD</b><span>Add parts and labor right here. No pop-ups.</span></div></div>
+    <div class="jwo-quick-grid">
+      <form class="jwo-quick-card" data-jwo-quick-form="parts">
+        <b>Part</b>
+        <input type="text" data-jwo-quick-name="parts" placeholder="Part name" autocomplete="off" required>
+        ${money?'<input type="number" min="0" step="0.01" inputmode="decimal" data-jwo-quick-value="parts" placeholder="Cost $">':''}
+        <button type="submit" class="btn btn-primary">+ Add Part</button>
+      </form>
+      <form class="jwo-quick-card" data-jwo-quick-form="work">
+        <b>Labor</b>
+        <input type="text" data-jwo-quick-name="work" placeholder="Labor operation" autocomplete="off" required>
+        ${money?'<input type="number" min="0" step="0.1" inputmode="decimal" data-jwo-quick-value="work" placeholder="Hours">':''}
+        <button type="submit" class="btn btn-primary">+ Add Labor</button>
+      </form>
+    </div>
+  </div>`;
+}
 function financialMarkup(invoice,wo){
   if(!invoice)return `<div class="jwo-fin"><b>Invoice / Payment</b><span>No invoice attached yet.</span></div>`;
   const paid=Number(invoice.processor_metadata?.total_paid||0),total=Number(invoice.total||0),remaining=Math.max(0,total-paid);
@@ -181,10 +206,11 @@ function financialMarkup(invoice,wo){
   return `<div class="jwo-fin"><div><b>${processor} Invoice ${invNo}</b><span>${money(total)} total • ${money(paid)} paid • <strong>${money(remaining)} remaining</strong>${esc(auth)}</span></div></div>`;
 }
 function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.customer_states||job?.complaint||'';const codes=row?.codes||job?.codes||'';return `<section class="jwo" data-job-work-order>
-  <div class="jwo-top"><div><div class="eyebrow">LIVE REPAIR WORK ORDER</div><h2>Repair Breakdown</h2></div><span class="badge ${statusClass(job?.status==='Completed'?'completed':'in_progress')}">${esc(job?.status||'Job')}</span></div>
+  <div class="jwo-top"><div><div class="eyebrow">LIVE REPAIR WORK ORDER</div><h2>Repair Breakdown</h2></div><div class="jwo-top-actions"><span class="badge ${statusClass(job?.status==='Completed'?'completed':'in_progress')}">${esc(job?.status||'Job')}</span>${canDeleteJob()?`<button type="button" class="btn btn-danger jwo-delete-job" data-action="delete-job" data-job="${esc(job?.id||'')}">Delete Job</button>`:''}</div></div>
   <div class="jwo-complaint"><b>Original Complaint</b><p>${esc(complaint||'No complaint entered.')}</p>${codes?`<small><b>Codes / scan notes:</b> ${esc(codes)}</small>`:''}</div>
-  ${section('Parts Bought / Needed','parts',wo.parts,'Part')}
-  ${section('Work Being Done / Completed','work',wo.work,'Work Item')}
+  ${quickEntryMarkup()}
+  ${section('Parts Bought / Needed','parts',wo.parts)}
+  ${section('Work Being Done / Completed','work',wo.work)}
   ${section('Tests / Checks','tests',wo.tests,'Test')}
   ${totalsMarkup(wo)}
   ${canSeeFinancials()?financialMarkup(invoice,wo):''}
@@ -193,7 +219,7 @@ function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.cus
 
 function css(){if(document.getElementById('job-work-order-style'))return;const s=document.createElement('style');s.id='job-work-order-style';s.textContent=`
 .jwo{background:#10151b;border:1px solid #63262b;border-radius:15px;padding:14px;margin:10px 0 12px;box-shadow:0 0 18px rgba(239,42,49,.08)}
-.jwo-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.jwo-top h2{font-size:18px;margin:2px 0}.jwo-complaint{background:#0a0e13;border:1px solid #303841;border-radius:10px;padding:11px;margin-bottom:10px}.jwo-complaint p{margin:5px 0 3px;line-height:1.35}.jwo-complaint small{display:block;color:#aeb6c0;margin-top:7px}.jwo-section{border-top:1px solid #2c343d;padding-top:10px;margin-top:10px}.jwo-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.jwo-section-head h3{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.04em}.jwo-add{padding:4px 8px!important;min-height:28px!important;font-size:11px!important}.jwo-list{display:grid;gap:6px}.jwo-row{display:grid;grid-template-columns:minmax(0,1fr) auto 118px;gap:8px;align-items:center;background:#0a0e13;border:1px solid #28313a;border-radius:9px;padding:8px 9px}.jwo-main{min-width:0}.jwo-main b{display:block;font-size:12px}.jwo-main small{display:block;color:#8e99a5;font-size:10px;margin-top:3px;line-height:1.25}.jwo-price{font-size:11px;font-weight:700}.jwo-row select{background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:6px;font-size:10px;max-width:118px}.jwo-empty{font-size:11px;color:#8e99a5;padding:8px}.jwo-fin{margin-top:11px;background:#0a0e13;border:1px solid #34404a;border-radius:10px;padding:10px}.jwo-fin b,.jwo-fin span{display:block}.jwo-fin span{font-size:11px;color:#c5cbd2;margin-top:3px}.jwo-auth{font-size:11px;margin-top:8px;color:#c8ced5}.jwo-ai-wrap{margin-top:9px;border:1px solid #303841;border-radius:11px;background:#0b0f14}.jwo-ai-wrap>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:700}.jwo-ai-wrap>.work-white{margin:0!important;border:0!important;border-top:1px solid #303841!important;border-radius:0 0 11px 11px!important}
+.jwo-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.jwo-top h2{font-size:18px;margin:2px 0}.jwo-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.jwo-delete-job{padding:5px 8px!important;min-height:30px!important;font-size:11px!important}.jwo-complaint{background:#0a0e13;border:1px solid #303841;border-radius:10px;padding:11px;margin-bottom:10px}.jwo-complaint p{margin:5px 0 3px;line-height:1.35}.jwo-complaint small{display:block;color:#aeb6c0;margin-top:7px}.jwo-section{border-top:1px solid #2c343d;padding-top:10px;margin-top:10px}.jwo-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.jwo-section-head h3{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.04em}.jwo-add{padding:4px 8px!important;min-height:28px!important;font-size:11px!important}.jwo-list{display:grid;gap:6px}.jwo-row{display:grid;grid-template-columns:minmax(0,1fr) auto 118px;gap:8px;align-items:center;background:#0a0e13;border:1px solid #28313a;border-radius:9px;padding:8px 9px}.jwo-main{min-width:0}.jwo-main b{display:block;font-size:12px}.jwo-main small{display:block;color:#8e99a5;font-size:10px;margin-top:3px;line-height:1.25}.jwo-line-remove{background:none;border:0;color:#c06b70;padding:4px 0 0;font-size:9px;text-decoration:underline;cursor:pointer}.jwo-price{font-size:11px;font-weight:700}.jwo-row select{background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:6px;font-size:10px;max-width:118px}.jwo-empty{font-size:11px;color:#8e99a5;padding:8px}.jwo-quick{background:#0a0e13;border:1px solid #39434d;border-radius:11px;padding:10px;margin:10px 0 4px}.jwo-quick-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.jwo-quick-head b{font-size:11px;letter-spacing:.05em}.jwo-quick-head span{display:block;color:#9aa4b0;font-size:10px;margin-top:2px}.jwo-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jwo-quick-card{display:grid;grid-template-columns:minmax(120px,1fr) 92px auto;gap:6px;align-items:end;background:#10151b;border:1px solid #2c343d;border-radius:9px;padding:8px}.jwo-quick-card>b{grid-column:1/-1;font-size:11px}.jwo-quick-card input{min-width:0;width:100%;box-sizing:border-box;background:#080c11;color:#fff;border:1px solid #39434d;border-radius:7px;padding:8px;font-size:12px}.jwo-quick-card .btn{min-height:34px!important;padding:7px 10px!important;white-space:nowrap}.jwo-fin{margin-top:11px;background:#0a0e13;border:1px solid #34404a;border-radius:10px;padding:10px}.jwo-fin b,.jwo-fin span{display:block}.jwo-fin span{font-size:11px;color:#c5cbd2;margin-top:3px}.jwo-auth{font-size:11px;margin-top:8px;color:#c8ced5}.jwo-ai-wrap{margin-top:9px;border:1px solid #303841;border-radius:11px;background:#0b0f14}.jwo-ai-wrap>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:700}.jwo-ai-wrap>.work-white{margin:0!important;border:0!important;border-top:1px solid #303841!important;border-radius:0 0 11px 11px!important}
 .jwo-row-money{grid-template-columns:minmax(0,1fr) minmax(190px,auto) 118px}
 .jwo-money{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;max-width:280px}
 .jwo-inp{display:flex;align-items:center;gap:5px;font-size:10px;color:#9aa4b0}.jwo-inp input{width:74px;background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:5px 6px;font-size:11px}
@@ -228,7 +254,7 @@ function css(){if(document.getElementById('job-work-order-style'))return;const s
 .jwo-modal-sign{font-size:10px;color:#8e99a5;margin:9px 0 0;line-height:1.4}
 .jwo-modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
 .jwo-modal-err{margin:8px 0 0;font-size:11px;color:#ef6a6a}
-@media(max-width:620px){.jwo-totals{grid-template-columns:1fr}.jwo-row-money{grid-template-columns:minmax(0,1fr) 108px}.jwo-money{max-width:none;justify-content:flex-start}.jwo{padding:11px}.jwo-row{grid-template-columns:minmax(0,1fr) 108px}.jwo-price{grid-column:1}.jwo-row select{grid-column:2;grid-row:1 / span 2}.jwo-top h2{font-size:16px}}
+@media(max-width:620px){.jwo-totals{grid-template-columns:1fr}.jwo-quick-grid{grid-template-columns:1fr}.jwo-quick-card{grid-template-columns:minmax(0,1fr) 82px}.jwo-quick-card .btn{grid-column:1/-1;width:100%}.jwo-row-money{grid-template-columns:minmax(0,1fr) 108px}.jwo-money{max-width:none;justify-content:flex-start}.jwo{padding:11px}.jwo-row{grid-template-columns:minmax(0,1fr) 108px}.jwo-price{grid-column:1}.jwo-row select{grid-column:2;grid-row:1 / span 2}.jwo-top h2{font-size:16px}.jwo-top-actions{max-width:145px}.jwo-delete-job{width:100%}}
 `;document.head.appendChild(s);}
 
 function simplifyLegacyUI(){
@@ -272,6 +298,29 @@ function add(type){
   const labels={parts:'part',work:'work item',tests:'test / check'};const name=prompt(`Add ${labels[type]||'item'}:`);if(!name?.trim())return;
   if(type==='parts')currentState.wo.parts.push({name:name.trim(),status:'needed',price:null,source:''});
   else currentState.wo[type].push({name:name.trim(),status:'to_do'});
+  rerender();save();
+}
+function quickAdd(type,form){
+  if(!currentState||!form)return;
+  const name=String(form.querySelector(`[data-jwo-quick-name="${type}"]`)?.value||'').trim();
+  if(!name)return toast(type==='parts'?'Enter the part name.':'Enter the labor operation.','bad');
+  const raw=String(form.querySelector(`[data-jwo-quick-value="${type}"]`)?.value||'').trim();
+  const p=window.MobileMechanicPricing;
+  if(type==='parts'){
+    let line={name,status:'needed',cost:null,source:''};
+    if(raw&&canEditWorkOrderMoney())line=p?.confirmPartCost?p.clearAttestation(p.confirmPartCost(line,raw)):{...line,cost:Number(raw)};
+    currentState.wo.parts.push(line);
+  }else{
+    let line={name,status:'to_do',hours:null};
+    if(raw&&canEditWorkOrderMoney())line=p?.confirmLaborHours?p.clearAttestation(p.confirmLaborHours(line,raw,'entered')):{...line,hours:Number(raw)};
+    currentState.wo.work.push(line);
+  }
+  rerender();save();
+  setTimeout(()=>document.querySelector(`[data-jwo-quick-name="${type}"]`)?.focus(),0);
+}
+function removeLine(type,index){
+  if(!currentState?.wo?.[type]?.[index])return;
+  currentState.wo[type].splice(index,1);
   rerender();save();
 }
 /*
@@ -343,6 +392,11 @@ function openAttestModal(kind,index){
   });
 }
 function bindGlobal(){
+  document.addEventListener('submit',e=>{
+    const form=e.target.closest?.('[data-jwo-quick-form]');
+    if(!form)return;
+    e.preventDefault();e.stopPropagation();quickAdd(form.dataset.jwoQuickForm,form);
+  },true);
   document.addEventListener('change',e=>{
     const el=e.target.closest?.('[data-jwo-status]');
     if(el&&currentState){const type=el.dataset.jwoType,i=Number(el.dataset.jwoIndex);if(currentState.wo[type]?.[i]){currentState.wo[type][i].status=el.value;save();}return;}
@@ -356,6 +410,8 @@ function bindGlobal(){
     if(b){e.preventDefault();add(b.dataset.jwoAdd);return;}
     const a=e.target.closest?.('[data-jwo-attest]');
     if(a){e.preventDefault();openAttestModal(a.dataset.jwoAttest,Number(a.dataset.jwoIndex));return;}
+    const remove=e.target.closest?.('[data-jwo-remove]');
+    if(remove){e.preventDefault();removeLine(remove.dataset.jwoRemove,Number(remove.dataset.jwoIndex));return;}
   },true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAttestModal();});
 }
