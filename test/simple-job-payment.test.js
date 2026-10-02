@@ -7,20 +7,31 @@ const tools = fs.readFileSync('job-workflow-tools.js', 'utf8');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 
 test('the production shell cache-busts and loads the simple payment controller', () => {
-  assert.match(html, /job-workflow-tools\.js\?v=20260915-simple-job-payment1/);
-  assert.match(tools, /next-invoice\.js\?v=20260915-simple-job-payment1/);
+  assert.match(html, /job-workflow-tools\.js\?v=20261002-square-api1/);
+  assert.match(tools, /next-invoice\.js\?v=20261002-square-api1/);
   assert.match(tools, /__MMASimpleJobPaymentLoaded/);
   assert.match(tools, /document\.querySelector\('\[data-job-work-order\]'\)/);
 });
 
-test('the owner job screen is intentionally limited to parts, labor, payment, and history', () => {
-  assert.match(payment, /JOB &amp; PAYMENT/);
-  assert.match(payment, /group\('Parts','parts'/);
-  assert.match(payment, /group\('Labor','labor'/);
-  assert.match(payment, />Total</);
+test('the owner job screen has one work-order parts and labor area plus a payment summary', () => {
+  assert.match(payment, /PAYMENT/);
+  assert.match(payment, /Square Invoice/);
+  assert.match(payment, /Uses the Parts and Labor entered in the work order above/);
+  assert.doesNotMatch(payment, /group\('Parts','parts'/);
+  assert.doesNotMatch(payment, /group\('Labor','labor'/);
+  assert.match(payment, /Parts from work order/);
+  assert.match(payment, /Labor from work order/);
+  assert.match(payment, /Invoice total/);
   assert.match(payment, /data-nxe-deposit-amount/);
   assert.match(payment, /Create Square Draft/);
+  assert.match(payment, /data-nxe-publish-square/);
+  assert.match(payment, /Publish Payment Link/);
+  assert.match(payment, /data-nxe-open-payment-link/);
+  assert.match(payment, /data-nxe-copy-payment-link/);
+  assert.match(payment, /action:'publish'/);
   assert.match(payment, /Previous jobs for this customer \/ vehicle/);
+  assert.doesNotMatch(payment, /jwo-payment-only/);
+  assert.doesNotMatch(payment, /data-nxe-open-square/);
   assert.doesNotMatch(payment, /Direct-Hit/);
   assert.doesNotMatch(payment, /Add Time/);
   assert.doesNotMatch(payment, /Separate From Original Invoice/);
