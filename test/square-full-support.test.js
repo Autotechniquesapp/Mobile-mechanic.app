@@ -61,6 +61,10 @@ test('Square invoice lifecycle stays draft-first and supports publish, cancel, a
   assert.match(invoiceFunction, /action === "publish"/);
   assert.match(invoiceFunction, /action === "cancel"/);
   assert.match(invoiceFunction, /action === "refund"/);
+  assert.match(invoiceFunction, /action === "pos_checkout_link"/);
+  assert.match(invoiceFunction, /square-commerce-v1:\/\/payment\/create/);
+  assert.match(invoiceFunction, /com\.squareup\.pos\.action\.CHARGE/);
+  assert.match(nextInvoice, /data-nxe-tap-square/);
   assert.match(invoiceFunction, /maximum refundable amount/i);
   assert.match(invoiceFunction, /idempotency_key/);
   assert.doesNotMatch(invoiceFunction, /\/publish[^\n]+create_draft/);

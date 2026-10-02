@@ -7,8 +7,8 @@ const tools = fs.readFileSync('job-workflow-tools.js', 'utf8');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 
 test('the production shell cache-busts and loads the simple payment controller', () => {
-  assert.match(html, /job-workflow-tools\.js\?v=20261002-square-api1/);
-  assert.match(tools, /next-invoice\.js\?v=20261002-square-api1/);
+  assert.match(html, /job-workflow-tools\.js\?v=20261002-square-tap1/);
+  assert.match(tools, /next-invoice\.js\?v=20261002-square-tap1/);
   assert.match(tools, /__MMASimpleJobPaymentLoaded/);
   assert.match(tools, /document\.querySelector\('\[data-job-work-order\]'\)/);
 });
@@ -28,6 +28,9 @@ test('the owner job screen has one work-order parts and labor area plus a paymen
   assert.match(payment, /Publish Payment Link/);
   assert.match(payment, /data-nxe-open-payment-link/);
   assert.match(payment, /data-nxe-copy-payment-link/);
+  assert.match(payment, /data-nxe-tap-square/);
+  assert.match(payment, /Take Tap Payment/);
+  assert.match(payment, /pos_checkout_link/);
   assert.match(payment, /action:'publish'/);
   assert.match(payment, /Previous jobs for this customer \/ vehicle/);
   assert.doesNotMatch(payment, /jwo-payment-only/);

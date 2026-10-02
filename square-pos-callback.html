@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Square Payment Result</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07090c;--card:#10151b;--line:#38414a;--red:#ef2a31;--text:#f5f7fa;--muted:#9ca6b2}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:18px}.card{width:min(480px,100%);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}.eyebrow{color:var(--red);font-size:11px;font-weight:900;letter-spacing:.12em}.status{font-size:22px;margin:7px 0 8px}.muted{color:var(--muted);line-height:1.45}.ok{color:#70e09b}.bad{color:#ff8a8a}.btn{display:block;margin-top:15px;padding:13px 14px;border-radius:9px;background:var(--red);color:white;text-align:center;text-decoration:none;font-weight:900}.detail{margin-top:12px;padding:10px;border-radius:8px;background:#090d12;border:1px solid #27313a;font-size:12px;word-break:break-word;color:#c7d0da}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="eyebrow">SQUARE</div>
+    <h1 class="status" id="status">Checking payment result...</h1>
+    <p class="muted" id="message">You can return to Mobile Mechanic AI after this page records Square's response.</p>
+    <div class="detail" id="detail"></div>
+    <a class="btn" href="/#workup">Back to Job Payment</a>
+  </main>
+  <script>
+    (() => {
+      const params = new URL(location.href).searchParams;
+      let data = {};
+      const packed = params.get('data');
+      if (packed) {
+        try { data = JSON.parse(packed); } catch { data = { raw_data: packed }; }
+      }
+      for (const [key, value] of params.entries()) if (key !== 'data') data[key] = value;
+      const error = data['com.squareup.pos.ERROR_CODE'] || data.error_code || data.errorCode || data.error;
+      const payment = data['com.squareup.pos.SERVER_TRANSACTION_ID'] || data.transaction_id || data.transactionId || data.payment_id || '';
+      const client = data['com.squareup.pos.CLIENT_TRANSACTION_ID'] || data.client_transaction_id || data.clientTransactionId || '';
+      const result = { provider: 'square_pos', error, payment, client, data, returned_at: new Date().toISOString() };
+      try { localStorage.setItem('mm_square_pos_result', JSON.stringify(result)); } catch {}
+      document.getElementById('status').textContent = error ? 'Payment Not Completed' : 'Payment Returned';
+      document.getElementById('status').className = `status ${error ? 'bad' : 'ok'}`;
+      document.getElementById('message').textContent = error
+        ? `Square returned ${error}. The payment may have been canceled or could not be completed.`
+        : 'Square returned a payment response. Use Refresh in the job payment screen to sync the latest Square status.';
+      document.getElementById('detail').textContent = payment
+        ? `Square transaction: ${payment}${client ? ` | Client transaction: ${client}` : ''}`
+        : 'No Square transaction ID was returned. If you completed a real card payment, refresh Square status from the job payment screen.';
+    })();
+  </script>
+</body>
+</html>

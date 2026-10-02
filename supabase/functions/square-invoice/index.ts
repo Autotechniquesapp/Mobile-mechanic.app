@@ -34,6 +34,15 @@ function dueDate(days = 7) {
   date.setUTCDate(date.getUTCDate() + Math.max(0, days));
   return date.toISOString().slice(0, 10);
 }
+function safePosCallback(value: unknown) {
+  const fallback = "https://mobile-mechanic.app/square-pos-callback.html";
+  try {
+    const url = new URL(String(value || fallback));
+    if (url.protocol === "https:" && url.hostname === "mobile-mechanic.app") return url.toString();
+    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && /^https?:$/.test(url.protocol)) return url.toString();
+  } catch { /* fall back below */ }
+  return fallback;
+}
 function localStatus(squareStatus: unknown) {
   const status = String(squareStatus || "DRAFT").toUpperCase();
   if (status === "DRAFT") return "draft";
@@ -236,6 +245,55 @@ Deno.serve(async (req) => {
 
     const metadata = { ...(invoice.processor_metadata || {}) };
     const squareInvoiceId = String(metadata.square_invoice_id || invoice.processor_payment_id || "");
+    if (action === "pos_checkout_link") {
+      const appId = Deno.env.get("SQUARE_APPLICATION_ID") || "";
+      if (!appId) return json({ error: "Square application credentials are missing." }, 503);
+      const amountCents = cents(body.amount || invoice.total || invoice.subtotal);
+      if (!(amountCents > 0)) return json({ error: "This job does not have a payment amount yet." }, 400);
+      const callbackUrl = safePosCallback(body.callback_url);
+      const state = JSON.stringify({
+        invoice_id: String(invoice.id),
+        shop_id: String(membership.shop_id),
+        job_id: invoice.job_id ? String(invoice.job_id) : null,
+      });
+      const note = String(body.note || `Mobile Mechanic AI invoice ${invoice.id}`).slice(0, 500);
+      const tenderTypes = "com.squareup.pos.TENDER_CARD";
+      const androidUrl = [
+        "intent:#Intent",
+        "action=com.squareup.pos.action.CHARGE",
+        "package=com.squareup",
+        `S.browser_fallback_url=${encodeURIComponent(callbackUrl)}`,
+        `S.com.squareup.pos.WEB_CALLBACK_URI=${encodeURIComponent(callbackUrl)}`,
+        `S.com.squareup.pos.CLIENT_ID=${encodeURIComponent(appId)}`,
+        `S.com.squareup.pos.LOCATION_ID=${encodeURIComponent(String(credential.location_id))}`,
+        "S.com.squareup.pos.API_VERSION=v2.1",
+        `i.com.squareup.pos.TOTAL_AMOUNT=${amountCents}`,
+        "S.com.squareup.pos.CURRENCY_CODE=USD",
+        `S.com.squareup.pos.TENDER_TYPES=${encodeURIComponent(tenderTypes)}`,
+        `S.com.squareup.pos.NOTE=${encodeURIComponent(note)}`,
+        `S.com.squareup.pos.REQUEST_METADATA=${encodeURIComponent(state)}`,
+        "end",
+      ].join(";");
+      const iosData = {
+        amount_money: { amount: String(amountCents), currency_code: "USD" },
+        callback_url: callbackUrl,
+        client_id: appId,
+        location_id: String(credential.location_id),
+        version: "1.3",
+        notes: note,
+        state,
+        options: { supported_tender_types: ["CREDIT_CARD"], clear_default_fees: true },
+      };
+      return json({
+        provider: "square",
+        kind: "pos_checkout_link",
+        amount: amountCents / 100,
+        amount_cents: amountCents,
+        callback_url: callbackUrl,
+        android_url: androidUrl,
+        ios_url: `square-commerce-v1://payment/create?data=${encodeURIComponent(JSON.stringify(iosData))}`,
+      });
+    }
     if (action === "status") {
       if (!squareInvoiceId) return json({ provider: "square", created: false, status: invoice.status || "draft", dashboard_url: squareInvoicesAppUrl, dashboard_web_url: dashboardWebUrl });
       const data = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
