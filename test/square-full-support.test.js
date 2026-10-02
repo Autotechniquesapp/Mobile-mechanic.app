@@ -14,6 +14,7 @@ const syncFunction = fs.readFileSync('supabase/functions/square-sync/index.ts', 
 const webhookFunction = fs.readFileSync('supabase/functions/square-webhook/index.ts', 'utf8');
 const processorFunction = fs.readFileSync('supabase/functions/payment-processors/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_sync.sql', 'utf8');
+const posCallback = fs.readFileSync('square-pos-callback.html', 'utf8');
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
   assert.match(html, /square-sync\.js\?v=20260915-square-deposit1/);
@@ -68,6 +69,18 @@ test('Square invoice lifecycle stays draft-first and supports publish, cancel, a
   assert.match(invoiceFunction, /maximum refundable amount/i);
   assert.match(invoiceFunction, /idempotency_key/);
   assert.doesNotMatch(invoiceFunction, /\/publish[^\n]+create_draft/);
+});
+
+test('Square POS tap payment opens downward and returns to the app', () => {
+  assert.match(nextInvoice, /\.nxe-tap\{[^}]*flex-direction:column/);
+  assert.match(nextInvoice, /\.nxe-tap \.btn\{width:100%\}/);
+  assert.match(invoiceFunction, /safePosCallback/);
+  assert.match(invoiceFunction, /https:\/\/mobile-mechanic\.app\/square-pos-callback\.html/);
+  assert.match(invoiceFunction, /S\.com\.squareup\.pos\.REQUEST_METADATA/);
+  assert.match(invoiceFunction, /location_id: String\(credential\.location_id\)/);
+  assert.match(posCallback, /com\.squareup\.pos\.SERVER_TRANSACTION_ID/);
+  assert.match(posCallback, /com\.squareup\.pos\.ERROR_CODE/);
+  assert.match(posCallback, /mm_square_pos_result/);
 });
 
 test('Square invoices use a manually chosen deposit and request the balance when work is completed', () => {
