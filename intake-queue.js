@@ -19,6 +19,31 @@ function sameCustomerIdentity(customer,phone,email){
   return Boolean((emailKey&&customerEmailKey(customer?.email)===emailKey)||(phoneKey&&customerPhoneKey(customer?.phone)===phoneKey));
 }
 function vehicleText(v={}){return [v.year,v.make,v.model,v.submodel].filter(Boolean).join(' ')||'Vehicle details pending';}
+function phoneHref(value='',scheme='tel'){
+  const raw=String(value||'').trim();
+  const digits=raw.replace(/\D/g,'');
+  if(digits.length<7)return '';
+  const normalized=digits.length===10?`+1${digits}`:raw.replace(/[^+\d]/g,'');
+  return `${scheme}:${encodeURIComponent(normalized)}`;
+}
+function intakePhoneMarkup(phone=''){
+  const label=String(phone||'').trim();
+  const call=phoneHref(label,'tel'),text=phoneHref(label,'sms');
+  if(!call&&!text)return esc(label||'No phone');
+  return `<span>${esc(label||'No phone')}</span><span class="list-actions" style="display:inline-flex;gap:6px;margin:0 0 0 8px;vertical-align:middle">${call?`<a class="btn btn-soft" style="padding:5px 8px;font-size:12px" href="${esc(call)}">Call</a>`:''}${text?`<a class="btn btn-soft" style="padding:5px 8px;font-size:12px" href="${esc(text)}">Text</a>`:''}</span>`;
+}
+function intakeReceivedText(value=''){
+  if(!value)return 'Intake received: date not available';
+  try{return `Intake received: ${new Date(value).toLocaleString()}`;}catch{return 'Intake received: date not available';}
+}
+function notifyNewIntake(i={}){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  try{
+    const title=`New intake: ${i.customer_name||'Customer'}`;
+    const body=[vehicleText(i.vehicle||{}),i.phone].filter(Boolean).join(' • ');
+    new Notification(title,{body,tag:`mma-intake-${i.id||Date.now()}`,renotify:true});
+  }catch(err){console.warn('System intake notification unavailable',err);}
+}
 function notice(message,type=''){
   document.querySelector('.intake-queue-notice')?.remove();
   const d=document.createElement('div');d.className=`toast intake-queue-notice ${type}`;d.textContent=message;document.body.appendChild(d);setTimeout(()=>d.remove(),5200);
@@ -215,7 +240,8 @@ function intakeCard(i){
     <div class="list-main">
       <h3 style="margin:0 0 5px">${esc(i.customer_name||'Customer')}</h3>
       <div style="display:grid;gap:3px;margin-bottom:10px">
-        <div><b>Phone:</b> ${esc(i.phone||'No phone')}</div>
+        <div><b>Phone:</b> ${intakePhoneMarkup(i.phone)}</div>
+        <div><b>Received:</b> ${esc(intakeReceivedText(i.created_at).replace(/^Intake received:\s*/,''))}</div>
         <div><b>Address:</b> ${esc(address)}</div>
         ${i.email?`<div><b>Email:</b> ${esc(i.email)}</div>`:''}
       </div>
@@ -228,7 +254,7 @@ function intakeCard(i){
       <div style="padding:9px;border:1px solid #39434e;border-radius:9px">
         <b>Requested Date & Time</b>
         <div style="margin-top:4px">${esc(i.availability||'No requested date or time')}</div>
-        ${when?`<div class="small muted" style="margin-top:3px">Intake received ${esc(when)}</div>`:''}
+        ${when?`<div class="small muted" style="margin-top:3px">${esc(intakeReceivedText(i.created_at))}</div>`:''}
         <button class="btn btn-primary" style="margin-top:9px" data-convert-intake-calendar="${esc(i.id)}" data-calendar-start="${esc(calendarStartHint(i.availability||''))}">📅 Add to Calendar</button>
       </div>
       <div class="list-actions" style="margin-top:10px"><button class="btn btn-primary" data-convert-intake="${esc(i.id)}">Convert to Job</button><button class="btn btn-soft" data-close-intake="${esc(i.id)}">Close Intake</button></div>
@@ -364,6 +390,7 @@ function startRealtimeIntakeAlerts(){
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'intake_submissions',filter:`shop_id=eq.${sid}`},payload=>{
       const i=payload.new||{};
       notice(`📥 New customer intake: ${i.customer_name||'Customer'} — ${vehicleText(i.vehicle||{})}`,'good');
+      notifyNewIntake(i);
       speakNewCustomer();
       injectDashboardQueue(true);
     })
