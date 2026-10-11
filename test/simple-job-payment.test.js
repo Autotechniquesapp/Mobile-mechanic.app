@@ -7,8 +7,8 @@ const tools = fs.readFileSync('job-workflow-tools.js', 'utf8');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 
 test('the production shell cache-busts and loads the simple payment controller', () => {
-  assert.match(html, /job-workflow-tools\.js\?v=20261002-square-tap1/);
-  assert.match(tools, /next-invoice\.js\?v=20261002-square-tap1/);
+  assert.match(html, /job-workflow-tools\.js\?v=20261010-square-payment2/);
+  assert.match(tools, /next-invoice\.js\?v=20261010-square-payment2/);
   assert.match(tools, /__MMASimpleJobPaymentLoaded/);
   assert.match(tools, /document\.querySelector\('\[data-job-work-order\]'\)/);
 });

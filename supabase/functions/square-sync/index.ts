@@ -179,7 +179,7 @@ function localCustomerPayload(customer: Row) {
 }
 
 async function syncCustomers(ctx: Row) {
-  const squareCustomers = await listSquare(ctx, "/v2/customers?limit=100&sort_field=UPDATED_AT&sort_order=ASC", "customers");
+  const squareCustomers = await listSquare(ctx, "/v2/customers?limit=100&sort_field=CREATED_AT&sort_order=ASC", "customers");
   const [{ data: localRows, error: localError }, mappingRows] = await Promise.all([
     ctx.admin.from("customers").select("*").eq("shop_id", ctx.shopId),
     mappings(ctx, "customer"),

@@ -6,7 +6,7 @@ const tools = await readFile(new URL('../job-workflow-tools.js', import.meta.url
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 test('mechanic job workflow tools are loaded', () => {
-  assert.match(index, /job-workflow-tools\.js\?v=20261002-square-tap1/);
+  assert.match(index, /job-workflow-tools\.js\?v=20261010-square-payment2/);
 });
 
 test('voice findings save to the active job', () => {
