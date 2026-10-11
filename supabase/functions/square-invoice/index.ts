@@ -248,8 +248,21 @@ Deno.serve(async (req) => {
     if (action === "pos_checkout_link") {
       const appId = Deno.env.get("SQUARE_APPLICATION_ID") || "";
       if (!appId) return json({ error: "Square application credentials are missing." }, 503);
-      const amountCents = cents(body.amount || invoice.total || invoice.subtotal);
+      let status = String(invoice.processor_status || invoice.status || "").toUpperCase();
+      let balance = Math.max(0, Number(invoice.total || invoice.subtotal || 0) - Number(metadata.total_paid || 0));
+      if (squareInvoiceId) {
+        const current = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
+        if (!current.invoice) return json({ error: "Could not verify the Square invoice balance." }, 502);
+        const synced = await syncInvoice(current.invoice);
+        status = synced.status;
+        balance = synced.amounts.balance;
+      }
+      if (["PAID", "CANCELED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"].includes(status) || !(balance > 0)) {
+        return json({ error: "This invoice has no collectible balance. Refresh the payment status." }, 409);
+      }
+      const amountCents = cents(body.amount ?? balance);
       if (!(amountCents > 0)) return json({ error: "This job does not have a payment amount yet." }, 400);
+      if (amountCents > cents(balance)) return json({ error: "The payment exceeds the remaining balance. Refresh the payment status." }, 409);
       const callbackUrl = safePosCallback(body.callback_url);
       const state = JSON.stringify({
         invoice_id: String(invoice.id),
