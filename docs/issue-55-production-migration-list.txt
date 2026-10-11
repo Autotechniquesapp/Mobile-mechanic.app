@@ -1,0 +1,5 @@
+# Paste the output of:
+# supabase migration list --linked
+#
+# This file is intentionally a placeholder until it is generated from the
+# authenticated production Supabase project. Do not hand-write or guess rows.
