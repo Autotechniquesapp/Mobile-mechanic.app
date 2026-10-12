@@ -16,7 +16,7 @@ const processorFunction = fs.readFileSync('supabase/functions/payment-processors
 const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_sync.sql', 'utf8');
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
-  assert.match(html, /square-sync\.js\?v=20260915-square-deposit1/);
+  assert.match(html, /square-sync\.js\?v=20261012-invoice-controls1/);
   assert.match(html, /payment-processors\.js\?v=20260912-square-tile1/);
   assert.match(html, /styles\.css\?v=20260912-square-tile1/);
   assert.match(browser, /data-square-sync-slot/);
@@ -27,7 +27,7 @@ test('the production shell loads the Square sync controller with the current cac
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {
-  assert.match(browser, /customer balances owed to your shop—not bills you owe Square/i);
+  assert.match(browser, /Complete Job finishes the work; it does not mark an invoice paid/i);
   assert.match(browser, /UNPAID CUSTOMER INVOICES/);
   assert.match(browser, /DRAFTS — NOT SENT/);
   assert.match(browser, /RECENT SQUARE PAYMENTS/);
