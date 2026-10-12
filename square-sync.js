@@ -5,6 +5,7 @@ const sb=window.MobileMechanicSupabase;
 const DBKEY='mobile_mechanic_ai_approved_v7';
 const SYNC_KEY='mma_square_last_sync_';
 const AUTO_SYNC_MS=3*60*1000;
+let invoiceTab='open';
 let syncing=false,modalOpen=false,statusLoading=false,lastStatusRead=0,dashboardRendering=false,lastDashboardRender=0;
 
 function read(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
@@ -54,6 +55,8 @@ async function loadInvoiceRows(){
     if(payment.local_invoice_id){const key=String(payment.local_invoice_id),list=paymentsByInvoice.get(key)||[];list.push(item);paymentsByInvoice.set(key,list);}
     if(payment.external_order_id){const key=String(payment.external_order_id),list=paymentsByOrder.get(key)||[];list.push(item);paymentsByOrder.set(key,list);}
   }
+  const localById=new Map(local.map(row=>[String(row.id),row]));
+  const mirroredExternal=new Set(mirror.map(row=>String(row.external_invoice_id||'')).filter(Boolean));
   const mirroredLocal=new Set(mirror.map(row=>String(row.local_invoice_id||'')).filter(Boolean));
   const customerIds=[...new Set(mirror.map(row=>row.local_customer_id).filter(Boolean))];
   let customers=[];
@@ -62,16 +65,16 @@ async function loadInvoiceRows(){
   const rows=mirror.map(row=>{
     const matchedPayments=paymentsByInvoice.get(String(row.local_invoice_id||''))||paymentsByOrder.get(String(row.external_order_id||''))||[];
     return {source:'mirror',localId:row.local_invoice_id||null,externalId:row.external_invoice_id,externalOrderId:row.external_order_id||null,
-    invoiceNumber:row.invoice_number||'',customerName:customerNames.get(String(row.local_customer_id||''))||'',
+    jobId:localById.get(String(row.local_invoice_id||''))?.job_id||null,invoiceNumber:row.invoice_number||'',customerName:customerNames.get(String(row.local_customer_id||''))||'',
     status:String(row.status||'DRAFT').toUpperCase(),total:Number(row.total||0),paid:Number(row.paid||0),
     balance:Number(row.balance||0),refundable:matchedPayments.reduce((sum,payment)=>sum+payment.refundable,0),payments:matchedPayments,
     url:safeSquareUrl(row.public_url),updatedAt:row.provider_updated_at||row.updated_at};
   });
   for(const row of local){
-    if(mirroredLocal.has(String(row.id)))continue;
+    if(mirroredLocal.has(String(row.id))||mirroredExternal.has(String(row.processor_metadata?.square_invoice_id||row.processor_payment_id||'')))continue;
     const paid=Number(row.processor_metadata?.total_paid||0),total=Number(row.total||0);
     rows.push({source:'local',localId:row.id,externalId:row.processor_payment_id||row.processor_metadata?.square_invoice_id||null,
-      invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(row.processor_status||row.status||'DRAFT').toUpperCase(),
+      jobId:row.job_id||null,invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(row.processor_status||row.status||'DRAFT').toUpperCase(),
       total,paid,balance:Math.max(0,Number(row.processor_metadata?.remaining_calculated??(total-paid))),refundable:0,payments:[],
       url:safeSquareUrl(row.processor_payment_url||row.payment_links?.square),updatedAt:row.created_at});
   }
@@ -91,26 +94,35 @@ async function renderDashboardSummary(force=false){
 
 function invoiceRow(row){
   const title=row.invoiceNumber?`Invoice #${esc(row.invoiceNumber)}`:'Square invoice';
-  const customer=row.customerName?`<small>${esc(row.customerName)}</small>`:'';
+  const job=context().shop?.jobs?.find(item=>String(item.id)===String(row.jobId));
+  const customerName=row.customerName||job?.customerName||'';
+  const customer=customerName?`<small>${esc(customerName)}</small>`:'';
   const actions=[];
+  if(job){actions.push(`<button class="btn btn-soft" data-square-open-job="${esc(job.id)}">Open Job</button>`);if(String(job.status).toLowerCase()!=='completed')actions.push(`<button class="btn btn-green" data-action="complete-job" data-job="${esc(job.id)}">Complete Job</button>`);else actions.push('<span class="badge green">Job completed · balance still due</span>');actions.push(`<button class="btn btn-danger" data-action="delete-job" data-job="${esc(job.id)}">Delete Job</button>`);}
   if(row.url)actions.push(`<button class="btn btn-primary" data-square-open-url="${esc(row.url)}">Open Invoice</button>`,`<button class="btn btn-soft" data-square-share-url="${esc(row.url)}">Share Payment Link</button>`);
   else actions.push('<button class="btn btn-soft" data-square-dashboard>Open Square</button>');
   if(row.localId&&row.status==='DRAFT')actions.push(`<button class="btn btn-primary" data-square-publish="${esc(row.localId)}">Publish After Review</button>`);
-  if(row.localId&&['UNPAID','PARTIALLY_PAID','PAYMENT_PENDING','SCHEDULED','SENT'].includes(row.status))actions.push(`<button class="btn btn-danger" data-square-cancel="${esc(row.localId)}">Cancel</button>`);
+  if(['UNPAID','PARTIALLY_PAID','PAYMENT_PENDING','SCHEDULED','SENT','DEPOSIT_DUE'].includes(row.status)&&(row.localId||row.externalId))actions.push(`<button class="btn btn-danger" data-square-cancel="${esc(row.localId||'')}" data-square-external-id="${esc(row.externalId||'')}">Cancel Invoice</button>`);
+  if(row.status==='DRAFT'&&(row.localId||row.externalId))actions.push(`<button class="btn btn-danger" data-square-delete-draft="${esc(row.localId||'')}" data-square-external-id="${esc(row.externalId||'')}">Delete Draft</button>`);
   if(row.localId&&row.refundable>0)actions.push(`<button class="btn btn-soft" data-square-refund="${esc(row.localId)}" data-square-refundable="${Math.max(0,row.refundable).toFixed(2)}">Refund</button>`);
   return `<article class="square-invoice-row"><div><b>${title}</b>${customer}<small>${esc(row.status.replaceAll('_',' '))} · ${money(row.total)} total</small><strong>${money(row.paid)} paid · ${money(row.balance)} remaining</strong></div><div class="square-invoice-actions">${actions.join('')}</div></article>`;
 }
 function paymentRow(row){const when=row.paidAt?new Date(row.paidAt).toLocaleString():'Date unavailable',net=Math.max(0,row.amount-row.refunded),details=[`${money(net)} after refunds`,row.tip>0?`${money(row.tip)} tip`:null,row.fee>0?`${money(row.fee)} Square fee`:null].filter(Boolean).join(' · '),receipt=row.receiptUrl?`<button class="btn btn-soft" data-square-open-url="${esc(row.receiptUrl)}">View Receipt</button>`:'';return `<article class="square-invoice-row"><div><b>${money(row.amount)} payment</b><small>${esc(when)} · ${esc(row.status.replaceAll('_',' '))}</small><strong>${esc(details)}</strong></div>${receipt?`<div class="square-invoice-actions">${receipt}</div>`:''}</article>`;}
 async function openInvoices(){
   if(!canView())return;
-  modalOpen=true;
+  modalOpen=true;invoiceTab='open';
   document.querySelector('[data-square-invoices-modal]')?.remove();
-  document.body.insertAdjacentHTML('beforeend',`<div class="square-modal-backdrop" data-square-invoices-modal><section class="square-modal" role="dialog" aria-modal="true" aria-label="Square invoices"><header><div><h2>Square Invoices</h2><p>These are customer balances owed to your shop—not bills you owe Square.</p></div><button type="button" data-square-close aria-label="Close">×</button></header><div class="square-modal-tools"><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button><button class="btn btn-soft" data-square-dashboard>Open Square Dashboard</button></div><div data-square-invoice-list class="muted">Loading invoices…</div></section></div>`);
+  document.body.insertAdjacentHTML('beforeend',`<div class="square-modal-backdrop" data-square-invoices-modal><section class="square-modal" role="dialog" aria-modal="true" aria-label="Square invoices"><header><div><h2>Customer Invoices</h2><p>Complete Job finishes the work; it does not mark an invoice paid. Delete Job removes the repair job; Cancel Invoice stops collection.</p></div><button type="button" data-square-close aria-label="Close">×</button></header><div class="square-modal-tools"><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button><button class="btn btn-soft" data-square-dashboard>Open Square Dashboard</button></div><div class="square-modal-tools" role="group" aria-label="Invoice view"><button class="btn btn-primary" data-square-invoice-tab="open" aria-pressed="true">Open Invoices</button><button class="btn btn-soft" data-square-invoice-tab="drafts" aria-pressed="false">Drafts</button><button class="btn btn-soft" data-square-invoice-tab="payments" aria-pressed="false">Payment History</button></div><div data-square-invoice-list class="muted">Loading invoices…</div></section></div>`);
   await refreshInvoiceModal();
 }
 async function refreshInvoiceModal(){
   const list=document.querySelector('[data-square-invoice-list]');if(!list)return;
-  try{const {open,drafts,payments}=await loadInvoiceRows();list.innerHTML=`<div class="square-list-heading"><b>UNPAID CUSTOMER INVOICES</b><span>${open.length}</span></div>${open.map(invoiceRow).join('')||'<div class="square-empty">No unpaid customer invoices.</div>'}<div class="square-list-heading"><b>DRAFTS — NOT SENT</b><span>${drafts.length}</span></div>${drafts.map(invoiceRow).join('')||'<div class="square-empty">No Square drafts.</div>'}<div class="square-list-heading"><b>RECENT SQUARE PAYMENTS</b><span>${payments.length}</span></div>${payments.slice(0,20).map(paymentRow).join('')||'<div class="square-empty">No synchronized Square payments yet.</div>'}`;}
+  try{const {open,drafts,payments}=await loadInvoiceRows();
+    document.querySelectorAll('[data-square-invoice-tab]').forEach(button=>{const active=button.dataset.squareInvoiceTab===invoiceTab;button.setAttribute('aria-pressed',String(active));button.className=`btn ${active?'btn-primary':'btn-soft'}`;});
+    const rows=invoiceTab==='drafts'?drafts:invoiceTab==='payments'?payments.slice(0,20):open;
+    const heading=invoiceTab==='drafts'?'DRAFTS — NOT SENT':invoiceTab==='payments'?'RECENT SQUARE PAYMENTS':'UNPAID CUSTOMER INVOICES';
+    list.innerHTML=`<div class="square-list-heading"><b>${heading}</b><span>${rows.length}</span></div>${rows.map(invoiceTab==='payments'?paymentRow:invoiceRow).join('')||'<div class="square-empty">No '+(invoiceTab==='drafts'?'Square drafts':invoiceTab==='payments'?'synchronized Square payments':'unpaid customer invoices')+'.</div>'}`;}
+
   catch(error){list.innerHTML=`<div class="alert bad">${esc(error.message||'Could not load Square invoices.')}</div>`;}
 }
 function closeInvoices(){modalOpen=false;document.querySelector('[data-square-invoices-modal]')?.remove();}
@@ -158,7 +170,10 @@ document.addEventListener('click',async event=>{
   const share=event.target.closest?.('[data-square-share-url]');if(share){event.preventDefault();const url=share.dataset.squareShareUrl||'';try{if(navigator.share)await navigator.share({title:'Square invoice',text:'Here is your repair invoice and secure payment link.',url});else{await navigator.clipboard.writeText(url);toast('Square payment link copied.','good');}}catch(error){if(error?.name!=='AbortError')toast('Could not share the Square payment link.','bad');}return;}
   const publish=event.target.closest?.('[data-square-publish]');if(publish){event.preventDefault();if(!confirm('Publish this Square draft and make it payable? This does not automatically email or text the customer; share the payment link after publishing.'))return;const data=await invoiceAction('publish',publish.dataset.squarePublish);if(data)toast('Square invoice published. Share its payment link with the customer.','good');return;}
   const balanceDue=event.target.closest?.('[data-square-balance-due]');if(balanceDue){event.preventDefault();if(!confirm('Make the remaining Square balance due now? Use this when the work is complete.'))return;const data=await invoiceAction('balance_due',balanceDue.dataset.squareBalanceDue);if(data)toast('The Square final balance is now due.','good');return;}
-  const cancel=event.target.closest?.('[data-square-cancel]');if(cancel){event.preventDefault();if(!confirm('Cancel this Square invoice? The customer will no longer be able to pay it.'))return;const data=await invoiceAction('cancel',cancel.dataset.squareCancel);if(data)toast('Square invoice canceled.','good');return;}
+  const tab=event.target.closest?.('[data-square-invoice-tab]');if(tab){event.preventDefault();invoiceTab=tab.dataset.squareInvoiceTab;await refreshInvoiceModal();return;}
+  const jobLink=event.target.closest?.('[data-square-open-job]');if(jobLink){event.preventDefault();const button=document.createElement('button');button.dataset.openJob=jobLink.dataset.squareOpenJob;button.dataset.mmaNativeOpen='1';button.hidden=true;document.body.appendChild(button);closeInvoices();button.click();button.remove();return;}
+  const draft=event.target.closest?.('[data-square-delete-draft]');if(draft){event.preventDefault();if(!confirm('Delete this unsent draft from Square? The repair job will remain.'))return;draft.disabled=true;try{const data=await invoiceAction('delete_draft',draft.dataset.squareDeleteDraft,{external_invoice_id:draft.dataset.squareExternalId});if(data)toast('Square draft deleted.','good');}finally{draft.disabled=false;}return;}
+  const cancel=event.target.closest?.('[data-square-cancel]');if(cancel){event.preventDefault();if(!confirm('Cancel this Square invoice? The customer will no longer be able to pay it.'))return;cancel.disabled=true;const data=await invoiceAction('cancel',cancel.dataset.squareCancel,{external_invoice_id:cancel.dataset.squareExternalId});cancel.disabled=false;if(data)toast('Square invoice canceled.','good');return;}
   const refund=event.target.closest?.('[data-square-refund]');if(refund){event.preventDefault();const maximum=Number(refund.dataset.squareRefundable||0),raw=prompt(`Refund amount (maximum ${money(maximum)}):`,maximum.toFixed(2));if(raw===null)return;const amount=Number(raw);if(!(amount>0)||amount>maximum){toast('Enter a valid refund amount.','bad');return;}if(!confirm(`Refund ${money(amount)} through Square?`))return;const idempotency_key=window.crypto?.randomUUID?.()||`refund-${Date.now()}-${Math.random().toString(36).slice(2)}`;const data=await invoiceAction('refund',refund.dataset.squareRefund,{amount,idempotency_key});if(data)toast(`Square refund ${data.status||'submitted'}.`,'good');return;}
 },true);
 
