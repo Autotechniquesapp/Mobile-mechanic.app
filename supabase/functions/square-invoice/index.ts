@@ -92,9 +92,24 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "create_draft");
     const invoiceId = String(body.invoice_id || "");
-    if (!invoiceId) return json({ error: "invoice_id is required." }, 400);
-    const { data: invoice, error: invoiceError } = await admin.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
-    if (invoiceError) throw invoiceError;
+    const externalInvoiceId = String(body.external_invoice_id || "");
+    let invoice: Row | null = null;
+    if (invoiceId) {
+      const result = await admin.from("invoices").select("*").eq("id", invoiceId).maybeSingle();
+      if (result.error) throw result.error;
+      invoice = result.data;
+    } else if (externalInvoiceId && body.shop_id && ["cancel", "delete_draft", "status"].includes(action)) {
+      const result = await admin.from("payment_processor_invoices").select("*")
+        .eq("shop_id", String(body.shop_id)).eq("provider", "square").eq("external_invoice_id", externalInvoiceId).maybeSingle();
+      if (result.error) throw result.error;
+      if (result.data) invoice = { id: result.data.local_invoice_id, shop_id: result.data.shop_id, total: result.data.total,
+        processor_metadata: { square_invoice_id: result.data.external_invoice_id }, processor_payment_id: result.data.external_invoice_id };
+      if (invoice?.id) {
+        const local = await admin.from("invoices").select("*").eq("id", invoice.id).eq("shop_id", invoice.shop_id).maybeSingle();
+        if (local.error) throw local.error;
+        invoice = local.data || { ...invoice, id: null };
+      }
+    }
     if (!invoice) return json({ error: "Invoice not found." }, 404);
     const { data: membership, error: membershipError } = await admin.from("shop_members")
       .select("shop_id,role,status").eq("user_id", user.id).eq("shop_id", invoice.shop_id)
@@ -193,6 +208,7 @@ Deno.serve(async (req) => {
         due_date: amounts.dueDate,
         last_square_sync_at: now,
       };
+      if (invoice.id) {
       const { error: localError } = await admin.from("invoices").update({
         payment_processor: "square",
         processor_payment_id: square.id,
@@ -206,6 +222,7 @@ Deno.serve(async (req) => {
         updated_at: now,
       }).eq("id", invoice.id).eq("shop_id", membership.shop_id);
       if (localError) throw localError;
+      }
       const { error: mirrorError } = await admin.from("payment_processor_invoices").upsert({
         shop_id: membership.shop_id,
         provider: "square",
@@ -229,7 +246,7 @@ Deno.serve(async (req) => {
         updated_at: now,
       }, { onConflict: "shop_id,provider,external_invoice_id" });
       if (mirrorError) throw mirrorError;
-      await saveMapping("invoice", String(invoice.id), String(square.id), square.version, {
+      if (invoice.id) await saveMapping("invoice", String(invoice.id), String(square.id), square.version, {
         square_order_id: square.order_id || null,
         environment,
       });
@@ -339,6 +356,22 @@ Deno.serve(async (req) => {
       });
       const synced = await syncInvoice(data.invoice);
       return json({ ok: true, status: synced.status.toLowerCase(), payment_url: data.invoice.public_url || null, balance: synced.amounts.balance });
+    }
+    if (action === "delete_draft") {
+      if (!squareInvoiceId) return json({ error: "This draft is not linked to Square." }, 409);
+      const current = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
+      if (String(current.invoice?.status || "").toUpperCase() !== "DRAFT") return json({ error: "Only unsent drafts can be deleted. Cancel a published invoice instead." }, 409);
+      await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}?version=${current.invoice.version}`, { method: "DELETE" });
+      const now = new Date().toISOString();
+      if (invoice.id) {
+        const { error } = await admin.from("invoices").update({ status: "void", processor_status: "CANCELED", processor_payment_url: null,
+          processor_metadata: { ...(invoice.processor_metadata || {}), square_deleted_at: now }, updated_at: now }).eq("id", invoice.id).eq("shop_id", membership.shop_id);
+        if (error) throw error;
+      }
+      const { error } = await admin.from("payment_processor_invoices").update({ status: "CANCELED", public_url: null, last_synced_at: now, updated_at: now })
+        .eq("shop_id", membership.shop_id).eq("provider", "square").eq("external_invoice_id", squareInvoiceId);
+      if (error) throw error;
+      return json({ ok: true, status: "deleted" });
     }
     if (action === "cancel") {
       if (!squareInvoiceId) return json({ error: "This invoice is not linked to Square." }, 409);
