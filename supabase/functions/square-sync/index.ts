@@ -301,8 +301,96 @@ function invoiceMoney(invoice: Row) {
   };
 }
 
-async function syncInvoices(ctx: Row) {
-  const squareInvoices = await listSquare(ctx, `/v2/invoices?location_id=${encodeURIComponent(ctx.credential.location_id)}&limit=100`, "invoices");
+async function squareOrderSnapshot(ctx: Row, square: Row) {
+  if (!square.order_id) throw new Error("Square invoice has no order to import.");
+  const { order } = await squareRequest(ctx, `/v2/orders/${encodeURIComponent(square.order_id)}`);
+  if (!order || String(order.location_id) !== String(ctx.credential.location_id)) throw new Error("Square order is unavailable for this shop location.");
+  const tax = dollars(order.total_tax_money), total = dollars(order.total_money);
+  return {
+    line_items: (order.line_items || []).map((item: Row) => ({
+      kind: "item", description: String(item.name || "Square item"),
+      quantity: Number(item.quantity || 1), unit_price: dollars(item.base_price_money),
+      amount: dollars(item.total_money), square_line_item_uid: item.uid || null,
+      tax: dollars(item.total_tax_money), discount: dollars(item.total_discount_money),
+    })),
+    subtotal: Math.round((total - tax) * 100) / 100, tax, total,
+  };
+}
+
+async function importedInvoiceId(shopId: string, externalId: string) {
+  // Stable primary key makes simultaneous/repeated imports reuse one local invoice.
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([shopId, "square", externalId])));
+  const bytes = new Uint8Array(digest).slice(0, 16);
+  bytes[6] = (bytes[6] & 15) | 80; bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
+async function listImportInvoices(ctx: Row) {
+  const square = await listSquare(ctx, `/v2/invoices?location_id=${encodeURIComponent(ctx.credential.location_id)}&limit=100`, "invoices", 100);
+  const { data: local, error } = await ctx.admin.from("invoices").select("id,job_id,processor_payment_id,processor_metadata")
+    .eq("shop_id", ctx.shopId).eq("payment_processor", "square");
+  if (error) throw error;
+  const linked = new Map((local || []).map((row: Row) => [String(row.processor_metadata?.square_invoice_id || row.processor_payment_id || ""), row]));
+  return { invoices: square.map((invoice: Row) => {
+    const recipient = invoice.primary_recipient || {}, amounts = invoiceMoney(invoice), match = linked.get(String(invoice.id));
+    return { external_id: invoice.id, invoice_number: invoice.invoice_number || "", title: invoice.title || "",
+      customer_name: [recipient.given_name, recipient.family_name].filter(Boolean).join(" "),
+      customer_email: recipient.email_address || "", customer_phone: recipient.phone_number || "",
+      status: invoice.status || "DRAFT", total: amounts.total, paid: amounts.paid, balance: amounts.balance,
+      created_at: invoice.created_at || null, job_id: match?.job_id || null };
+  }) };
+}
+
+async function importInvoice(ctx: Row, body: Row) {
+  const jobId = String(body.job_id || ""), externalId = String(body.external_invoice_id || "");
+  if (!jobId || !externalId) return json({ error: "Choose a job and a Square invoice." }, 400);
+  const { data: job, error: jobError } = await ctx.admin.from("jobs").select("id")
+    .eq("shop_id", ctx.shopId).eq("id", jobId).maybeSingle();
+  if (jobError) throw jobError;
+  if (!job) return json({ error: "Job not found in this shop." }, 404);
+  const { invoice: square } = await squareRequest(ctx, `/v2/invoices/${encodeURIComponent(externalId)}`);
+  if (!square || String(square.location_id) !== String(ctx.credential.location_id)) return json({ error: "Square invoice is not from this shop location." }, 404);
+  const { data: rows, error: rowsError } = await ctx.admin.from("invoices").select("*")
+    .eq("shop_id", ctx.shopId).eq("payment_processor", "square");
+  if (rowsError) throw rowsError;
+  let local = (rows || []).find((row: Row) => String(row.processor_metadata?.square_invoice_id || row.processor_payment_id || "") === externalId);
+  if (local && String(local.job_id) !== jobId) return json({ error: "This invoice is already attached to another job." }, 409);
+  if (!local) {
+    const snapshot = await squareOrderSnapshot(ctx, square), amounts = invoiceMoney(square);
+    const id = await importedInvoiceId(ctx.shopId, externalId);
+    const { data, error } = await ctx.admin.from("invoices").insert({
+      id, shop_id: ctx.shopId, job_id: jobId, estimate_id: null, ...snapshot,
+      status: localStatus(square.status), payment_processor: "square", processor_payment_id: externalId,
+      processor_status: square.status, processor_payment_url: square.public_url || null,
+      payment_links: square.public_url ? { square: square.public_url } : {},
+      paid_at: square.status === "PAID" ? square.updated_at || new Date().toISOString() : null,
+      processor_metadata: { source: "square_import", kind: "square_invoice", square_invoice_id: externalId,
+        square_order_id: square.order_id, square_invoice_number: square.invoice_number || null,
+        total_paid: amounts.paid, remaining_calculated: amounts.balance, imported_at: new Date().toISOString() },
+    }).select("*").single();
+    if (error && error.code !== "23505") throw error;
+    if (error) {
+      const existing = await ctx.admin.from("invoices").select("*").eq("shop_id", ctx.shopId).eq("id", id).maybeSingle();
+      if (existing.error) throw existing.error;
+      if (!existing.data || String(existing.data.job_id) !== jobId) return json({ error: "This invoice is already attached to another job." }, 409);
+      local = existing.data;
+    } else local = data;
+  }
+  await syncInvoices(ctx, [square]);
+  // Reconcile already-synced payments without charging or changing anything in Square.
+  if (square.order_id) {
+    const { error } = await ctx.admin.from("payment_transactions").update({ local_invoice_id: local.id })
+      .eq("shop_id", ctx.shopId).eq("provider", "square").eq("external_order_id", square.order_id);
+    if (error) throw error;
+  }
+  const saved = await ctx.admin.from("invoices").select("*").eq("shop_id", ctx.shopId).eq("id", local.id).single();
+  if (saved.error) throw saved.error;
+  return json({ ok: true, invoice: saved.data });
+}
+
+async function syncInvoices(ctx: Row, suppliedInvoices: Row[] | null = null) {
+  const squareInvoices = suppliedInvoices || await listSquare(ctx, `/v2/invoices?location_id=${encodeURIComponent(ctx.credential.location_id)}&limit=100`, "invoices");
   const [{ data: localRows, error: localError }, invoiceMappings, customerMappings] = await Promise.all([
     ctx.admin.from("invoices").select("*").eq("shop_id", ctx.shopId).eq("payment_processor", "square"),
     mappings(ctx, "invoice"),
@@ -349,6 +437,8 @@ async function syncInvoices(ctx: Row) {
       metadata: {
         version: square.version ?? null,
         delivery_method: square.delivery_method || null,
+        recipient: square.primary_recipient || {},
+        title: square.title || null,
         environment: ctx.environment,
       },
       provider_created_at: square.created_at || null,
@@ -362,8 +452,10 @@ async function syncInvoices(ctx: Row) {
     if (mirrorError) throw mirrorError;
 
     if (local) {
+      const snapshot = local.processor_metadata?.source === "square_import" ? await squareOrderSnapshot(ctx, square) : {};
       const paidAt = status === "PAID" ? (local.paid_at || square.updated_at || now) : local.paid_at;
       const { error } = await ctx.admin.from("invoices").update({
+        ...snapshot,
         status: localStatus(status),
         processor_payment_id: String(square.id),
         processor_status: status,
@@ -532,11 +624,13 @@ Deno.serve(async (req) => {
 
     const action = String(body.action || "sync_all");
     if (action === "status") return json(await storedStatus(admin, shopId));
-    if (!["sync_all", "sync_customers", "sync_invoices", "sync_payments"].includes(action)) {
+    if (!["sync_all", "sync_customers", "sync_invoices", "sync_payments", "list_import_invoices", "import_invoice"].includes(action)) {
       return json({ error: "Unknown Square sync action." }, 400);
     }
 
     const ctx = await loadContext(admin, shopId);
+    if (action === "list_import_invoices") return json(await listImportInvoices(ctx));
+    if (action === "import_invoice") return await importInvoice(ctx, body);
     const result: Row = {};
     if (action === "sync_all" || action === "sync_customers") result.customers = await syncCustomers(ctx);
     if (action === "sync_all" || action === "sync_invoices") result.invoices = await syncInvoices(ctx);
