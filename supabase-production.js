@@ -229,7 +229,12 @@ async function submitShopIntake(form,d){
   }
   const r=await sb.from('jobs').insert({shop_id:sid,customer_id:customer.id,vehicle_id:vehicle.id,status:'ai_workup',customer_states:d.complaint||null,current_location:d.location?{raw:d.location}:null,availability:d.availability||null,priority:'normal',estimated_labor_hours:1,travel_minutes:0,buffer_minutes:15}).select('id').single();
   if(r.error)throw r.error;
-  await refreshWorkspace('#jobs',r.data.id);
+  let picked=null;try{picked=JSON.parse(localStorage.getItem('mobile_mechanic_new_job_calendar_slot')||'null');}catch{}
+  if(picked?.shopId===sid&&Date.now()-Number(picked.createdAt)<10*60*1000&&picked.start){
+    localStorage.removeItem('mobile_mechanic_new_job_calendar_slot');
+    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:r.data.id,start:picked.start,createdAt:Date.now()}));
+    await refreshWorkspace('#calendar',r.data.id);
+  }else await refreshWorkspace('#jobs',r.data.id);
 }
 
 async function bootstrap(){

@@ -334,7 +334,7 @@ function scheduleEnd(start,j){ return new Date(new Date(start).getTime()+schedul
 function localDateTimeValue(v){ if(!v)return ''; const d=new Date(v),pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function schedulePickerMarkup(j){
   const value=localDateTimeValue(j.scheduledStart||new Date());
-  return `<input id="scheduleStart" type="datetime-local" value="${value}" hidden><div class="row2"><div class="field"><label for="scheduleDateButton">Start Date</label><button id="scheduleDateButton" type="button" class="btn btn-soft btn-wide" aria-expanded="false" aria-controls="scheduleDateCalendar">📅 Select date</button></div><div class="field"><label for="scheduleTime">Start Time</label><input id="scheduleTime" type="time" value="${value.slice(11)}" required></div></div><div id="scheduleDateCalendar" class="work-card" hidden style="margin-bottom:16px;max-width:360px"></div>`;
+  return `<input id="scheduleStart" type="datetime-local" value="${value}" hidden><div class="row2"><div class="field"><label for="scheduleDateButton">Start Date</label><button id="scheduleDateButton" type="button" class="btn btn-soft btn-wide" aria-expanded="false" aria-controls="scheduleDateCalendar">📅 Select date</button></div><div class="field"><label for="scheduleTime">Start Time</label><input id="scheduleTime" type="time" value="${value.slice(11)}" hidden><b id="scheduleTimeLabel"></b></div></div><div id="scheduleDateCalendar" class="work-card" style="margin-bottom:16px;max-width:420px"></div><div class="field"><label>Tap a start time</label><div id="scheduleTimeSlots" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;max-height:210px;overflow:auto"></div></div>`;
 }
 function bindSchedulePicker(){
   const input=document.getElementById('scheduleStart'),button=document.getElementById('scheduleDateButton'),calendar=document.getElementById('scheduleDateCalendar'),timeInput=document.getElementById('scheduleTime');
@@ -345,19 +345,28 @@ function bindSchedulePicker(){
     const first=new Date(month.getFullYear(),month.getMonth(),1),days=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(),chosen=input.value.slice(0,10),today=key(new Date());
     calendar.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px"><button type="button" class="btn btn-soft" data-schedule-month="-1" aria-label="Previous month">‹</button><b aria-live="polite">${month.toLocaleDateString([],{month:'long',year:'numeric'})}</b><button type="button" class="btn btn-soft" data-schedule-month="1" aria-label="Next month">›</button></div><div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<small aria-hidden="true">${d}</small>`).join('')}${Array.from({length:first.getDay()},()=>'<span></span>').join('')}${Array.from({length:days},(_,i)=>{const d=new Date(month.getFullYear(),month.getMonth(),i+1,12),value=key(d);return `<button type="button" class="btn ${value===chosen?'btn-primary':'btn-soft'}" style="padding:8px 0;min-height:40px" data-schedule-date="${value}" aria-label="${d.toLocaleDateString([],{weekday:'long',year:'numeric',month:'long',day:'numeric'})}" aria-pressed="${value===chosen}" ${value===today?'aria-current="date"':''}>${i+1}</button>`;}).join('')}</div><button type="button" class="btn btn-soft" style="margin-top:12px" data-schedule-today>Today</button>`;
   }
+  function renderTimes(){
+    const slots=document.getElementById('scheduleTimeSlots'),label=document.getElementById('scheduleTimeLabel');if(!slots)return;
+    const values=new Set(Array.from({length:48},(_,i)=>`${String(Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}`));if(timeInput.value)values.add(timeInput.value);
+    const labelFor=v=>new Date(`2000-01-01T${v}`).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    if(label)label.textContent=labelFor(timeInput.value||'09:00');
+    slots.innerHTML=[...values].sort().map(v=>`<button type="button" class="btn ${v===timeInput.value?'btn-primary':'btn-soft'}" data-schedule-time="${v}" aria-pressed="${v===timeInput.value}">${labelFor(v)}</button>`).join('');
+  }
   function sync(){
     button.dataset.date=input.value.slice(0,10);
     const date=new Date(`${button.dataset.date}T12:00:00`);
     button.textContent=`📅 ${date.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'})}`;
-    timeInput.value=input.value.slice(11,16);
+    timeInput.value=input.value.slice(11,16);renderTimes();
   }
-  function selectDate(value){input.value=`${value}T${timeInput.value||'09:00'}`;sync();calendar.hidden=true;button.setAttribute('aria-expanded','false');button.focus();input.dispatchEvent(new Event('change',{bubbles:true}));}
+  function selectDate(value){input.value=`${value}T${timeInput.value||'09:00'}`;sync();renderMonth();input.dispatchEvent(new Event('change',{bubbles:true}));}
   button.addEventListener('click',()=>{calendar.hidden=!calendar.hidden;button.setAttribute('aria-expanded',String(!calendar.hidden));if(!calendar.hidden){month=new Date(`${input.value.slice(0,10)}T12:00:00`);month.setDate(1);renderMonth();}});
   calendar.addEventListener('click',e=>{const nav=e.target.closest('[data-schedule-month]');if(nav){month.setMonth(month.getMonth()+Number(nav.dataset.scheduleMonth));renderMonth();return;}const day=e.target.closest('[data-schedule-date]');if(day){selectDate(day.dataset.scheduleDate);return;}if(e.target.closest('[data-schedule-today]'))selectDate(key(new Date()));});
   calendar.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();calendar.hidden=true;button.setAttribute('aria-expanded','false');button.focus();}});
-  timeInput.addEventListener('change',()=>{input.value=timeInput.value?`${button.dataset.date}T${timeInput.value}`:'';});
+  timeInput.addEventListener('change',()=>{input.value=timeInput.value?`${button.dataset.date}T${timeInput.value}`:'';renderTimes();});
   window.MobileMechanicSchedulePicker={setStart(value){const d=new Date(value);if(Number.isNaN(d.getTime()))return;input.value=localDateTimeValue(d);sync();if(!calendar.hidden){month=new Date(d.getFullYear(),d.getMonth(),1);renderMonth();}}};
-  sync();
+  const slots=document.getElementById('scheduleTimeSlots');
+  slots?.addEventListener('click',e=>{const slot=e.target.closest('[data-schedule-time]');if(!slot)return;timeInput.value=slot.dataset.scheduleTime;input.value=`${button.dataset.date}T${timeInput.value}`;renderTimes();input.dispatchEvent(new Event('change',{bubbles:true}));});
+  sync();calendar.hidden=false;button.setAttribute('aria-expanded','true');renderMonth();
 }
 function scheduleWindow(j){ if(!j.scheduledStart)return j.availability||'Schedule time not set'; const start=new Date(j.scheduledStart),end=j.scheduledEnd?new Date(j.scheduledEnd):scheduleEnd(j.scheduledStart,j); return `${start.toLocaleDateString()} ${start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`; }
 function scheduleConflict(job,start,end){ const s=currentShop(); return s.jobs.find(j=>j.id!==job.id&&j.scheduledStart&&j.scheduledEnd&&new Date(j.scheduledStart)<end&&new Date(j.scheduledEnd)>start); }
@@ -517,10 +526,10 @@ function calendar(){
   const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const content=`${pageTitle('Schedule','Your live shop calendar. Tap a day, open a job, or change a time without leaving the schedule.')}
   <section class="card card-pad ops-calendar" data-mma-calendar>
-    <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><button class="btn btn-primary" data-route="new-intake">+ New Job</button></div>
+    <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><div class="btn-row"><button class="btn btn-soft" type="button" data-cal-view="day">Day</button><button class="btn btn-soft" type="button" data-cal-view="week">Week</button><button class="btn btn-soft" type="button" data-cal-view="month">Month</button></div><button class="btn btn-primary" data-route="new-intake">+ New Job</button></div>
     <div class="ops-week-strip" data-cal-week-strip></div>
     <div class="ops-day-head"><div><b data-cal-day-title></b><span>Time · customer · vehicle · location</span></div></div>
-    <div class="ops-agenda-list" data-cal-agenda></div>
+    <div data-cal-slot-grid></div><div class="ops-agenda-list" data-cal-agenda></div>
   </section>
   <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests that are not on the calendar yet</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>
   <div hidden data-cal-schedule-triggers>${active.map(j=>`<button type="button" data-action="schedule-job" data-job="${esc(j.id)}">Schedule</button>`).join('')}</div>`;

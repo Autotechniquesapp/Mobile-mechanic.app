@@ -21,6 +21,9 @@ test('new jobs start scheduling on the local current date and existing appointme
 });
 test('month calendar opens, moves across year boundaries and selects a date without changing time',()=>{
   const {e,click}=setup('2026-12-12T14:30');
+  assert.equal(e.scheduleDateCalendar.hidden,false);
+  e.scheduleDateButton.handlers.click();
+  assert.equal(e.scheduleDateCalendar.hidden,true);
   e.scheduleDateButton.handlers.click();
   assert.equal(e.scheduleDateCalendar.hidden,false);
   assert.match(e.scheduleDateCalendar.innerHTML,/2026-12-31/);
@@ -28,7 +31,7 @@ test('month calendar opens, moves across year boundaries and selects a date with
   assert.match(e.scheduleDateCalendar.innerHTML,/2027-01-31/);
   click({selector:'[data-schedule-date]',dataset:{scheduleDate:'2027-01-05'}});
   assert.equal(e.scheduleStart.value,'2027-01-05T14:30');
-  assert.equal(e.scheduleDateCalendar.hidden,true);
+  assert.equal(e.scheduleDateCalendar.hidden,false);
 });
 test('time changes preserve selected date and intake calendar hints update visible controls',()=>{
   const {ctx,e}=setup('2026-10-12T14:30');
