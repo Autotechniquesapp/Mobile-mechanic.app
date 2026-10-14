@@ -106,11 +106,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4"></script>
   <script src="setup-agreement-enforce.js?v=20260906-legal1"></script>
   <script src="legal-protections.js?v=20260912-intakefix1"></script>
-  <script src="estimate-approvals.js"></script>
+  <script src="estimate-approvals.js?v=20261014-signatures1"></script>
   <script src="logout-screen.js?v=20260906-logout1"></script>
-  <script src="supabase-production.js?v=20260923-branch-reconcile1"></script>
+  <script src="supabase-production.js?v=20261014-intake-customers1"></script>
   <script src="job-work-order.js?v=20260929-fast-entry1"></script>
-  <script src="job-workflow-tools.js?v=20261013-square-import1"></script>
+  <script src="job-paperwork.js?v=20261014-warranty-lien1"></script>
+  <script src="job-workflow-tools.js?v=20261014-signatures1"></script>
   <script src="pwa-install.js?v=20260901-0830"></script>
   <script src="push-notifications.js?v=20260904-quickfix"></script>
   <script src="public-intake-rpc.js?v=20260912-intakefix1"></script>
@@ -121,13 +122,13 @@
   <script src="ai-credits.js?v=20260829-0229"></script>
   <script src="stripe-connect.js?v=20260828-0632"></script>
   <script src="payment-processors.js?v=20260912-square-tile1"></script>
-  <script src="square-sync.js?v=20261012-invoice-controls1"></script>
+  <script src="square-sync.js?v=20261014-intake-customers1"></script>
   <script src="quickbooks-integration.js?v=20260923-shop-scope1"></script>
   <script src="integration-automation.js?v=20260906-onedrive"></script>
   <script src="mcp-connections.js?v=20260923-mcp2"></script>
   <script src="technician-help.js?v=20260912-mobile-layout1"></script>
   <script src="accessibility-controls.js?v=20260906-textsize-fix1"></script>
-  <script src="youtube-repair.js?v=20261013-square-import1"></script>
+  <script src="youtube-repair.js?v=20261014-signatures1"></script>
   <script src="ai-quote-sms.js?v=20260829-1640"></script>
   <script src="referral-tracking.js"></script>
   <script src="pricing-gates.js"></script>
@@ -140,7 +141,7 @@
   <script src="intake-queue.js?v=20261006-phone-alerts1"></script>
   <script src="github-pages-intake.js?v=20260914-share-card1"></script>
   <script src="admin-access.js?v=20260912-mobile-layout1"></script>
-  <script src="ui-scope-cleanup.js?v=20260915-customer-scope1"></script>
+  <script src="ui-scope-cleanup.js?v=20261014-signatures1"></script>
   <script>
     Promise.all([
       window.MobileMechanicBootstrap || Promise.resolve(),
@@ -150,7 +151,7 @@
     ]).finally(() => {
       if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
-      script.src = 'app.js?v=20261012-job-date1';
+      script.src = 'app.js?v=20261014-intake-customers1';
       document.body.appendChild(script);
     });
   </script>

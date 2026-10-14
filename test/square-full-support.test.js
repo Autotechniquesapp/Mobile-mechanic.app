@@ -16,14 +16,14 @@ const processorFunction = fs.readFileSync('supabase/functions/payment-processors
 const migration = fs.readFileSync('supabase/migrations/202609100002_square_full_sync.sql', 'utf8');
 
 test('the production shell loads the Square sync controller with the current cache version', () => {
-  assert.match(html, /square-sync\.js\?v=20261012-invoice-controls1/);
+  assert.match(html, /square-sync\.js\?v=20261014-intake-customers1/);
   assert.match(html, /payment-processors\.js\?v=20260912-square-tile1/);
   assert.match(html, /styles\.css\?v=20260912-square-tile1/);
   assert.match(browser, /data-square-sync-slot/);
   assert.match(processors, /data-square-sync-slot/);
-  assert.match(html, /supabase-production\.js\?v=20260923-branch-reconcile1/);
-  assert.match(html, /youtube-repair\.js\?v=20261013-square-import1/);
-  assert.match(html, /app\.js\?v=20261012-job-date1/);
+  assert.match(html, /supabase-production\.js\?v=20261014-intake-customers1/);
+  assert.match(html, /youtube-repair\.js\?v=20261014-signatures1/);
+  assert.match(html, /app\.js\?v=20261014-intake-customers1/);
 });
 
 test('Square invoice controls distinguish shop receivables from bills', () => {

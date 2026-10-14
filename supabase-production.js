@@ -124,20 +124,25 @@ async function loadWorkspace(user, allowCreate=true){
   if(!memberships?.length){ writeCache(blankCache()); return null; }
   const preferredShopId=currentShopId();
   const membership=memberships.find(m=>m.shop_id===preferredShopId)||memberships[0], sid=membership.shop_id;
-  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]=await Promise.all([
+  const [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes,intakesRes]=await Promise.all([
     sb.from('shops').select('*').eq('shop_id',sid).single(),
     sb.from('customers').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.from('vehicles').select('*').eq('shop_id',sid).order('created_at',{ascending:false}),
     sb.rpc('get_my_shop_jobs',{p_shop_id:sid}),
     sb.from('shop_members').select('shop_id,user_id,role,status').eq('shop_id',sid),
     sb.from('addon_catalog').select('code,name,description,monthly_price,quantity,unit_label,available_on_plans').eq('active',true).order('sort_order'),
-    sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active')
+    sb.from('shop_addons').select('addon_code,status').eq('shop_id',sid).eq('status','active'),
+    sb.from('intake_submissions').select('phone,email').eq('shop_id',sid)
   ]);
-  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes]) if(r.error) throw r.error;
+  for(const r of [shopRes,customersRes,vehiclesRes,jobsRes,teamRes,addonCatalogRes,shopAddonsRes,intakesRes]) if(r.error) throw r.error;
   const shop=shopRes.data, vehicles=vehiclesRes.data||[], customers=customersRes.data||[], jobs=jobsRes.data||[];
   const vehicleMap=new Map(vehicles.map(v=>[v.id,v]));
   const customerMap=new Map(customers.map(c=>[c.id,c]));
-  const uiCustomers=customers.map(c=>({
+  const intakeIds=new Set([...vehicles,...jobs].map(row=>String(row.customer_id)));
+  const intakePhones=new Set((intakesRes.data||[]).map(row=>customerPhoneKey(row.phone)).filter(Boolean));
+  const intakeEmails=new Set((intakesRes.data||[]).map(row=>customerEmailKey(row.email)).filter(Boolean));
+  const intakeCustomers=customers.filter(c=>intakeIds.has(String(c.id))||(customerPhoneKey(c.phone)&&intakePhones.has(customerPhoneKey(c.phone)))||(customerEmailKey(c.email)&&intakeEmails.has(customerEmailKey(c.email))));
+  const uiCustomers=intakeCustomers.map(c=>({
     id:c.id,name:c.name,phone:c.phone||'',email:c.email||'',address:c.address||'',
     vehicles:vehicles.filter(v=>v.customer_id===c.id).map(v=>({id:v.id,year:v.year||'',make:v.make||'',model:v.model||'',trim:v.submodel||'',engine:v.engine||'',drive:v.drivetrain||'',vin:v.vin||'',plate:v.license_plate||'',mileage:v.mileage||''}))
   }));

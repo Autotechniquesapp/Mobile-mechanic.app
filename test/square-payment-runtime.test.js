@@ -54,10 +54,10 @@ test('partial payment charges only the balance, preserves invoice amounts, and r
   dom.window.close();
 });
 
-async function posRequest(squareStatus, paid, requested) {
+async function posRequest(squareStatus, paid, requested, signatureMode) {
   const invoice={id:'inv',shop_id:'shop',total:4,status:'unpaid',processor_metadata:{square_invoice_id:'square-inv'}};
   let handler;
-  const admin={from(table){const data={invoices:invoice,shop_members:{shop_id:'shop',role:'owner',status:'active'},shop_payment_processors:{status:'connected'},payment_processor_credentials:{access_token:'test',location_id:'loc'}}[table];
+  const admin={rpc:async()=>({data:signatureMode==='signed'?'signature-id':null}),from(table){const data={shops:signatureMode?{slug:'autotechniques'}:null,invoices:invoice,shop_members:{shop_id:'shop',role:'owner',status:'active'},shop_payment_processors:{status:'connected'},payment_processor_credentials:{access_token:'test',location_id:'loc'}}[table];
     const q={select(){return q;},eq(){return q;},update(){return q;},upsert(){return q;},insert(){return q;},maybeSingle:async()=>({data,error:null}),then(resolve){return Promise.resolve({data,error:null}).then(resolve);}};return q;}};
   const source=fs.readFileSync('supabase/functions/square-invoice/index.ts','utf8').replace(/^import .*;\n/,'');
   vm.runInNewContext(stripTypeScriptTypes(source),{Response,Request,URL,crypto,console,
@@ -90,4 +90,9 @@ test('customer sync sends a supported Square sort field', async()=>{
   const result=await sandbox.runSyncCustomers({admin,shopId:'shop',api:'https://connect.squareup.com',token:'test'});
   assert.equal(requested.pathname,'/v2/customers');
   assert.equal(result.square,0);
+});
+
+test('AutoTechniques card checkout rejects an unsigned amount and permits a signed one',async()=>{
+  assert.equal((await posRequest('PARTIALLY_PAID',300,1,'missing')).status,409);
+  assert.equal((await posRequest('PARTIALLY_PAID',300,1,'signed')).status,200);
 });

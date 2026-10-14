@@ -6,7 +6,7 @@ const html = fs.readFileSync('index.html','utf8');
 const ui = fs.readFileSync('ui-scope-cleanup.js','utf8');
 
 test('production shell loads the customer scope cleanup',()=>{
-  assert.match(html,/ui-scope-cleanup\.js\?v=20260915-customer-scope1/);
+  assert.match(html,/ui-scope-cleanup\.js\?v=20261014-signatures1/);
 });
 
 test('job payment hides the global completed jobs section',()=>{

@@ -180,13 +180,23 @@ function localCustomerPayload(customer: Row) {
 
 async function syncCustomers(ctx: Row) {
   const squareCustomers = await listSquare(ctx, "/v2/customers?limit=100&sort_field=CREATED_AT&sort_order=ASC", "customers");
-  const [{ data: localRows, error: localError }, mappingRows] = await Promise.all([
+  const [{ data: localRows, error: localError }, mappingRows, vehicleRes, jobRes, intakeRes] = await Promise.all([
     ctx.admin.from("customers").select("*").eq("shop_id", ctx.shopId),
     mappings(ctx, "customer"),
+    ctx.admin.from("vehicles").select("customer_id").eq("shop_id", ctx.shopId),
+    ctx.admin.from("jobs").select("customer_id").eq("shop_id", ctx.shopId),
+    ctx.admin.from("intake_submissions").select("phone,email").eq("shop_id", ctx.shopId),
   ]);
   if (localError) throw localError;
 
-  const localCustomers: Row[] = localRows || [];
+  for (const result of [vehicleRes, jobRes, intakeRes]) if (result.error) throw result.error;
+  const intakeCustomerIds = new Set([...(vehicleRes.data || []), ...(jobRes.data || [])].map((row: Row) => String(row.customer_id)));
+  const intakePhones = new Set((intakeRes.data || []).map((row: Row) => normalizedPhone(row.phone)).filter(Boolean));
+  const intakeEmails = new Set((intakeRes.data || []).map((row: Row) => normalizedEmail(row.email)).filter(Boolean));
+  // Export only app intake customers; old Square directory imports stay out.
+  const localCustomers: Row[] = (localRows || []).filter((row: Row) => intakeCustomerIds.has(String(row.id))
+    || (normalizedPhone(row.phone) && intakePhones.has(normalizedPhone(row.phone)))
+    || (normalizedEmail(row.email) && intakeEmails.has(normalizedEmail(row.email))));
   const localById = new Map(localCustomers.map((row) => [String(row.id), row]));
   const localByEmail = new Map(localCustomers.filter((row) => normalizedEmail(row.email)).map((row) => [normalizedEmail(row.email), row]));
   const localByPhone = new Map(localCustomers.filter((row) => normalizedPhone(row.phone)).map((row) => [normalizedPhone(row.phone), row]));
@@ -197,14 +207,7 @@ async function syncCustomers(ctx: Row) {
   for (const external of squareCustomers) {
     let existingMapping = mappingByExternal.get(String(external.id));
     let local = existingMapping ? localById.get(String(existingMapping.local_id)) : null;
-    if (existingMapping && !local) {
-      const { error } = await ctx.admin.from("integration_entity_mappings").delete()
-        .eq("id", existingMapping.id).eq("shop_id", ctx.shopId);
-      if (error) throw error;
-      mappingByExternal.delete(String(external.id));
-      mappingByLocal.delete(String(existingMapping.local_id));
-      existingMapping = null;
-    }
+    if (existingMapping && !local) continue; // Keep historical mappings for payment reconciliation.
     if (!local && external.reference_id) local = localById.get(String(external.reference_id));
     if (!local && normalizedEmail(external.email_address)) local = localByEmail.get(normalizedEmail(external.email_address));
     if (!local && normalizedPhone(external.phone_number)) local = localByPhone.get(normalizedPhone(external.phone_number));
@@ -214,52 +217,23 @@ async function syncCustomers(ctx: Row) {
       continue;
     }
 
-    if (!local) {
-      const row = {
-        shop_id: ctx.shopId,
-        name: squareCustomerName(external),
-        phone: external.phone_number || null,
-        email: external.email_address || null,
-        address: squareAddress(external) || null,
-      };
-      const { data, error } = await ctx.admin.from("customers").insert(row).select("*").single();
-      if (error) throw error;
-      local = data;
-      localCustomers.push(local);
-      localById.set(String(local.id), local);
-      if (normalizedEmail(local.email)) localByEmail.set(normalizedEmail(local.email), local);
-      if (normalizedPhone(local.phone)) localByPhone.set(normalizedPhone(local.phone), local);
-      imported++;
-    } else if (existingMapping) {
+    if (!local) continue; // Never create an app customer from Square.
+    if (existingMapping) {
       const localChanged = changedAfter(local.updated_at, existingMapping.last_synced_at);
-      const squareChanged = changedAfter(external.updated_at, existingMapping.last_synced_at);
-      if (localChanged && !squareChanged) {
+      if (localChanged) {
         const payload = { ...localCustomerPayload(local), version: external.version };
         const data = await squareRequest(ctx, `/v2/customers/${encodeURIComponent(external.id)}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
+          method: "PUT", body: JSON.stringify(payload),
         });
         Object.assign(external, data.customer || {});
         exported++;
-      } else if (squareChanged) {
-        const patch = {
-          name: squareCustomerName(external),
-          phone: external.phone_number || null,
-          email: external.email_address || null,
-          address: squareAddress(external) || null,
-          updated_at: new Date().toISOString(),
-        };
-        const { error } = await ctx.admin.from("customers").update(patch)
-          .eq("shop_id", ctx.shopId).eq("id", local.id);
-        if (error) throw error;
-        Object.assign(local, patch);
-        updated++;
       } else matched++;
     } else matched++;
 
     await saveMapping(ctx, "customer", String(local.id), String(external.id), external.version, {
       square_updated_at: external.updated_at || null,
       environment: ctx.environment,
+      direction: "app_to_square",
     });
     mappingByLocal.set(String(local.id), { local_id: local.id, external_id: external.id, last_synced_at: new Date().toISOString() });
     mappingByExternal.set(String(external.id), { local_id: local.id, external_id: external.id, last_synced_at: new Date().toISOString() });
@@ -279,6 +253,7 @@ async function syncCustomers(ctx: Row) {
     await saveMapping(ctx, "customer", String(local.id), String(external.id), external.version, {
       square_updated_at: external.updated_at || null,
       environment: ctx.environment,
+      direction: "app_to_square",
     });
     mappingByLocal.set(String(local.id), { local_id: local.id, external_id: external.id });
     exported++;

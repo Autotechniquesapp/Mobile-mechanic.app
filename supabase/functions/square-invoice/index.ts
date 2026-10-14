@@ -121,6 +121,15 @@ Deno.serve(async (req) => {
     }
     localInvoice = invoice;
 
+    const [{data: warrantyJob,error: warrantyJobError},{data: warrantyShop,error: warrantyShopError}]=await Promise.all([
+      invoice.job_id?admin.from("jobs").select("ai_workup").eq("shop_id",membership.shop_id).eq("id",invoice.job_id).maybeSingle():Promise.resolve({data:null,error:null}),
+      admin.from("shops").select("name,slug").eq("shop_id",membership.shop_id).maybeSingle(),
+    ]);
+    if(warrantyJobError)throw warrantyJobError;if(warrantyShopError)throw warrantyShopError;
+    const defaultWarranty="30-day labor warranty from repair completion, covering defects in our workmanship on the repairs listed. Parts are subject to the supplier's warranty. Contact us promptly for inspection. Coverage excludes defects or damage caused by another person altering, removing, or redoing our repaired work. Unrelated repairs or maintenance elsewhere do not void this warranty. Your statutory rights are unaffected.";
+    const savedWarranty=warrantyJob?.ai_workup?.job_paperwork?.warranty_text;
+    const warrantyText=String(savedWarranty??(/^autotechniques/i.test(String(warrantyShop?.slug||warrantyShop?.name||""))?defaultWarranty:"")).trim().slice(0,1400);
+
     const [{ data: processor, error: processorError }, { data: credential, error: credentialError }] = await Promise.all([
       admin.from("shop_payment_processors").select("*").eq("shop_id", membership.shop_id).eq("provider", "square").maybeSingle(),
       admin.from("payment_processor_credentials").select("*").eq("shop_id", membership.shop_id).eq("provider", "square").maybeSingle(),
@@ -280,13 +289,18 @@ Deno.serve(async (req) => {
       const amountCents = cents(body.amount ?? balance);
       if (!(amountCents > 0)) return json({ error: "This job does not have a payment amount yet." }, 400);
       if (amountCents > cents(balance)) return json({ error: "The payment exceeds the remaining balance. Refresh the payment status." }, 409);
+      if(/^autotechniques/i.test(String(warrantyShop?.slug||warrantyShop?.name||""))){
+        const signature=await admin.rpc("claim_invoice_card_signature",{p_invoice_id:invoice.id,p_amount:amountCents/100});
+        if(signature.error)throw signature.error;
+        if(!signature.data)return json({error:"Customer signature required for this card-payment amount. Open the signing link in the job first.",code:"signature_required"},409);
+      }
       const callbackUrl = safePosCallback(body.callback_url);
       const state = JSON.stringify({
         invoice_id: String(invoice.id),
         shop_id: String(membership.shop_id),
         job_id: invoice.job_id ? String(invoice.job_id) : null,
       });
-      const note = String(body.note || `Mobile Mechanic AI invoice ${invoice.id}`).slice(0, 500);
+      const note = [warrantyText,String(body.note || `Mobile Mechanic AI invoice ${invoice.id}`)].filter(Boolean).join("\n").slice(0, 500);
       const tenderTypes = "com.squareup.pos.TENDER_CARD";
       const androidUrl = [
         "intent:#Intent",
@@ -480,6 +494,18 @@ Deno.serve(async (req) => {
       const synced = await syncInvoice(data.invoice);
       return json({ ok: true, status: synced.status.toLowerCase(), balance: synced.amounts.balance, due_date: today, payment_url: data.invoice.public_url || null });
     }
+    if(action === "add_warranty"){
+      if(!squareInvoiceId)return json({error:"Create or import a Square invoice first."},409);
+      if(!warrantyText)return json({error:"Save warranty terms on the job first."},400);
+      const current=await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
+      if(!current.invoice)return json({error:"Square invoice not found."},404);
+      if(!["DRAFT","UNPAID","PARTIALLY_PAID"].includes(String(current.invoice.status)))return json({error:"This Square invoice can no longer be edited. Copy the warranty text for a separate receipt note."},409);
+      const description=[String(current.invoice.description||"").split("\n\nWarranty:\n")[0],"Warranty:\n"+warrantyText].filter(Boolean).join("\n\n");
+      const updated=await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`,{method:"PUT",body:JSON.stringify({idempotency_key:crypto.randomUUID(),invoice:{version:current.invoice.version,description:description.slice(0,2000)}})});
+      invoice.processor_metadata={...(invoice.processor_metadata||{}),warranty_text:warrantyText};
+      await syncInvoice(updated.invoice);
+      return json({ok:true,warranty_text:warrantyText});
+    }
     if (action !== "create" && action !== "create_draft") return json({ error: "Unknown invoice action." }, 400);
     if (squareInvoiceId || metadata.kind === "square_invoice") {
       return json({
@@ -493,8 +519,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: job } = invoice.job_id ? await admin.from("jobs").select("id,customer_id")
+    const { data: job } = invoice.job_id ? await admin.from("jobs").select("id,customer_id,vehicle_id")
       .eq("id", invoice.job_id).eq("shop_id", membership.shop_id).maybeSingle() : { data: null };
+    const vehicleResult=job?.vehicle_id?await admin.from("vehicles").select("*").eq("id",job.vehicle_id).eq("shop_id",membership.shop_id).maybeSingle():{data:null,error:null};
+    if(vehicleResult.error)throw vehicleResult.error;
+    const vehicle=vehicleResult.data;
+    const vehicleSummary=vehicle?[
+      [vehicle.year,vehicle.make,vehicle.model,vehicle.submodel].filter(Boolean).join(" "),
+      vehicle.engine?`Engine: ${vehicle.engine}`:"",
+      vehicle.vin?`VIN: ${vehicle.vin}`:"",
+      vehicle.mileage!=null?`Mileage: ${vehicle.mileage}`:"",
+      vehicle.license_plate?`Plate: ${vehicle.license_plate}`:"",
+    ].filter(Boolean).join("\n"):"";
     const { data: customer } = job?.customer_id ? await admin.from("customers").select("*")
       .eq("id", job.customer_id).eq("shop_id", membership.shop_id).maybeSingle() : { data: null };
     const { data: shop } = await admin.from("shops").select("name").eq("shop_id", membership.shop_id).single();
@@ -572,7 +608,7 @@ Deno.serve(async (req) => {
           location_id: credential.location_id,
           reference_id: String(invoice.id),
           customer_id: squareCustomerId,
-          line_items: lineItems,
+          line_items: lineItems.map((line: Row,index: number)=>index===0&&warrantyText?{...line,note:warrantyText}:line),
         },
       }),
     });
@@ -610,11 +646,12 @@ Deno.serve(async (req) => {
             cash_app_pay: true,
           },
           title: "Automotive Repair",
-          description: `${shop?.name || "Repair Shop"} repair invoice. Deposit due now; remaining balance due when the job is completed.`,
+          description: `${shop?.name || "Repair Shop"} repair invoice. Deposit due now; remaining balance due when the job is completed.${vehicleSummary?`\n\nVehicle:\n${vehicleSummary}`:""}${warrantyText?`\n\nWarranty:\n${warrantyText}`:""}`,
         },
       }),
     });
     if (!invoiceData.invoice?.id) throw new Error("Square invoice creation failed.");
+    invoice.processor_metadata={...(invoice.processor_metadata||{}),warranty_text:warrantyText,vehicle_summary:vehicleSummary};
     const synced = await syncInvoice(invoiceData.invoice);
     return json({
       provider: "square",

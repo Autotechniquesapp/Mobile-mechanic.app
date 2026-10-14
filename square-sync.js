@@ -26,7 +26,7 @@ async function sync(force=false,showMessage=false){
   try{
     const data=await invoke('square-sync',{action:'sync_all'});
     localStorage.setItem(`${SYNC_KEY}${sid}`,String(Date.now()));
-    if(showMessage){const customers=data.customers?.local??0,payments=data.payments?.completed??0;toast(`Square synced: ${customers} customers and ${payments} completed payments.`,`good`);}
+    if(showMessage){const customers=data.customers?.local??0,payments=data.payments?.completed??0;toast(`Square synced: ${customers} app customers sent to Square and ${payments} completed payments.`,`good`);}
     await Promise.all([renderDashboardSummary(true),renderProcessorStatus(data.status)]);
     return data;
   }catch(error){
@@ -131,7 +131,7 @@ async function renderProcessorStatus(status=null){
   const card=document.querySelector('[data-processor-card="square"]');if(!card||!canView())return;
   const slot=card.querySelector('[data-square-sync-slot]')||card.querySelector('.list-main');
   let box=slot?.querySelector('[data-square-sync-panel]');
-  if(slot&&!box){slot.insertAdjacentHTML('beforeend','<div class="square-sync-panel" data-square-sync-panel><b>Customer & payment sync</b><p data-square-sync-summary>Customers, invoices, payments and refunds sync with this shop’s Square account.</p><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button></div>');box=slot.querySelector('[data-square-sync-panel]');}
+  if(slot&&!box){slot.insertAdjacentHTML('beforeend','<div class="square-sync-panel" data-square-sync-panel><b>Invoices & payment sync</b><p data-square-sync-summary>App intake customers go to Square only. Invoices, payments and refunds sync back; Square contacts are never imported.</p><button class="btn btn-primary" data-square-sync-now>Sync Square Now</button></div>');box=slot.querySelector('[data-square-sync-panel]');}
   if(!status){
     if(statusLoading||Date.now()-lastStatusRead<5000)return;
     statusLoading=true;lastStatusRead=Date.now();
