@@ -32,6 +32,16 @@ function intakePhoneMarkup(phone=''){
   if(!call&&!text)return esc(label||'No phone');
   return `<span>${esc(label||'No phone')}</span><span class="list-actions" style="display:inline-flex;gap:6px;margin:0 0 0 8px;vertical-align:middle">${call?`<a class="btn btn-soft" style="padding:5px 8px;font-size:12px" href="${esc(call)}">Call</a>`:''}${text?`<a class="btn btn-soft" style="padding:5px 8px;font-size:12px" href="${esc(text)}">Text</a>`:''}</span>`;
 }
+function intakeAddressMarkup(i={}){
+  const saved=String(i.address||i.current_location?.raw||'').trim();
+  const coords=i.current_location||{};
+  const lat=coords.lat??coords.latitude,lng=coords.lng??coords.lon??coords.longitude;
+  const validCoords=lat!=null&&lng!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180;
+  const destination=saved||(validCoords?`${Number(lat)},${Number(lng)}`:'');
+  if(!destination)return 'No service location';
+  const mapsUrl=`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving&dir_action=navigate`;
+  return `<a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Navigate to ${esc(destination)}" style="display:inline-flex;align-items:center;gap:6px;min-height:36px;color:#8acbff;text-decoration:underline;overflow-wrap:anywhere">${esc(destination)} <span aria-hidden="true">↗</span></a>`;
+}
 function intakeReceivedText(value=''){
   if(!value)return 'Intake received: date not available';
   try{return `Intake received: ${new Date(value).toLocaleString()}`;}catch{return 'Intake received: date not available';}
@@ -233,7 +243,6 @@ function calendarStartHint(value=''){
 function intakeCard(i){
   const v=i.vehicle||{};
   const vehicle=intakeVehicleDetails(v);
-  const address=i.address||i.current_location?.raw||'No service location';
   const when=i.created_at?new Date(i.created_at).toLocaleString():'';
   return `<div class="list-item" style="align-items:flex-start">
     <div class="list-icon">📥</div>
@@ -242,7 +251,7 @@ function intakeCard(i){
       <div style="display:grid;gap:3px;margin-bottom:10px">
         <div><b>Phone:</b> ${intakePhoneMarkup(i.phone)}</div>
         <div><b>Received:</b> ${esc(intakeReceivedText(i.created_at).replace(/^Intake received:\s*/,''))}</div>
-        <div><b>Address:</b> ${esc(address)}</div>
+        <div><b>Address:</b> ${intakeAddressMarkup(i)}</div>
         ${i.email?`<div><b>Email:</b> ${esc(i.email)}</div>`:''}
       </div>
       <div style="padding:9px;border:1px solid #39434e;background:#0b0f14;border-radius:9px;margin-bottom:9px">
