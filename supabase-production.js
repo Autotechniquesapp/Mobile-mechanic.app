@@ -271,7 +271,9 @@ document.addEventListener('click',async e=>{
     return;
   }
   if(action==='logout'){
-    e.preventDefault();e.stopImmediatePropagation();await sb.auth.signOut();writeCache(blankCache());location.hash='#login';location.reload();return;
+    e.preventDefault();e.stopImmediatePropagation();
+    try{await window.MobileMechanicNativeAndroidPush?.disable?.();}catch(err){console.warn('Native push unsubscribe failed',err);}
+    await sb.auth.signOut();writeCache(blankCache());location.hash='#login';location.reload();return;
   }
   if(action==='accept-all'){
     e.preventDefault();e.stopImmediatePropagation();
