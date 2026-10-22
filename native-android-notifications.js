@@ -26,7 +26,7 @@ async function init(){
     await push.createChannel({
       id:CHANNEL_ID,name:'New Customer Jobs',
       description:'New customer intake and job requests',
-      importance:4,vibration:true,visibility:1,lights:true,lightColor:'#ef2a31'
+      importance:4,vibration:true,visibility:0,lights:true,lightColor:'#ef2a31'
     });
     await push.addListener('registration',async ({value})=>{
       try{await subscribe(value);}catch(err){enabled=false;showError(err);}
