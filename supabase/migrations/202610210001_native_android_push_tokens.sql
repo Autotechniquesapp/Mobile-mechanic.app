@@ -3,7 +3,7 @@
 -- Do NOT grant direct client access: tokens can receive customer-identifying alerts.
 create table if not exists public.native_push_tokens (
   token text primary key check (length(token) between 20 and 4096),
-  shop_id uuid not null references public.shops(id) on delete cascade,
+  shop_id text not null references public.shops(shop_id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   platform text not null default 'android' check (platform = 'android'),
   active boolean not null default true,
