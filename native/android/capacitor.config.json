@@ -1,0 +1,12 @@
+{
+  "appId": "app.mobilemechanic.ai",
+  "appName": "Mobile Mechanic AI",
+  "webDir": "www",
+  "server": {
+    "url": "https://mobile-mechanic.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
