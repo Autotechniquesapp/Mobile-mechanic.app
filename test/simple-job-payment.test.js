@@ -31,6 +31,8 @@ test('the owner job screen has one work-order parts and labor area plus a paymen
   assert.match(payment, /data-nxe-tap-square/);
   assert.match(payment, /Take Tap Payment/);
   assert.match(payment, /pos_checkout_link/);
+  assert.match(payment, /\.nxe-tap\{[^}]*flex-direction:column/);
+  assert.match(payment, /\.nxe-tap \.btn\{width:100%\}/);
   assert.match(payment, /action:'publish'/);
   assert.match(payment, /Previous jobs for this customer \/ vehicle/);
   assert.doesNotMatch(payment, /jwo-payment-only/);
