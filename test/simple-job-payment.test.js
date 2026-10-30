@@ -37,7 +37,7 @@ test('the owner job screen has one work-order parts and labor area plus a paymen
   assert.match(payment, /action:'publish'/);
   assert.doesNotMatch(payment, /Previous jobs for this customer \/ vehicle/);
   assert.doesNotMatch(payment, /jwo-payment-only/);
-  assert.doesNotMatch(payment, /data-nxe-open-square/);
+  assert.match(payment, /data-nxe-open-square-dashboard/);
   assert.doesNotMatch(payment, /Direct-Hit/);
   assert.doesNotMatch(payment, /Add Time/);
   assert.doesNotMatch(payment, /Separate From Original Invoice/);
