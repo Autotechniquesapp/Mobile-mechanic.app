@@ -558,15 +558,15 @@ Deno.serve(async (req) => {
       return sum + Number(item.base_price_money?.amount || 0) * Number(item.quantity || 1);
     }, 0));
     const depositCents = cents(body.deposit_amount);
-    if (!(depositCents > 0)) return json({ error: "Choose a deposit amount for this job." }, 400);
-    if (depositCents >= orderTotalCents) return json({ error: "The deposit must be less than the invoice total so a final balance remains." }, 400);
+    if (depositCents < 0) return json({ error: "Deposit cannot be negative." }, 400);
+    if (depositCents > 0 && depositCents >= orderTotalCents) return json({ error: "The deposit must be less than the invoice total so a final balance remains." }, 400);
     const requestedBalanceDays = Number(body.balance_days_until_due ?? 365);
     const balanceDays = Number.isFinite(requestedBalanceDays)
       ? Math.min(3650, Math.max(1, Math.round(requestedBalanceDays)))
       : 365;
     metadata.deposit_amount = depositCents / 100;
     metadata.final_balance_amount = (orderTotalCents - depositCents) / 100;
-    metadata.balance_due_on_completion = true;
+    metadata.balance_due_on_completion = depositCents > 0;
 
     let squareCustomerId = String(metadata.square_customer_id || "");
     if (!squareCustomerId && customer?.id) {
@@ -624,16 +624,16 @@ Deno.serve(async (req) => {
           primary_recipient: { customer_id: squareCustomerId },
           delivery_method: "SHARE_MANUALLY",
           payment_requests: [
-            {
+            ...(depositCents > 0 ? [{
               request_type: "DEPOSIT",
               due_date: dueDate(0),
               fixed_amount_requested_money: { amount: depositCents, currency: "USD" },
               tipping_enabled: false,
               automatic_payment_source: "NONE",
-            },
+            }] : []),
             {
               request_type: "BALANCE",
-              due_date: dueDate(balanceDays),
+              due_date: dueDate(depositCents > 0 ? balanceDays : 0),
               tipping_enabled: false,
               automatic_payment_source: "NONE",
             },
@@ -646,7 +646,7 @@ Deno.serve(async (req) => {
             cash_app_pay: true,
           },
           title: "Automotive Repair",
-          description: `${shop?.name || "Repair Shop"} repair invoice. Deposit due now; remaining balance due when the job is completed.${vehicleSummary?`\n\nVehicle:\n${vehicleSummary}`:""}${warrantyText?`\n\nWarranty:\n${warrantyText}`:""}`,
+          description: `${shop?.name || "Repair Shop"} repair invoice. ${depositCents > 0 ? "Deposit due now; remaining balance due when the job is completed." : "Payment due in full."}${vehicleSummary?`\n\nVehicle:\n${vehicleSummary}`:""}${warrantyText?`\n\nWarranty:\n${warrantyText}`:""}`,
         },
       }),
     });
@@ -663,7 +663,7 @@ Deno.serve(async (req) => {
       amount_due: synced.amounts.balance,
       deposit_amount: synced.amounts.deposit,
       final_balance_amount: Math.max(0, synced.amounts.total - synced.amounts.deposit),
-      message: "Draft created in Square. Review the deposit and final balance before sending.",
+      message: depositCents > 0 ? "Draft created in Square. Review the deposit and final balance before sending." : "Draft created in Square with no deposit. Review the total before sending.",
     });
   } catch (error) {
     console.error(error);
