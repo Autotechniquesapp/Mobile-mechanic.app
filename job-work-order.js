@@ -213,7 +213,7 @@ function markup(state){
   const complaint=row?.customer_states??job?.complaint??'';
   const editable=canEditWorkOrderMoney();
   return `<section class="jwo jwo-billing-only" data-job-work-order>
-    <div class="jwo-complaint"><label><b>Work requested</b>
+    <div class="jwo-top"><b>Repair Order</b>${canDeleteJob()?`<button type="button" class="btn btn-danger jwo-delete-job" data-action="delete-job" data-job="${esc(job?.id||'')}">Delete Job</button>`:''}</div><div class="jwo-complaint"><label><b>Work requested</b>
     ${editable?`<textarea class="jwo-complaint-input" rows="2" data-jwo-complaint placeholder="What is the customer asking you to do?">${esc(complaint)}</textarea>`:`<p>${esc(complaint)}</p>`}</label></div>
   </section>`;
 }
