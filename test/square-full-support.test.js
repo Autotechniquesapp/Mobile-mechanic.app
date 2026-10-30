@@ -85,11 +85,13 @@ test('Square invoices use a manually chosen deposit and request the balance when
   assert.match(production, /requestFinalBalances\?\.\(jid\)/);
 });
 
-test('the server rejects missing or full-total deposits before creating a Square order', () => {
-  const validationAt = invoiceFunction.indexOf('if (!(depositCents > 0))');
+test('the server accepts no deposit but rejects invalid full-total deposits before creating an order', () => {
+  const validationAt = invoiceFunction.indexOf('if (depositCents < 0)');
   const orderAt = invoiceFunction.indexOf('squareRequest("/v2/orders"');
   assert.ok(validationAt > -1 && orderAt > validationAt);
-  assert.match(invoiceFunction, /depositCents >= orderTotalCents/);
+  assert.match(invoiceFunction, /depositCents > 0 && depositCents >= orderTotalCents/);
+  assert.match(invoiceFunction, /depositCents > 0 \? \[\{/);
+  assert.match(invoiceFunction, /depositCents > 0 \? balanceDays : 0/);
   assert.match(invoiceFunction, /deposit must be less than the invoice total/i);
 });
 
