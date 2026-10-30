@@ -154,7 +154,59 @@ function posUrl(data){const ua=navigator.userAgent||'';if(/android/i.test(ua))re
 async function takeTapPayment(){if(tapBusy)return;if(!(tapAmount()>0)){toast('This invoice has no collectible balance.','bad');return;}tapBusy=true;rerender();try{await save(true);const inv=await ensureTapInvoice();if(window.MobileMechanicJobPaperwork&&!(await window.MobileMechanicJobPaperwork.prepareCardSignature(inv.id,tapAmount())))return;const {data,error}=await sb.functions.invoke('square-invoice',{body:{action:'pos_checkout_link',invoice_id:inv.id,amount:tapAmount(),callback_url:posCallbackUrl(),note:`Mobile Mechanic AI job ${context().job?.customerName||''}`.trim()}});if(error)throw new Error(error.message||'Could not open Square POS.');if(data?.error)throw new Error(data.error);const url=posUrl(data);if(!url)throw new Error('Square did not return a POS link.');toast('Opening Square Point of Sale for tap payment.','good');location.href=url;}catch(e){toast(e.message||'Could not open Square POS.','bad');}finally{tapBusy=false;rerender();}}
 function openHistory(){document.querySelector('[data-nxe-history-modal]')?.remove();const jobs=priorJobs(),wrap=document.createElement('div');wrap.className='nxe-history-modal';wrap.dataset.nxeHistoryModal='1';wrap.innerHTML=`<div class="nxe-history-card"><div class="nxe-history-head"><h3>Previous Jobs</h3><button class="nxe-history-close" type="button" data-nxe-history-close aria-label="Close">×</button></div>${jobs.length?jobs.map(j=>`<div class="nxe-history-row"><b>${esc(vehicleText(j.vehicle)||'Vehicle')} • ${esc(j.status||'Job')}</b><small>${esc(j.complaint||'No complaint saved.')}</small></div>`).join(''):'<div class="nxe-empty">No previous jobs for this customer or vehicle.</div>'}</div>`;document.body.appendChild(wrap);}
 function closeHistory(){document.querySelector('[data-nxe-history-modal]')?.remove();}
-function bind(){document.addEventListener('input',e=>{if(e.target.matches?.('[data-nxe-import-search]'))renderImportRows();});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeImport();});document.addEventListener('change',e=>{const p=e.target.closest?.('[data-nxe-part-amount]');if(p&&state){const i=+p.dataset.nxeIndex;state.parts[i].amount=p.value===''?null:+p.value;save();rerender();return;}const h=e.target.closest?.('[data-nxe-hours]');if(h&&state){const i=+h.dataset.nxeIndex;state.labor[i].hours=h.value===''?null:+h.value;recalc(state.labor[i]);save();rerender();return;}const d=e.target.closest?.('[data-nxe-deposit-amount]');if(d&&state){state.deposit_amount=d.value===''?null:Math.round(Number(d.value)*100)/100;save();rerender();}},true);document.addEventListener('click',e=>{if(e.target.closest?.('[data-nxe-import-square],[data-nxe-import-reload]')){e.preventDefault();openImport();return;}if(e.target.closest?.('[data-nxe-import-close]')||e.target.matches?.('[data-nxe-import-modal]')){e.preventDefault();closeImport();return;}const imported=e.target.closest?.('[data-nxe-import-id]');if(imported){e.preventDefault();attachImport(imported.dataset.nxeImportId);return;}const a=e.target.closest?.('[data-nxe-add]');if(a){e.preventDefault();add(a.dataset.nxeAdd);return;}const r=e.target.closest?.('[data-nxe-remove]');if(r&&state){e.preventDefault();state[r.dataset.nxeType].splice(+r.dataset.nxeIndex,1);rerender();save();return;}if(e.target.closest?.('[data-nxe-create-square]')){e.preventDefault();createSquareDraft();return;}if(e.target.closest?.('[data-nxe-publish-square]')){e.preventDefault();publishSquare();return;}if(e.target.closest?.('[data-nxe-open-payment-link]')){e.preventDefault();openPaymentLink();return;}if(e.target.closest?.('[data-nxe-copy-payment-link]')){e.preventDefault();copyPaymentLink();return;}if(e.target.closest?.('[data-nxe-refresh-square]')){e.preventDefault();refreshSquare();return;}if(e.target.closest?.('[data-nxe-tap-square]')){e.preventDefault();takeTapPayment();return;}if(e.target.closest?.('[data-nxe-history]')){e.preventDefault();openHistory();return;}if(e.target.closest?.('[data-nxe-history-close]')){e.preventDefault();closeHistory();return;}if(e.target.matches?.('[data-nxe-history-modal]'))closeHistory();},true);}
+function editInvoiceField(el){
+ if(!state||financialsLocked())return false;
+ const index=Number(el.dataset.nxeIndex);
+ const type=el.dataset.nxeType;
+ if(el.matches('[data-nxe-name]')){if(state[type]?.[index])state[type][index].name=el.value;return true;}
+ if(el.matches('[data-nxe-unit-price],[data-nxe-quantity]')){
+  const part=state.parts[index];if(!part)return false;
+  if(el.matches('[data-nxe-quantity]'))part.quantity=Math.max(1,Math.floor(Number(el.value)||1));
+  else part.unit_price=el.value===''?null:roundMoney(Math.max(0,Number(el.value)||0));
+  part.amount=part.unit_price===null?null:roundMoney(part.unit_price*part.quantity);
+  return true;
+ }
+ if(el.matches('[data-nxe-flat-amount],[data-nxe-hours],[data-nxe-rate],[data-nxe-labor-kind]')){
+  const line=state.labor[index];if(!line)return false;
+  if(el.matches('[data-nxe-labor-kind]')){
+   line.flat_fee=el.checked;
+   if(line.flat_fee)line.amount=line.amount??null;
+   else{line.hours=line.hours??null;line.rate=line.rate??shopRate();}
+  }else if(el.matches('[data-nxe-flat-amount]'))line.amount=el.value===''?null:roundMoney(Math.max(0,Number(el.value)||0));
+  else if(el.matches('[data-nxe-hours]'))line.hours=el.value===''?null:Math.max(0,Number(el.value)||0);
+  else line.rate=el.value===''?shopRate():Math.max(0,Number(el.value)||0);
+  recalc(line);return true;
+ }
+ if(el.matches('[data-nxe-tax-enabled]')){state.tax_enabled=el.checked;return true;}
+ if(el.matches('[data-nxe-tax-rate]')){state.tax_rate=el.value===''?0:Math.min(100,Math.max(0,Number(el.value)||0));return true;}
+ if(el.matches('[data-nxe-travel-enabled]')){state.travel_enabled=el.checked;return true;}
+ if(el.matches('[data-nxe-travel-fee]')){state.travel_fee=el.value===''?0:roundMoney(Math.max(0,Number(el.value)||0));return true;}
+ if(el.matches('[data-nxe-deposit-mode]')){state.deposit_mode=el.value;return true;}
+ if(el.matches('[data-nxe-deposit-amount]')){if(state.deposit_mode==='percent')state.deposit_percent=el.value===''?null:Math.min(100,Math.max(0,Number(el.value)||0));else state.deposit_amount=el.value===''?null:roundMoney(Math.max(0,Number(el.value)||0));return true;}
+ return false;
+}
+function bind(){
+ document.addEventListener('input',e=>{if(e.target.matches?.('[data-nxe-import-search]'))renderImportRows();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeImport();});
+ document.addEventListener('change',e=>{const el=e.target;if(!el.closest?.('[data-next-invoice]'))return;if(editInvoiceField(el)){rerender();save(true).catch(()=>{});}},true);
+ document.addEventListener('click',e=>{
+  if(e.target.closest?.('[data-nxe-import-square],[data-nxe-import-reload]')){e.preventDefault();openImport();return;}
+  if(e.target.closest?.('[data-nxe-import-close]')||e.target.matches?.('[data-nxe-import-modal]')){e.preventDefault();closeImport();return;}
+  const imported=e.target.closest?.('[data-nxe-import-id]');if(imported){e.preventDefault();attachImport(imported.dataset.nxeImportId);return;}
+  const a=e.target.closest?.('[data-nxe-add]');if(a){e.preventDefault();add(a.dataset.nxeAdd);return;}
+  const r=e.target.closest?.('[data-nxe-remove]');if(r&&state&&!financialsLocked()){e.preventDefault();state[r.dataset.nxeType].splice(Number(r.dataset.nxeIndex),1);rerender();save(true).catch(()=>{});return;}
+  if(e.target.closest?.('[data-nxe-save-draft]')){e.preventDefault();if(saving)return;saving=true;save().catch(()=>{}).finally(()=>{saving=false;});return;}
+  if(e.target.closest?.('[data-nxe-create-square]')){e.preventDefault();createSquareDraft();return;}
+  if(e.target.closest?.('[data-nxe-publish-square]')){e.preventDefault();publishSquare();return;}
+  if(e.target.closest?.('[data-nxe-open-payment-link]')){e.preventDefault();openPaymentLink();return;}
+  if(e.target.closest?.('[data-nxe-copy-payment-link]')){e.preventDefault();copyPaymentLink();return;}
+  if(e.target.closest?.('[data-nxe-refresh-square]')){e.preventDefault();refreshSquare();return;}
+  if(e.target.closest?.('[data-nxe-tap-square]')){e.preventDefault();takeTapPayment();return;}
+  if(e.target.closest?.('[data-nxe-history]')){e.preventDefault();openHistory();return;}
+  if(e.target.closest?.('[data-nxe-history-close]')){e.preventDefault();closeHistory();return;}
+  if(e.target.matches?.('[data-nxe-history-modal]'))closeHistory();
+ },true);
+}
 async function mount(){if(mounting||document.querySelector('[data-next-invoice]'))return;const {db,job}=context();if(db.session?.role!=='shop'||!job||!canManagePayments())return;const work=document.querySelector('[data-job-work-order]');if(!work)return;mounting=true;try{css();state=await load(job);squareDraft=await loadSquareDraft(job);if(!work.isConnected||String(context().job?.id)!==String(job.id)||document.querySelector('[data-next-invoice]'))return;work.insertAdjacentHTML('afterend',markup());}finally{mounting=false;}}
 bind();new MutationObserver(()=>setTimeout(mount,0)).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('hashchange',()=>{state=null;squareDraft=null;closeHistory();closeImport();setTimeout(mount,150);});setTimeout(mount,900);
 })();
