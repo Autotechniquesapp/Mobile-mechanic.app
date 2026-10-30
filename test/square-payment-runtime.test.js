@@ -25,12 +25,12 @@ function browser(invoice) {
   return {dom,w,timers,calls};
 }
 
-test('two loader executions render one payment panel and one history button', async () => {
+test('two loader executions render one payment panel and no history button', async () => {
   const {dom,w,timers}=browser({id:'inv',total:4,status:'draft',processor_metadata:{source:'additional_work_estimate'}});
   w.eval(payment);w.eval(payment);
   await Promise.all(timers.splice(0).map(fn=>fn()));await settle();
   assert.equal(w.document.querySelectorAll('[data-next-invoice]').length,1);
-  assert.equal(w.document.querySelectorAll('[data-nxe-history]').length,1);
+  assert.equal(w.document.querySelectorAll('[data-nxe-history]').length,0);
   dom.window.close();
 });
 
