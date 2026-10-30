@@ -21,7 +21,7 @@ function canEditWorkOrderMoney(){
   const users=Array.isArray(shop.users)?shop.users:[];
   const u=users.find(x=>x.id===id);
   if(!u||u.active===false)return false;
-  if(['owner','manager','service_writer'].includes(u.role))return true;
+  if(['owner','shop_owner','manager','service_writer'].includes(u.role))return true;
   const activeUsers=users.filter(x=>x.active!==false);
   return u.role==='technician'&&activeUsers.length===1&&activeUsers[0].id===id;
 }
@@ -176,7 +176,7 @@ function totalsMarkup(wo){
     ${t.counts.unpricedLines?`<p class="jwo-disclaimer plain">${t.counts.unpricedLines} line${t.counts.unpricedLines===1?'':'s'} have no cost or hours entered yet.</p>`:''}
   </div>`;
 }
-function section(title,type,items,button=''){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3>${button?`<button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button>`:''}</div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
+function section(title,type,items,button=''){return `<div class="jwo-section" data-jwo-section="${type}"><div class="jwo-section-head"><h3>${title}</h3>${button?`<button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button>`:''}</div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
 function quickEntryMarkup(){
   const money=canEditWorkOrderMoney();
   return `<div class="jwo-quick">
@@ -205,20 +205,21 @@ function financialMarkup(invoice,wo){
   const auth=wo.authorization?.status?` • Added work: ${labelStatus(wo.authorization.status)}`:'';
   return `<div class="jwo-fin"><div><b>${processor} Invoice ${invNo}</b><span>${money(total)} total • ${money(paid)} paid • <strong>${money(remaining)} remaining</strong>${esc(auth)}</span></div></div>`;
 }
-function markup(state){const {job,row,invoice,wo}=state;const complaint=row?.customer_states||job?.complaint||'';const codes=row?.codes||job?.codes||'';return `<section class="jwo" data-job-work-order>
-  <div class="jwo-top"><div><div class="eyebrow">LIVE REPAIR WORK ORDER</div><h2>Repair Breakdown</h2></div><div class="jwo-top-actions"><span class="badge ${statusClass(job?.status==='Completed'?'completed':'in_progress')}">${esc(job?.status||'Job')}</span>${canDeleteJob()?`<button type="button" class="btn btn-danger jwo-delete-job" data-action="delete-job" data-job="${esc(job?.id||'')}">Delete Job</button>`:''}</div></div>
-  <div class="jwo-complaint"><b>Original Complaint</b><p>${esc(complaint||'No complaint entered.')}</p>${codes?`<small><b>Codes / scan notes:</b> ${esc(codes)}</small>`:''}</div>
-  ${quickEntryMarkup()}
-  ${section('Parts Bought / Needed','parts',wo.parts)}
-  ${section('Work Being Done / Completed','work',wo.work)}
-  ${section('Tests / Checks','tests',wo.tests,'Test')}
-  ${totalsMarkup(wo)}
-  ${canSeeFinancials()?financialMarkup(invoice,wo):''}
-  ${wo.authorization?.note?`<div class="jwo-auth"><b>Authorization:</b> ${esc(wo.authorization.note)}</div>`:''}
-</section>`;}
-
+function markup(state){
+  // The work order is now just the job's complaint and an anchor for the
+  // single invoice editor. Diagnostic checklists and technician sign-off
+  // controls live outside the billing screen.
+  const {job,row}=state;
+  const complaint=row?.customer_states??job?.complaint??'';
+  const editable=canEditWorkOrderMoney();
+  return `<section class="jwo jwo-billing-only" data-job-work-order>
+    <div class="jwo-top"><b>Repair Order</b>${canDeleteJob()?`<button type="button" class="btn btn-danger jwo-delete-job" data-action="delete-job" data-job="${esc(job?.id||'')}">Delete Job</button>`:''}</div><div class="jwo-complaint"><label><b>Work requested</b>
+    ${editable?`<textarea class="jwo-complaint-input" rows="2" data-jwo-complaint placeholder="What is the customer asking you to do?">${esc(complaint)}</textarea>`:`<p>${esc(complaint)}</p>`}</label></div>
+  </section>`;
+}
 function css(){if(document.getElementById('job-work-order-style'))return;const s=document.createElement('style');s.id='job-work-order-style';s.textContent=`
 .jwo{background:#10151b;border:1px solid #63262b;border-radius:15px;padding:14px;margin:10px 0 12px;box-shadow:0 0 18px rgba(239,42,49,.08)}
+.jwo-billing-only{padding:11px}.jwo-complaint-input{display:block;box-sizing:border-box;width:100%;min-height:56px;margin-top:6px;padding:10px;color:#fff;background:#111820;border:1px solid #39434d;border-radius:8px;font-size:14px;resize:vertical}
 .jwo-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.jwo-top h2{font-size:18px;margin:2px 0}.jwo-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}.jwo-delete-job{padding:5px 8px!important;min-height:30px!important;font-size:11px!important}.jwo-complaint{background:#0a0e13;border:1px solid #303841;border-radius:10px;padding:11px;margin-bottom:10px}.jwo-complaint p{margin:5px 0 3px;line-height:1.35}.jwo-complaint small{display:block;color:#aeb6c0;margin-top:7px}.jwo-section{border-top:1px solid #2c343d;padding-top:10px;margin-top:10px}.jwo-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.jwo-section-head h3{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.04em}.jwo-add{padding:4px 8px!important;min-height:28px!important;font-size:11px!important}.jwo-list{display:grid;gap:6px}.jwo-row{display:grid;grid-template-columns:minmax(0,1fr) auto 118px;gap:8px;align-items:center;background:#0a0e13;border:1px solid #28313a;border-radius:9px;padding:8px 9px}.jwo-main{min-width:0}.jwo-main b{display:block;font-size:12px}.jwo-main small{display:block;color:#8e99a5;font-size:10px;margin-top:3px;line-height:1.25}.jwo-line-remove{background:none;border:0;color:#c06b70;padding:4px 0 0;font-size:9px;text-decoration:underline;cursor:pointer}.jwo-price{font-size:11px;font-weight:700}.jwo-row select{background:#111820;color:#f4f6f8;border:1px solid #39434d;border-radius:7px;padding:6px;font-size:10px;max-width:118px}.jwo-empty{font-size:11px;color:#8e99a5;padding:8px}.jwo-quick{background:#0a0e13;border:1px solid #39434d;border-radius:11px;padding:10px;margin:10px 0 4px}.jwo-quick-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px}.jwo-quick-head b{font-size:11px;letter-spacing:.05em}.jwo-quick-head span{display:block;color:#9aa4b0;font-size:10px;margin-top:2px}.jwo-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.jwo-quick-card{display:grid;grid-template-columns:minmax(120px,1fr) 92px auto;gap:6px;align-items:end;background:#10151b;border:1px solid #2c343d;border-radius:9px;padding:8px}.jwo-quick-card>b{grid-column:1/-1;font-size:11px}.jwo-quick-card input{min-width:0;width:100%;box-sizing:border-box;background:#080c11;color:#fff;border:1px solid #39434d;border-radius:7px;padding:8px;font-size:12px}.jwo-quick-card .btn{min-height:34px!important;padding:7px 10px!important;white-space:nowrap}.jwo-fin{margin-top:11px;background:#0a0e13;border:1px solid #34404a;border-radius:10px;padding:10px}.jwo-fin b,.jwo-fin span{display:block}.jwo-fin span{font-size:11px;color:#c5cbd2;margin-top:3px}.jwo-auth{font-size:11px;margin-top:8px;color:#c8ced5}.jwo-ai-wrap{margin-top:9px;border:1px solid #303841;border-radius:11px;background:#0b0f14}.jwo-ai-wrap>summary{cursor:pointer;padding:10px 12px;font-size:12px;font-weight:700}.jwo-ai-wrap>.work-white{margin:0!important;border:0!important;border-top:1px solid #303841!important;border-radius:0 0 11px 11px!important}
 .jwo-row-money{grid-template-columns:minmax(0,1fr) minmax(190px,auto) 118px}
 .jwo-money{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:flex-end;max-width:280px}
@@ -398,6 +399,21 @@ function bindGlobal(){
     e.preventDefault();e.stopPropagation();quickAdd(form.dataset.jwoQuickForm,form);
   },true);
   document.addEventListener('change',e=>{
+    const complaint=e.target.closest?.('[data-jwo-complaint]');
+    if(complaint&&currentState&&canEditWorkOrderMoney()){
+      const value=complaint.value.trim();
+      const {db,shop,job}=context();
+      if(job && String(job.id)===String(currentState.job?.id)){
+        job.complaint=value;
+        if(shop)try{localStorage.setItem(DBKEY,JSON.stringify(db));}catch{}
+        currentState.job.complaint=value;
+        if(currentState.row)currentState.row.customer_states=value;
+        if(sb&&job.id&&db.session?.shopId){
+          sb.from('jobs').update({customer_states:value,updated_at:new Date().toISOString()}).eq('id',job.id).eq('shop_id',db.session.shopId).then(({error})=>{if(error)toast(error.message||'Could not save complaint.','bad');});
+        }
+      }
+      return;
+    }
     const el=e.target.closest?.('[data-jwo-status]');
     if(el&&currentState){const type=el.dataset.jwoType,i=Number(el.dataset.jwoIndex);if(currentState.wo[type]?.[i]){currentState.wo[type][i].status=el.value;save();}return;}
     const cost=e.target.closest?.('[data-jwo-cost]');
@@ -422,11 +438,11 @@ async function mount(){
   const title=document.querySelector('.page-title h2');if(!title||!/^AI Pre-Workup$/i.test(title.textContent.trim()))return;
   mounting=true;try{
     css();currentState=await load(job);
-    title.textContent='Job Work Order';const sub=title.parentElement?.querySelector('p');if(sub)sub.textContent='One repair breakdown: parts, work performed, current progress, tests, authorization, and payment status.';
+    title.textContent='Repair Order & Invoice';const sub=title.parentElement?.querySelector('p');if(sub)sub.textContent='Edit the work requested, labor, parts, tax, travel and deposit on one screen.';
     const banner=document.querySelector('.job-banner');if(!banner)return;
     banner.insertAdjacentHTML('afterend',markup(currentState));
     simplifyLegacyUI();
-    const ww=document.querySelector('.work-white');if(ww&&!ww.closest('.jwo-ai-wrap')){const d=document.createElement('details');d.className='jwo-ai-wrap';d.innerHTML='<summary>Diagnostic Tools (optional)</summary>';ww.parentNode.insertBefore(d,ww);d.appendChild(ww);}
+    const ww=document.querySelector('.work-white');if(ww)ww.remove(); // Old AI path and checklists are not part of a bill.
   }catch(err){console.error('work order mount',err);}finally{mounting=false;}
 }
 bindGlobal();

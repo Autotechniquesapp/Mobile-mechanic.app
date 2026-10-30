@@ -7,8 +7,8 @@ const tools = fs.readFileSync('job-workflow-tools.js', 'utf8');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 
 test('the production shell cache-busts and loads the simple payment controller', () => {
-  assert.match(html, /job-workflow-tools\.js\?v=20261014-signatures1/);
-  assert.match(tools, /next-invoice\.js\?v=20261014-signatures1/);
+  assert.match(html, /job-workflow-tools\.js\?v=20261030-clean-invoice2/);
+  assert.match(tools, /next-invoice\.js\?v=20261030-clean-invoice2/);
   assert.match(tools, /__MMASimpleJobPaymentLoaded/);
   assert.match(tools, /document\.querySelector\('\[data-job-work-order\]'\)/);
 });
@@ -17,10 +17,11 @@ test('the owner job screen has one work-order parts and labor area plus a paymen
   assert.match(payment, /PAYMENT/);
   assert.match(payment, /Square Invoice/);
   assert.match(payment, /Uses the Parts and Labor entered in the work order above/);
-  assert.doesNotMatch(payment, /group\('Parts','parts'/);
+  assert.match(payment, /group\('Parts','parts'/);
+  assert.match(tools, /\[data-job-paperwork\]/);
   assert.doesNotMatch(payment, /group\('Labor','labor'/);
-  assert.match(payment, /Parts from work order/);
-  assert.match(payment, /Labor from work order/);
+  assert.match(payment, /data-nxe-total="parts"/);
+  assert.match(payment, /data-nxe-total="labor"/);
   assert.match(payment, /Invoice total/);
   assert.match(payment, /data-nxe-deposit-amount/);
   assert.match(payment, /Create Square Draft/);
@@ -32,7 +33,7 @@ test('the owner job screen has one work-order parts and labor area plus a paymen
   assert.match(payment, /Take Tap Payment/);
   assert.match(payment, /pos_checkout_link/);
   assert.match(payment, /action:'publish'/);
-  assert.match(payment, /Previous jobs for this customer \/ vehicle/);
+  assert.doesNotMatch(payment, /Previous jobs for this customer \/ vehicle/);
   assert.doesNotMatch(payment, /jwo-payment-only/);
   assert.doesNotMatch(payment, /data-nxe-open-square/);
   assert.doesNotMatch(payment, /Direct-Hit/);
@@ -50,7 +51,9 @@ test('manual Square deposit rules stay enforced', () => {
   assert.match(payment, /Choose the deposit amount for this job/);
   assert.match(payment, /deposit>=total/);
   assert.match(payment, /deposit_amount:deposit,balance_days_until_due:365/);
-  assert.match(payment, /balance_due_on_completion:true/);
+  assert.match(payment, /balance_due_on_completion:deposit>0/);
+  assert.match(payment, /deposit_mode==='none'/);
+  assert.match(payment, /data-nxe-deposit-mode/);
 });
 
 test('previous jobs stay scoped to the current customer or VIN and are view only', () => {
