@@ -21,7 +21,7 @@ function canEditWorkOrderMoney(){
   const users=Array.isArray(shop.users)?shop.users:[];
   const u=users.find(x=>x.id===id);
   if(!u||u.active===false)return false;
-  if(['owner','manager','service_writer'].includes(u.role))return true;
+  if(['owner','shop_owner','manager','service_writer'].includes(u.role))return true;
   const activeUsers=users.filter(x=>x.active!==false);
   return u.role==='technician'&&activeUsers.length===1&&activeUsers[0].id===id;
 }
