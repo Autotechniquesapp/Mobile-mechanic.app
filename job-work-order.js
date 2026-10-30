@@ -176,7 +176,7 @@ function totalsMarkup(wo){
     ${t.counts.unpricedLines?`<p class="jwo-disclaimer plain">${t.counts.unpricedLines} line${t.counts.unpricedLines===1?'':'s'} have no cost or hours entered yet.</p>`:''}
   </div>`;
 }
-function section(title,type,items,button=''){return `<div class="jwo-section"><div class="jwo-section-head"><h3>${title}</h3>${button?`<button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button>`:''}</div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
+function section(title,type,items,button=''){return `<div class="jwo-section" data-jwo-section="${type}"><div class="jwo-section-head"><h3>${title}</h3>${button?`<button type="button" class="btn btn-soft jwo-add" data-jwo-add="${type}">+ ${button}</button>`:''}</div><div class="jwo-list">${items.length?items.map((x,i)=>rowMarkup(x,type,i)).join(''):`<div class="jwo-empty">Nothing entered yet.</div>`}</div></div>`;}
 function quickEntryMarkup(){
   const money=canEditWorkOrderMoney();
   return `<div class="jwo-quick">
