@@ -356,6 +356,64 @@ Deno.serve(async (req) => {
         balance: synced.amounts.balance,
       });
     }
+    // Explicit send from the job: Square emails a hosted payment link to the
+    // confirmed recipient. Saving a draft never sends or charges anything.
+    if (action === "email") {
+      if (!squareInvoiceId) return json({ error: "Save the draft in Square before emailing it." }, 409);
+      const email = String(body.recipient_email || "").trim();
+      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return json({ error: "Enter a valid customer email address." }, 400);
+      }
+      const current = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
+      if (!current.invoice) throw new Error("Square did not return the invoice.");
+      const status = String(current.invoice.status || "").toUpperCase();
+      if (status !== "DRAFT") {
+        await syncInvoice(current.invoice);
+        return json({ error: "This Square invoice was already published. Open it in Square to review or resend it.", status: status.toLowerCase() }, 409);
+      }
+      const customerId = String(current.invoice.primary_recipient?.customer_id || metadata.square_customer_id || "");
+      if (!customerId) return json({ error: "No Square customer is attached to this invoice." }, 409);
+      const customerData = await squareRequest(`/v2/customers/${encodeURIComponent(customerId)}`);
+      const recipient = customerData.customer;
+      if (!recipient) return json({ error: "Square customer could not be verified." }, 409);
+      // User explicitly chose this email. Square delivers invoice emails using
+      // the primary recipient's Square customer profile, not an arbitrary body field.
+      if (String(recipient.email_address || "").trim().toLowerCase() !== email.toLowerCase()) {
+        const changed = await squareRequest(`/v2/customers/${encodeURIComponent(customerId)}`, {
+          method: "PUT",
+          body: JSON.stringify({ email_address: email, version: recipient.version }),
+        });
+        if (!changed.customer?.id) throw new Error("Could not update the customer email in Square.");
+      }
+      const updated = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          idempotency_key: `mma-email-mode-${invoice.id}-${current.invoice.version}`,
+          invoice: { version: current.invoice.version, delivery_method: "EMAIL" },
+        }),
+      });
+      if (!updated.invoice) throw new Error("Square did not confirm email delivery mode.");
+      const sent = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}/publish`, {
+        method: "POST",
+        body: JSON.stringify({
+          version: updated.invoice.version,
+          idempotency_key: `mma-email-publish-${invoice.id}-${updated.invoice.version}`,
+        }),
+      });
+      if (!sent.invoice) throw new Error("Square did not confirm invoice publishing.");
+      invoice.processor_metadata = { ...(invoice.processor_metadata || {}), recipient_email: email, email_requested_at: new Date().toISOString() };
+      const synced = await syncInvoice(sent.invoice);
+      return json({
+        ok: true,
+        kind: "email_invoice",
+        status: synced.status.toLowerCase(),
+        recipient_email: email,
+        payment_url: sent.invoice.public_url || null,
+        balance: synced.amounts.balance,
+        deposit_amount: synced.amounts.deposit,
+        message: "Square accepted the invoice for email delivery. The customer can pay on the Square payment page.",
+      });
+    }
     if (action === "publish") {
       if (!squareInvoiceId) return json({ error: "Create the Square draft first." }, 409);
       const current = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
