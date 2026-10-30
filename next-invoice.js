@@ -17,7 +17,7 @@ function pricing(){const s=context().shop||{};return {laborRate:Number(s.setting
 function roundMoney(v){return Math.round((Number(v)||0)*100)/100;}
 function blank(){const p=pricing();return {status:'draft',parts:[],labor:[],tax_rate:p.taxRate,tax_enabled:p.taxRate>0,travel_fee:p.travelFee,travel_enabled:p.travelFee>0,deposit_mode:'none',deposit_amount:null,deposit_percent:null};}
 function partAmount(item){const p=window.MobileMechanicPricing;try{const r=p?.partAmount?.(item,pricing());if(r&&!r.estimated&&Number.isFinite(Number(r.amount)))return Number(r.amount);}catch{}const raw=item?.amount??item?.price??item?.cost;const n=Number(raw);return raw!==null&&raw!==undefined&&raw!==''&&Number.isFinite(n)&&n>=0?n:null;}
-function laborFromWork(item){if(item?.flat_fee)return {name:String(item.name||'Labor'),flat_fee:true,hours:null,rate:null,amount:roundMoney(item.amount??0)};const rate=Number(item?.rate||shopRate()),hours=item?.hours??null;const p=window.MobileMechanicPricing;let amount=null;try{const r=p?.laborAmount?.(item,pricing());if(r&&!r.estimated&&Number.isFinite(Number(r.amount)))amount=Number(r.amount);}catch{}if(amount===null&&hours!==null&&hours!==''&&Number.isFinite(Number(hours)))amount=roundMoney(Number(hours)*rate);return {name:String(item?.name||'Labor'),hours,rate,amount};}
+function laborFromWork(item){if(item?.flat_fee)return {name:String(item.name||'Labor'),flat_fee:true,hours:null,rate:null,amount:roundMoney(item.amount??0)};const rate=Number(item?.rate??shopRate()),hours=item?.hours??null;const p=window.MobileMechanicPricing;let amount=null;try{const r=p?.laborAmount?.(item,pricing());if(r&&!r.estimated&&Number.isFinite(Number(r.amount)))amount=Number(r.amount);}catch{}if(amount===null&&hours!==null&&hours!==''&&Number.isFinite(Number(hours)))amount=roundMoney(Number(hours)*rate);return {name:String(item?.name||'Labor'),hours,rate,amount};}
 function seedFromWorkOrder(wo){const defaults=blank();const parts=(wo.parts||[]).map(x=>{const amount=partAmount(x),quantity=Math.max(1,Number(x?.quantity)||1);return {name:String(x?.name||'Part'),amount,quantity,unit_price:amount===null?null:roundMoney(amount/quantity)};}).filter(x=>x.amount!==null&&x.amount>=0);const labor=(wo.work||[]).map(laborFromWork).filter(x=>x.amount!==null&&x.amount>=0);return {...defaults,parts,labor};}
 async function load(job){
   if(!sb||!job?.id)return blank();
@@ -37,7 +37,7 @@ async function load(job){
   return n;
 }
 async function loadSquareDraft(job){if(!sb||!job?.id)return null;const {sid}=context();const {data,error}=await sb.from('invoices').select('*').eq('job_id',job.id).eq('shop_id',sid).order('created_at',{ascending:false}).limit(20);if(error)throw error;return (data||[]).find(x=>['additional_work_estimate','square_import'].includes(x?.processor_metadata?.source))||null;}
-function recalc(item){if(item.flat_fee){item.amount=item.amount===null||item.amount===''?null:roundMoney(item.amount);return;}const h=Number(item.hours),r=Number(item.rate||shopRate());item.amount=Number.isFinite(h)&&h>=0&&item.hours!==null&&item.hours!==''?roundMoney(h*r):null;}
+function recalc(item){if(item.flat_fee){item.amount=item.amount===null||item.amount===''?null:roundMoney(item.amount);return;}const h=Number(item.hours),r=Number(item.rate??shopRate());item.amount=Number.isFinite(h)&&h>=0&&item.hours!==null&&item.hours!==''?roundMoney(h*r):null;}
 function partsTotal(){return roundMoney((state?.parts||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0));}
 function laborTotal(){return roundMoney((state?.labor||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0));}
 function travelTotal(){return state?.travel_enabled?roundMoney(Math.max(0,Number(state.travel_fee)||0)):0;}
@@ -104,6 +104,22 @@ async function save(silent=false){
    const processor_metadata={...(squareDraft.processor_metadata||{}),source:'additional_work_estimate',tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled,deposit_mode:state.deposit_mode,deposit_amount:deposit,deposit_percent:state.deposit_percent??null,final_balance_amount:roundMoney(estimateTotal()-deposit),balance_due_on_completion:deposit>0};
    const update=await sb.from('invoices').update({line_items:lines,subtotal:amount,tax,total:estimateTotal(),processor_metadata,updated_at:new Date().toISOString()}).eq('id',squareDraft.id).eq('shop_id',sid).eq('status','draft').select('*').single();
    if(update.error)throw update.error;squareDraft=update.data;
+  }else if(!squareDraft && estimateComplete()){
+   // Save a printable invoice locally; creating it does NOT send a Square invoice.
+   const deposit=chosenDeposit(),processor_metadata={
+    source:'additional_work_estimate',manual_draft:true,
+    tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,
+    travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled,
+    deposit_mode:state.deposit_mode,deposit_amount:deposit,
+    deposit_percent:state.deposit_percent??null,
+    final_balance_amount:roundMoney(estimateTotal()-deposit),
+    balance_due_on_completion:deposit>0
+   };
+   const row={shop_id:sid,job_id:job.id,estimate_id:null,status:'draft',
+    line_items:invoiceLines(),subtotal:subtotal(),tax:taxTotal(),total:estimateTotal(),
+    payment_links:{},payment_processor:'square',processor_metadata};
+   const created=await sb.from('invoices').insert(row).select('*').single();
+   if(created.error)throw created.error;squareDraft=created.data;
   }
   if(!silent)toast('Invoice draft saved.','good');
  }catch(e){toast(e.message||'Could not save invoice draft.','bad');throw e;}
@@ -125,7 +141,7 @@ async function openImport(){const {sid,job}=context();if(!sb||!job?.id||!canMana
 async function attachImport(externalId){if(importBusy||!importContext||!canManagePayments())return;const captured=importContext;importBusy=true;renderImportRows();try{const data=await squareSyncRequest({action:'import_invoice',job_id:captured.jobId,external_invoice_id:externalId},captured.sid);const current=context();if(String(current.sid)===String(captured.sid)&&String(current.job?.id)===String(captured.jobId)){squareDraft=data.invoice;rerender();}if(importContext===captured)closeImport();toast('Existing Square invoice attached to the job.','good');}catch(error){toast(error.message||'Could not attach the invoice.','bad');}finally{importBusy=false;renderImportRows();}}
 function invoiceLines(){
  const parts=state.parts.filter(x=>x.amount!==null&&Number(x.amount)>=0).map(x=>({kind:'part',description:x.name,quantity:Math.max(1,Number(x.quantity)||1),unit_price:Number(x.unit_price)||0,amount:roundMoney(x.amount)}));
- const labor=state.labor.filter(x=>x.amount!==null&&Number(x.amount)>=0).map(x=>({kind:'labor',description:x.name,quantity:1,amount:roundMoney(x.amount),...(!x.flat_fee?{labor_hours:Number(x.hours||0),labor_rate:Number(x.rate||shopRate())}:{flat_fee:true})}));
+ const labor=state.labor.filter(x=>x.amount!==null&&Number(x.amount)>=0).map(x=>({kind:'labor',description:x.name,quantity:1,amount:roundMoney(x.amount),...(!x.flat_fee?{labor_hours:Number(x.hours||0),labor_rate:Number(x.rate??shopRate())}:{flat_fee:true})}));
  if(travelTotal()>0)labor.push({kind:'travel',description:'Mobile service travel',quantity:1,unit_price:travelTotal(),amount:travelTotal()});
  return [...parts,...labor];
 }
@@ -166,7 +182,11 @@ function refreshInvoiceAmounts(){
   }
 }
 function queueInvoiceSave(silent=true){
-  saveQueue=saveQueue.catch(()=>{}).then(()=>save(silent));
+  const jobId=context().job?.id;
+  saveQueue=saveQueue.catch(()=>{}).then(()=>{
+    if(!jobId || String(context().job?.id)!==String(jobId))return;
+    return save(silent);
+  });
   return saveQueue;
 }
 function editInvoiceField(el){
@@ -236,5 +256,6 @@ function bind(){
  },true);
 }
 async function mount(){if(mounting||document.querySelector('[data-next-invoice]'))return;const {db,job}=context();if(db.session?.role!=='shop'||!job||!canManagePayments())return;const work=document.querySelector('[data-job-work-order]');if(!work)return;mounting=true;try{css();state=await load(job);squareDraft=await loadSquareDraft(job);if(!work.isConnected||String(context().job?.id)!==String(job.id)||document.querySelector('[data-next-invoice]'))return;work.insertAdjacentHTML('afterend',markup());}finally{mounting=false;}}
+window.MobileMechanicInvoiceEditor={flushSave:()=>queueInvoiceSave(true)};
 bind();new MutationObserver(()=>setTimeout(mount,0)).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('hashchange',()=>{state=null;squareDraft=null;closeHistory();closeImport();setTimeout(mount,150);});setTimeout(mount,900);
 })();
