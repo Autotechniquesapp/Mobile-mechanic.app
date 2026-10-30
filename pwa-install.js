@@ -4,7 +4,7 @@
   const isStandalone=()=>window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true;
   function register(){
     if(!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('./service-worker.js?v=10',{updateViaCache:'none'})
+    navigator.serviceWorker.register('./service-worker.js?v=11',{updateViaCache:'none'})
       .then(reg=>reg.update())
       .catch(err=>console.warn('Service worker registration failed',err));
   }
