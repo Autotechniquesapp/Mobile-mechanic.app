@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const workOrder = await readFile(new URL('../job-work-order.js', import.meta.url), 'utf8');
+const invoiceEditor = await readFile(new URL('../next-invoice.js', import.meta.url), 'utf8');
 
 test('time clock is routed and provides separate clock actions', () => {
   assert.match(app, /function timeClock\(\)/);
@@ -19,13 +20,15 @@ test('technicians cannot open financial administration routes directly', () => {
 
 test('technician work orders still hide invoice and payment totals', () => {
   assert.match(workOrder, /function canSeeFinancials\(\).*owner.*manager.*service_writer/);
-  assert.match(workOrder, /canSeeFinancials\(\)\?financialMarkup/);
+  assert.match(invoiceEditor, /!canManagePayments\(\)/);
+  const visible=workOrder.slice(workOrder.indexOf('function markup(state){'),workOrder.indexOf('function css(){'));
+  assert.doesNotMatch(visible,/jwo-totals|financialMarkup|data-jwo-cost/);
 });
 
 test('work order money is limited to financial roles or the sole active technician', () => {
   assert.match(workOrder, /function canEditWorkOrderMoney\(\)/);
   assert.match(workOrder, /canEditWorkOrderMoney\(\)[\s\S]{0,200}session\?\.role!=='shop'/);
-  assert.match(workOrder, /\['owner','manager','service_writer'\]\.includes\(u\.role\)/);
+  assert.match(workOrder, /\['owner','shop_owner','manager','service_writer'\]\.includes\(u\.role\)/);
   assert.match(workOrder, /u\.role==='technician'&&activeUsers\.length===1&&activeUsers\[0\]\.id===id/);
   assert.match(workOrder, /if\(!u\|\|u\.active===false\)return false/);
   assert.match(workOrder, /setMoney\([\s\S]{0,160}!canEditWorkOrderMoney\(\)/);
