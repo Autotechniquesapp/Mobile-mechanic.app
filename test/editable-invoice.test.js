@@ -67,7 +67,10 @@ test('billing inputs are editable and invoices persist amounts with tax and trav
     assert.ok(editor.includes(input), input);
   }
   assert.match(editor,/subtotal:subtotal\(\),tax:taxTotal\(\),total/);
-  assert.match(editor,/Save Invoice Draft/);
+  assert.match(editor,/Save Draft in Square/);
+  assert.match(editor,/Email Customer to Pay/);
+  assert.match(editor,/data-nxe-recipient-email/);
+  assert.match(editor,/data-nxe-open-square-dashboard/);
   assert.match(editor,/canManagePayments\(\)/);
   assert.match(workflow,/\[data-job-paperwork\]/);
   assert.match(editor,/data-invoice-print/);
