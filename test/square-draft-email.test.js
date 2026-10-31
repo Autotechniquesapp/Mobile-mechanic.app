@@ -7,14 +7,14 @@ const {stripTypeScriptTypes}=require('node:module');
 const server=fs.readFileSync('supabase/functions/square-invoice/index.ts','utf8');
 const editor=fs.readFileSync('next-invoice.js','utf8');
 
-async function runEmail({status='DRAFT',email='customer@example.com',squareEmail='other@example.com'}={}){
+async function runEmail({status='DRAFT',email='customer@example.com',squareEmail='other@example.com',orderCents=37940}={}){
   const invoice={id:'local-1',shop_id:'shop-1',job_id:null,total:379.4,
     status:'draft',processor_status:status,processor_metadata:{square_invoice_id:'sq-1',square_customer_id:'cust-1'}};
   const requests=[];
   let handler;
   const customer={id:'cust-1',version:3,email_address:squareEmail};
   const makeInvoice=(state,version,method='SHARE_MANUALLY')=>({
-    id:'sq-1',status:state,version,invoice_number:'0000007',
+    id:'sq-1',order_id:'ord-1',status:state,version,invoice_number:'0000007',
     primary_recipient:{customer_id:'cust-1',email_address:customer.email_address},
     delivery_method:method,
     payment_requests:[{request_type:'BALANCE',computed_amount_money:{amount:37940,currency:'USD'},total_completed_amount_money:{amount:0}}],
@@ -37,6 +37,7 @@ async function runEmail({status='DRAFT',email='customer@example.com',squareEmail
     const url=new URL(input),method=init.method||'GET',body=init.body?JSON.parse(init.body):{};
     requests.push({url:url.pathname,method,body});
     if(url.pathname==='/v2/invoices/sq-1'&&method==='GET')return Response.json({invoice:remote});
+    if(url.pathname==='/v2/orders/ord-1'&&method==='GET')return Response.json({order:{id:'ord-1',total_money:{amount:orderCents,currency:'USD'}}});
     if(url.pathname==='/v2/customers/cust-1'&&method==='GET')return Response.json({customer});
     if(url.pathname==='/v2/customers/cust-1'&&method==='PUT'){
       customer.email_address=body.email_address;customer.version++;return Response.json({customer});}
@@ -77,11 +78,11 @@ test('Square emails the confirmed customer only after explicit send, and publish
   assert.equal(result.body.recipient_email,'customer@example.com');
   const calls=result.requests.map(x=>x.method+' '+x.url);
   assert.deepEqual(calls,[
-    'GET /v2/invoices/sq-1','GET /v2/customers/cust-1',
+    'GET /v2/invoices/sq-1','GET /v2/orders/ord-1','GET /v2/customers/cust-1',
     'PUT /v2/customers/cust-1','PUT /v2/invoices/sq-1','POST /v2/invoices/sq-1/publish'
   ]);
-  assert.equal(result.requests[3].body.invoice.delivery_method,'EMAIL');
-  assert.equal(result.requests[4].body.version,1);
+  assert.equal(result.requests[4].body.invoice.delivery_method,'EMAIL');
+  assert.equal(result.requests[5].body.version,1);
   assert.equal(result.body.payment_url,'https://squareup.com/pay-invoice/sample');
   assert.equal(result.invoice.processor_status,'UNPAID');
   assert.equal(result.invoice.processor_metadata.recipient_email,'customer@example.com');
@@ -97,4 +98,25 @@ test('already published invoices do not get accidentally emailed again',async()=
  const result=await runEmail({status:'UNPAID',squareEmail:'customer@example.com'});
  assert.equal(result.status,409);
  assert.ok(!result.requests.some(x=>x.method==='PUT'||x.method==='POST'));
+});
+
+test('wrong Square tax blocks customer email even if the draft exists',async()=>{
+ const result=await runEmail({orderCents:40460});
+ assert.equal(result.status,409);
+ assert.equal(result.body.square_total,404.6);
+ assert.equal(result.body.expected_total,379.4);
+ assert.match(result.body.error,/extra sales tax/i);
+ assert.ok(!result.requests.some(x=>x.method==='PUT'||x.method==='POST'));
+});
+
+test('Square order creation cannot silently apply additional tax',()=>{
+  assert.match(server,/auto_apply_taxes: false/);
+  assert.match(server,/auto_apply_discounts: false/);
+  assert.match(server,/actualOrderCents !== orderTotalCents/);
+  const validate=server.indexOf('actualOrderCents !== orderTotalCents');
+  const create=server.indexOf('const invoiceData = await squareRequest("/v2/invoices"');
+  assert.ok(validate>0&&create>validate,'Order amount must be checked before creating invoice');
+  assert.match(server,/square_total_mismatch/);
+  assert.match(editor,/squareTotalMismatch/);
+  assert.match(editor,/Do not send or collect payment/);
 });

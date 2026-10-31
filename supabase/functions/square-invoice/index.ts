@@ -216,6 +216,8 @@ Deno.serve(async (req) => {
         balance_due_date: amounts.balanceDueDate,
         due_date: amounts.dueDate,
         last_square_sync_at: now,
+        square_total: amounts.total,
+        square_total_mismatch: cents(amounts.total) !== cents(invoice.total),
       };
       if (invoice.id) {
       const { error: localError } = await admin.from("invoices").update({
@@ -269,6 +271,23 @@ Deno.serve(async (req) => {
       return { status, amounts };
     };
 
+    // Square may have rule-based taxes configured on the seller's account.
+    // Never publish or email a bill when the actual Square order is a different
+    // amount from what the mechanic approved in Mobile Mechanic AI.
+    const checkSquareOrderTotal = async (squareInvoice: Row) => {
+      if (invoice.processor_metadata?.source === "square_import") return null;
+      const id = String(squareInvoice.order_id || invoice.processor_metadata?.square_order_id || "");
+      if (!id) throw new Error("Cannot verify the Square order amount. Open Square and review the invoice.");
+      const orderResult = await squareRequest(`/v2/orders/${encodeURIComponent(id)}`);
+      const actual = Number(orderResult.order?.total_money?.amount);
+      const expected = cents(invoice.total);
+      if (!Number.isFinite(actual)) throw new Error("Square did not return an order total. Open Square and verify the amount before sending.");
+      if (actual !== expected) return {
+        error: `Square invoice totals ${(actual / 100).toFixed(2)}, but this repair order is ${(expected / 100).toFixed(2)}. Check Square's extra sales tax. Do not send or collect payment until corrected.`,
+        expected_total: expected / 100, square_total: actual / 100,
+      };
+      return null;
+    };
     const metadata = { ...(invoice.processor_metadata || {}) };
     const squareInvoiceId = String(metadata.square_invoice_id || invoice.processor_payment_id || "");
     if (action === "pos_checkout_link") {
@@ -343,7 +362,25 @@ Deno.serve(async (req) => {
       const data = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
       if (!data.invoice) throw new Error("Square did not return the invoice.");
       const synced = await syncInvoice(data.invoice);
+      // On manual Refresh, reconcile the actual Square order total as well as
+      // the payment schedule, which may lag behind edits made in Square.
+      let amountWarning: Row | null = null;
+      try {
+        amountWarning = await checkSquareOrderTotal(data.invoice);
+        if (amountWarning && invoice.id) {
+          const currentMeta = { ...(invoice.processor_metadata || {}),
+            square_total: amountWarning.square_total,
+            square_total_mismatch: true };
+          const { error: saveError } = await admin.from("invoices").update({
+            processor_metadata: currentMeta,
+            updated_at: new Date().toISOString(),
+          }).eq("id", invoice.id).eq("shop_id", membership.shop_id);
+          if (saveError) throw saveError;
+        }
+      } catch (verifyError) { console.warn("Square order total verification unavailable:", verifyError); }
       return json({
+        ...(amountWarning ? { warning: amountWarning.error, expected_total: amountWarning.expected_total,
+          square_total: amountWarning.square_total } : {}),
         provider: "square",
         kind: "invoice",
         status: synced.status.toLowerCase(),
@@ -371,6 +408,8 @@ Deno.serve(async (req) => {
         await syncInvoice(current.invoice);
         return json({ error: "This Square invoice was already published. Open it in Square to review or resend it.", status: status.toLowerCase() }, 409);
       }
+      const amountMismatch = await checkSquareOrderTotal(current.invoice);
+      if (amountMismatch) return json(amountMismatch, 409);
       const customerId = String(current.invoice.primary_recipient?.customer_id || metadata.square_customer_id || "");
       if (!customerId) return json({ error: "No Square customer is attached to this invoice." }, 409);
       const customerData = await squareRequest(`/v2/customers/${encodeURIComponent(customerId)}`);
@@ -422,6 +461,8 @@ Deno.serve(async (req) => {
         const synced = await syncInvoice(current.invoice);
         return json({ ok: true, already_published: true, status: synced.status.toLowerCase(), payment_url: current.invoice.public_url || null });
       }
+      const amountMismatch = await checkSquareOrderTotal(current.invoice);
+      if (amountMismatch) return json(amountMismatch, 409);
       const data = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}/publish`, {
         method: "POST",
         body: JSON.stringify({ version: current.invoice.version, idempotency_key: `mma-publish-${invoice.id}-${current.invoice.version}` }),
@@ -664,6 +705,7 @@ Deno.serve(async (req) => {
         idempotency_key: `mma-order-${invoice.id}`,
         order: {
           location_id: credential.location_id,
+          pricing_options: { auto_apply_taxes: false, auto_apply_discounts: false },
           reference_id: String(invoice.id),
           customer_id: squareCustomerId,
           line_items: lineItems.map((line: Row,index: number)=>index===0&&warrantyText?{...line,note:warrantyText}:line),
@@ -671,6 +713,14 @@ Deno.serve(async (req) => {
       }),
     });
     if (!orderData.order?.id) throw new Error("Square order creation failed.");
+    const actualOrderCents = Number(orderData.order.total_money?.amount);
+    if (!Number.isFinite(actualOrderCents) || actualOrderCents !== orderTotalCents) {
+      return json({
+        error: `Square calculated ${Number.isFinite(actualOrderCents)?(actualOrderCents/100).toFixed(2):'an unknown amount'} but the saved invoice is ${(orderTotalCents/100).toFixed(2)}. Check automatic sales taxes in Square; the draft was not created or sent.`,
+        expected_total: orderTotalCents / 100,
+        square_total: Number.isFinite(actualOrderCents) ? actualOrderCents / 100 : null,
+      }, 409);
+    }
 
     const invoiceData = await squareRequest("/v2/invoices", {
       method: "POST",
