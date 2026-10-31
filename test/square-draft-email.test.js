@@ -108,3 +108,15 @@ test('wrong Square tax blocks customer email even if the draft exists',async()=>
  assert.match(result.body.error,/extra sales tax/i);
  assert.ok(!result.requests.some(x=>x.method==='PUT'||x.method==='POST'));
 });
+
+test('Square order creation cannot silently apply additional tax',()=>{
+  assert.match(server,/auto_apply_taxes: false/);
+  assert.match(server,/auto_apply_discounts: false/);
+  assert.match(server,/actualOrderCents !== orderTotalCents/);
+  const validate=server.indexOf('actualOrderCents !== orderTotalCents');
+  const create=server.indexOf('const invoiceData = await squareRequest("/v2/invoices"');
+  assert.ok(validate>0&&create>validate,'Order amount must be checked before creating invoice');
+  assert.match(server,/square_total_mismatch/);
+  assert.match(editor,/squareTotalMismatch/);
+  assert.match(editor,/Do not send or collect payment/);
+});
