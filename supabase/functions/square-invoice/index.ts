@@ -362,7 +362,25 @@ Deno.serve(async (req) => {
       const data = await squareRequest(`/v2/invoices/${encodeURIComponent(squareInvoiceId)}`);
       if (!data.invoice) throw new Error("Square did not return the invoice.");
       const synced = await syncInvoice(data.invoice);
+      // On manual Refresh, reconcile the actual Square order total as well as
+      // the payment schedule, which may lag behind edits made in Square.
+      let amountWarning: Row | null = null;
+      try {
+        amountWarning = await checkSquareOrderTotal(data.invoice);
+        if (amountWarning && invoice.id) {
+          const currentMeta = { ...(invoice.processor_metadata || {}),
+            square_total: amountWarning.square_total,
+            square_total_mismatch: true };
+          const { error: saveError } = await admin.from("invoices").update({
+            processor_metadata: currentMeta,
+            updated_at: new Date().toISOString(),
+          }).eq("id", invoice.id).eq("shop_id", membership.shop_id);
+          if (saveError) throw saveError;
+        }
+      } catch (verifyError) { console.warn("Square order total verification unavailable:", verifyError); }
       return json({
+        ...(amountWarning ? { warning: amountWarning.error, expected_total: amountWarning.expected_total,
+          square_total: amountWarning.square_total } : {}),
         provider: "square",
         kind: "invoice",
         status: synced.status.toLowerCase(),
