@@ -35,6 +35,7 @@ jobs:
           node --check pricing-gates.js
           node --check production-guards.js
           node --check intake-queue.js
+          node --check contact-actions.js
           node --check intake-repair.js
           node --check payment-processors.js
           node --check quickbooks-integration.js
@@ -74,6 +75,8 @@ jobs:
           test -f estimate-public.js
           test -f pricing-gates.js
           test -f intake-queue.js
+          test -f contact-actions.js
+          grep -q 'src="contact-actions.js' index.html
           test -f intake-repair.js
           test -f payment-processors.js
           test -f quickbooks-integration.js
