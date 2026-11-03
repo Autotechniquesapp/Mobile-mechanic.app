@@ -4,11 +4,32 @@ const CHANNEL_ID='new_customer_jobs_v1';
 let access:{token:string;expires:number}|null=null;
 
 type ServiceAccount={project_id:string;client_email:string;private_key:string};
+// Some mobile text viewers copy the PEM with literal line breaks inside its
+// JSON string. Repair only that exact field and PEM envelope; other malformed
+// JSON still fails closed. Correctly encoded JSON is used without changes.
+function parseServiceAccount(value:string){
+  try{return JSON.parse(value);}catch{
+    const repaired=value.replace(/("private_key"\s*:\s*")(-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----[\r\n]*)(")/,
+      (_match,prefix,pem,suffix)=>prefix+pem.replace(/\r/g,'\\r').replace(/\n/g,'\\n')+suffix);
+    return JSON.parse(repaired);
+  }
+}
 export function nativePushConfigurationStatus(){
   const value=Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
   if(!value?.trim())return 'missing';
   let key;
-  try{key=JSON.parse(value);}catch{return 'invalid_json';}
+  try{key=parseServiceAccount(value);}catch(error){
+    // Return only fixed categories. JSON parser messages can contain snippets
+    // of credentials, so never return or log the original message.
+    const message=error instanceof Error?error.message:'';
+    if(value.charCodeAt(0)===0xfeff)return 'invalid_json_bom';
+    if(value.trimStart().startsWith('```'))return 'invalid_json_code_fence';
+    if(/Bad control character/i.test(message))return 'invalid_json_unescaped_line_break';
+    if(/Expected property name|Expected double-quoted property/i.test(message))return 'invalid_json_property_quotes';
+    if(/Unexpected end|Unterminated/i.test(message))return 'invalid_json_incomplete';
+    if(/after JSON/i.test(message))return 'invalid_json_extra_content';
+    return 'invalid_json';
+  }
   if(key?.project_info||key?.client)return 'android_client_file';
   if(typeof key==='string')return 'quoted_json';
   if(!key||!['project_id','client_email','private_key'].every(field=>typeof key[field]==='string'&&key[field].trim()))return 'missing_service_account_fields';
@@ -18,7 +39,7 @@ function config():ServiceAccount|null{
   try{
     const json=Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
     if(!json)return null;
-    const key=JSON.parse(json);
+    const key=parseServiceAccount(json);
     if(!key.project_id||!key.client_email||!key.private_key)return null;
     return key;
   }catch{return null;}

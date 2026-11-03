@@ -56,3 +56,16 @@ test('FCM sends to the job channel; generic 404 preserves tokens; UNREGISTERED r
   const result=await sandbox.send({tokens:['healthy','expired','generic404'],intakeId:'i',customer:'Customer',vehicle:'Truck',pendingCount:2});
   assert.equal(result.sent,1);assert.deepEqual(Array.from(result.invalid),['expired']);assert.equal(requests[0].message.android.notification.channel_id,'new_customer_jobs_v1');assert.equal(requests[0].message.android.notification.notification_count,2);
 });
+
+test('mobile PEM line breaks are repaired narrowly and used for signing',async()=>{
+  const {privateKey}=generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}});
+  const source=stripTypeScriptTypes(fs.readFileSync('supabase/functions/push-notifications/native-fcm.ts','utf8').replace(/^export /gm,''));
+  const correct=JSON.stringify({project_id:'test',client_email:'test@example.test',private_key:privateKey});
+  const copied=correct.replace(/\\n/g,'\n');
+  const sandbox={TextEncoder,Uint8Array,URLSearchParams,Response,btoa,atob,crypto:webcrypto,console:{error(){}},Deno:{env:{get:()=>copied}},fetch:async(url)=>url.includes('oauth2')?Response.json({access_token:'test',expires_in:3600}):Response.json({name:'accepted'})};
+  vm.runInNewContext(source+'\nglobalThis.status=nativePushConfigurationStatus;globalThis.send=sendNativeIntakePush;',sandbox);
+  assert.equal(sandbox.status(),'configured');
+  assert.equal((await sandbox.send({tokens:['device'],intakeId:'i',customer:'Test',vehicle:'',pendingCount:1})).sent,1);
+  sandbox.Deno.env.get=()=>copied.replace('test@example.test','bad\nemail');
+  assert.notEqual(sandbox.status(),'configured');
+});
