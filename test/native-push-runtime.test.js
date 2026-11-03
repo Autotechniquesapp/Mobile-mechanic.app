@@ -12,7 +12,7 @@ function backend({authenticated=true,member=true,configured=true}={}){
     const q={select(_cols,options){count=!!options?.head;return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},is(k,v){return q.eq(k,v);},limit(){return q;},update(v){op='update';value=v;return q;},upsert(v){op='upsert';value=v;return q;},maybeSingle(){return run(true);},single(){return run(true);},then(a,b){return run(false).then(a,b);}};
     async function run(single){let rows=tables[table].filter(r=>filters.every(f=>f(r)));if(op==='update')rows.forEach(r=>Object.assign(r,value));if(op==='upsert'){const old=tables[table].find(r=>r.token===value.token);if(old)Object.assign(old,value);else tables[table].push({...value});rows=[old||tables[table].at(-1)];}return {data:structuredClone(single?rows[0]||null:rows),count:count?rows.length:null,error:null};}return q;}};
   const source=stripTypeScriptTypes(fs.readFileSync('supabase/functions/push-notifications/index.ts','utf8').replace(/^import .*;\n/gm,''));
-  vm.runInNewContext(source,{Response,Request,Set,console,createClient:(_u,_k,o)=>o?.global?{auth:{getUser:async()=>({data:{user:authenticated?{id:'user'}:null}})}}:admin,webpush:{},nativePushConfigured:()=>configured,sendNativeIntakePush:async(args)=>{deliveries.push(args);return {sent:args.tokens.length,invalid:[]};},Deno:{env:{get:()=> 'test'},serve:fn=>handler=fn}});
+  vm.runInNewContext(source,{Response,Request,Set,console,createClient:(_u,_k,o)=>o?.global?{auth:{getUser:async()=>({data:{user:authenticated?{id:'user'}:null}})}}:admin,webpush:{},nativePushConfigured:()=>configured,nativePushConfigurationStatus:()=>configured?'configured':'missing',sendNativeIntakePush:async(args)=>{deliveries.push(args);return {sent:args.tokens.length,invalid:[]};},Deno:{env:{get:()=> 'test'},serve:fn=>handler=fn}});
   return {tables,deliveries,run:(body,internal=false)=>handler(new Request('https://example.test',{method:'POST',headers:internal?{'x-intake-internal-token':'internal'}:{Authorization:'Bearer user'},body:JSON.stringify(body)}))};
 }
 const subscription={action:'native_subscribe',shop_id:'shop',token:'a-device-token-longer-than-twenty'};
@@ -34,7 +34,13 @@ test('native-only delivery works without any Chrome subscriptions and duplicate 
   const again=await (await s.run({action:'notify_intake',intake_id:'intake'},true)).json();assert.equal(again.skipped,'already_notified');assert.equal(s.deliveries.length,1);
 });
 test('public readiness reports only a boolean and the existing public web-push key',async()=>{
-  const s=backend();const data=await (await s.run({action:'public_key'})).json();assert.deepEqual(data,{ok:true,public_key:'public-only',native_configured:true});assert.ok(!JSON.stringify(data).includes('never-return'));
+  const s=backend();const data=await (await s.run({action:'public_key'})).json();assert.deepEqual(data,{ok:true,public_key:'public-only',native_configured:true,native_configuration_status:'configured'});assert.ok(!JSON.stringify(data).includes('never-return'));
+});
+test('configuration diagnostics distinguish missing, wrong, quoted, and incomplete files without returning values',()=>{
+  const source=stripTypeScriptTypes(fs.readFileSync('supabase/functions/push-notifications/native-fcm.ts','utf8').replace(/^export /gm,''));
+  for(const [value,expected] of [[undefined,'missing'],['filename.json','invalid_json'],[JSON.stringify({project_info:{project_id:'test'}}),'android_client_file'],[JSON.stringify('{}'),'quoted_json'],['{}','missing_service_account_fields'],[JSON.stringify({project_id:'test',client_email:'test@example.test',private_key:'secret-not-returned'}),'configured']]){
+    const sandbox={Deno:{env:{get:()=>value}}};vm.runInNewContext(source+'\nglobalThis.status=nativePushConfigurationStatus;',sandbox);assert.equal(sandbox.status(),expected);
+  }
 });
 test('FCM sends to the job channel; generic 404 preserves tokens; UNREGISTERED removes only expired tokens',async()=>{
   const {privateKey}=generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}});

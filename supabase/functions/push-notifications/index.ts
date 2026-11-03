@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.4";
 import webpush from "npm:web-push@3.6.7";
-import {nativePushConfigured,sendNativeIntakePush} from "./native-fcm.ts";
+import {nativePushConfigured,nativePushConfigurationStatus,sendNativeIntakePush} from "./native-fcm.ts";
 
 const allowedOrigins=new Set(["https://mobile-mechanic.app","https://www.mobile-mechanic.app"]);
 function corsFor(req:Request){
@@ -39,7 +39,7 @@ Deno.serve(async(req)=>{
   try{
     if(action==="public_key"){
       const cfg=await vapid();
-      return json({ok:true,public_key:cfg.public_key,native_configured:nativePushConfigured()});
+      return json({ok:true,public_key:cfg.public_key,native_configured:nativePushConfigured(),native_configuration_status:nativePushConfigurationStatus()});
     }
 
     if(action==="subscribe"||action==="unsubscribe"){

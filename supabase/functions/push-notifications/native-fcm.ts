@@ -4,6 +4,16 @@ const CHANNEL_ID='new_customer_jobs_v1';
 let access:{token:string;expires:number}|null=null;
 
 type ServiceAccount={project_id:string;client_email:string;private_key:string};
+export function nativePushConfigurationStatus(){
+  const value=Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
+  if(!value?.trim())return 'missing';
+  let key;
+  try{key=JSON.parse(value);}catch{return 'invalid_json';}
+  if(key?.project_info||key?.client)return 'android_client_file';
+  if(typeof key==='string')return 'quoted_json';
+  if(!key||!['project_id','client_email','private_key'].every(field=>typeof key[field]==='string'&&key[field].trim()))return 'missing_service_account_fields';
+  return 'configured';
+}
 function config():ServiceAccount|null{
   try{
     const json=Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
