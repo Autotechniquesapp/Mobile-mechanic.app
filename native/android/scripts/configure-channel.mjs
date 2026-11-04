@@ -48,5 +48,5 @@ for(const name of ['native-android-notifications.js','logout-screen.js','supabas
 // The current site loads push-notifications.js already. Initialize native support
 // immediately before that controller so an unmerged web change is not required.
 fs.writeFileSync(path.join(assets,'push-notifications.js'),
-  fs.readFileSync('../../native-android-notifications.js','utf8')+'\n;\n'+fs.readFileSync('../../native-schedule-reminders.js','utf8')+'\n;\n'+fs.readFileSync('../../push-notifications.js','utf8'));
+  fs.readFileSync('../../native-android-notifications.js','utf8')+'\n;\n'+fs.readFileSync('../../native-schedule-reminders.js','utf8')+'\n;\n'+fs.readFileSync('templates/push-notifications.js','utf8'));
 console.log('New Customer Jobs channel and Android settings shortcut configured.');

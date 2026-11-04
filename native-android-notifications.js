@@ -88,6 +88,7 @@ window.MobileMechanicNativeAndroidPush={
   getToken:()=>token,
   check:async()=>{await init();return (await push.checkPermissions()).receive==='granted';}
 };
+sb?.auth?.onAuthStateChange?.(event=>{if(event==='SIGNED_OUT')setTimeout(()=>disable().catch(showError),0);});
 init().then(registerIfAllowed).catch(showError);
 window.addEventListener('mma-shop-session-ready',()=>registerIfAllowed().catch(showError));
 })();
