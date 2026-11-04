@@ -1,0 +1,18 @@
+{
+  "appId": "app.mobilemechanic.ai",
+  "appName": "Mobile Mechanic AI",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.mobile-mechanic.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_job",
+      "iconColor": "#ef2a31"
+    }
+  }
+}
