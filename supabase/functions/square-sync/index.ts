@@ -1,5 +1,22 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.4";
 
+async function completeFullyPaidJob(admin: any, shopId: string, jobId: string | null) {
+  if (!jobId) return false;
+  const { data, error } = await admin.from("invoices").select("status,total,paid_at")
+    .eq("shop_id", shopId).eq("job_id", jobId);
+  if (error) throw error;
+  const billable = (data || []).filter((row: any) => Number(row.total) > 0
+    && !["void", "canceled", "cancelled", "refunded"].includes(String(row.status).toLowerCase()));
+  if (!billable.length || billable.some((row: any) => String(row.status).toLowerCase() !== "paid")) return false;
+  const paidDates = billable.map((row: any) => row.paid_at).filter((date: any) => date && Number.isFinite(Date.parse(date))).sort();
+  const now = new Date().toISOString();
+  const { error: updateError } = await admin.from("jobs").update({
+    status: "completed", completed_at: paidDates.at(-1) || now, updated_at: now,
+  }).eq("shop_id", shopId).eq("id", jobId).neq("status", "completed");
+  if (updateError) throw updateError;
+  return true;
+}
+
 const API_VERSION = "2026-08-19";
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -455,6 +472,7 @@ async function syncInvoices(ctx: Row, suppliedInvoices: Row[] | null = null) {
         updated_at: now,
       }).eq("shop_id", ctx.shopId).eq("id", local.id);
       if (error) throw error;
+      if (status === "PAID") await completeFullyPaidJob(ctx.admin, ctx.shopId, local.job_id);
       await saveMapping(ctx, "invoice", String(local.id), String(square.id), square.version, {
         square_order_id: square.order_id || null,
         environment: ctx.environment,

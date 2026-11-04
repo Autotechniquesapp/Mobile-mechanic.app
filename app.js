@@ -812,6 +812,11 @@ if(intakeSlug){
   render();
 }
 window.addEventListener('hashchange',()=>{if(!qs.get('intake')&&!qs.get('estimate'))render(hashRoute());});
+window.addEventListener('mobile-mechanic-jobs-updated',()=>{
+  if(intakeSlug||qs.get('estimate'))return;
+  try{const fresh=JSON.parse(localStorage.getItem(DBKEY));if(fresh?.session?.shopId!==db.session?.shopId)return;db=fresh;}catch{return;}
+  if(['dashboard','jobs','calendar','reports','customers'].includes(hashRoute()))render(hashRoute());
+});
 
 })();
 
