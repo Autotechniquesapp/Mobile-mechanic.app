@@ -2,8 +2,11 @@
 'use strict';
 const sb=window.MobileMechanicSupabase;
 const DBKEY='mobile_mechanic_ai_approved_v7';
-const supported=!!(sb&&window.isSecureContext&&('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window));
+const native=window.MobileMechanicNativeAndroidPush||null;
+const nativeSupported=Boolean(native?.isSupported?.());
+const supported=nativeSupported||!!(sb&&window.isSecureContext&&('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window));
 let pushActive=false;
+let nativeError='';
 let checkingSubscription=false;
 
 function cache(){try{return JSON.parse(localStorage.getItem(DBKEY)||'{}');}catch{return {};}}
@@ -25,6 +28,11 @@ async function saveSubscription(sub){const j=sub.toJSON();await fn({action:'subs
 
 function notificationState(){
   if(!supported)return {key:'unsupported',label:'Phone alerts not supported',detail:'Use the secure HTTPS site in Chrome on Android, or the installed Home Screen app on iPhone.'};
+  if(nativeSupported){
+    if(nativeError)return {key:'native-error:'+nativeError,label:'New Customer Jobs alerts need attention',detail:nativeError};
+    if(pushActive)return {key:'enabled',label:'Native Android job alerts enabled',detail:'New Customer Jobs is a separate Android notification category. Choose its sound and badge behavior in phone Settings.'};
+    return {key:'off',label:'Native Android job alerts',detail:'Enable the New Customer Jobs channel, then customize its sound in Android settings.'};
+  }
   if(Notification.permission==='denied')return {key:'blocked',label:'Notifications blocked',detail:'Allow notifications for Mobile Mechanic AI in your phone settings, then reopen the app.'};
   if(pushActive)return {key:'enabled',label:'Phone alerts enabled',detail:'New customer intakes can notify this phone even when the app is closed.'};
   return {key:'off',label:'Phone alerts not enabled',detail:'Turn on alerts to get a normal phone notification and sound for new customer intakes.'};
@@ -50,6 +58,13 @@ function renderSettingsControl(){
   card.style.marginTop='10px';
   card.innerHTML=`<div class="card-title">🔔 NOTIFICATIONS</div><div class="divider"></div><div class="list-item" style="align-items:center"><div class="list-icon">🔔</div><div class="list-main"><b>${state.label}</b><p>${state.detail}</p><div class="list-actions"><button type="button" class="btn ${enabled?'btn-soft':'btn-primary'}" data-enable-phone-alerts ${enabled||blocked||unsupported?'disabled':''}>${enabled?'✓ PHONE ALERTS ENABLED':blocked?'NOTIFICATIONS BLOCKED':unsupported?'NOT SUPPORTED':'ENABLE PHONE ALERTS'}</button></div>${blocked?'<p class="small muted" style="margin:8px 0 0">Open your phone Settings → Apps/Browser → Notifications, allow Mobile Mechanic AI, then reopen the app.</p>':''}</div></div>`;
   main.appendChild(card);
+  if(nativeSupported){
+    const settingsButton=document.createElement('button');
+    settingsButton.type='button';settingsButton.className='btn btn-soft';
+    settingsButton.textContent='NEW CUSTOMER JOBS SOUND & SETTINGS';
+    settingsButton.addEventListener('click',()=>native.openSettings().catch(()=>toast('Open Android Settings → Apps → Mobile Mechanic AI → Notifications → New Customer Jobs.','bad')));
+    card.querySelector('.list-actions').appendChild(settingsButton);
+  }
   bindEnableButton(card);
 }
 
@@ -76,7 +91,15 @@ async function enablePush(){
   if(button?.dataset.busy==='1')return false;
   if(button){button.dataset.busy='1';button.disabled=true;button.textContent='ENABLING PHONE ALERTS…';}
   try{
-    if(!supported)throw new Error(!window.isSecureContext?'Phone alerts require the secure HTTPS version of the app.':'This browser does not support web push notifications. Try Chrome on Android or the installed Home Screen app on iPhone.');
+    if(!supported)throw new Error(!window.isSecureContext?'Phone alerts require the secure HTTPS version of the app.':'This browser does not support notifications.');
+    if(nativeSupported){
+      const granted=await native.enable();
+      if(!granted)throw new Error('Android notification permission is required.');
+      pushActive=Boolean(native.isEnabled());
+      toast('Android permission granted. Registering your device for New Customer Jobs alerts.','good');
+      refreshUI();
+      return true;
+    }
     if(!shopId())throw new Error('Sign in to the shop before enabling phone alerts.');
     const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
     if(ios&&!standalone()){
@@ -120,7 +143,10 @@ async function syncExisting(){
   if(checkingSubscription||!supported||!shopId())return;
   checkingSubscription=true;
   try{
-    if(Notification.permission==='granted'){
+    if(nativeSupported){
+      await native.check();
+      pushActive=Boolean(native.isEnabled());
+    }else if(Notification.permission==='granted'){
       const sub=await currentSubscription();
       pushActive=!!sub;
       if(sub)await saveSubscription(sub);
@@ -143,5 +169,8 @@ new MutationObserver(()=>{
 }).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(()=>{refreshUI();bindEnableButton(document);},120));
 window.MobileMechanicEnablePush=enablePush;
+window.addEventListener('mma-native-push-status',e=>{
+  if(nativeSupported){pushActive=Boolean(e.detail?.enabled);nativeError=e.detail?.error||'';refreshUI();}
+});
 setTimeout(()=>{removeOldDashboardCard();refreshUI();syncExisting();},350);
 })();

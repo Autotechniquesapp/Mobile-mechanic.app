@@ -59,6 +59,7 @@ function showLogoutScreen(){
 async function confirmLogout(button){
   if(button){button.disabled=true;button.textContent='Logging Out…';}
   try{
+    try{await window.MobileMechanicNativeAndroidPush?.disable?.();}catch(err){console.warn('Native push unsubscribe failed',err);}
     if(window.MobileMechanicSupabase?.auth){
       await window.MobileMechanicSupabase.auth.signOut();
     }
