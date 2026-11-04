@@ -20,7 +20,7 @@ function plan(ctx,pref,now=Date.now()){
     let id=2166136261;for(const c of `${ctx.sid}:${job.id}`)id=Math.imul(id^c.charCodeAt(0),16777619)>>>0;
     id=(id%2147483646)+1;while(used.has(id))id=id===2147483647?1:id+1;used.add(id);
     const vehicle=[job.vehicle?.year,job.vehicle?.make,job.vehicle?.model].filter(Boolean).join(' '),when=new Date(start).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    return [{id,title:`Scheduled job · ${when}`,body:[job.customerName||'Customer',vehicle,job.location||job.address].filter(Boolean).join(' · '),channelId:CHANNEL,smallIcon:'ic_stat_job',iconColor:'#ef2a31',schedule:{at:new Date(fireAt),allowWhileIdle:true},extra:{kind:OWNER,shopId:ctx.sid,jobId:String(job.id),userId:ctx.uid}}];
+    return [{id,title:`Scheduled job · ${when}`,body:[job.customerName||'Customer',vehicle,job.location||job.address].filter(Boolean).join(' · '),channelId:CHANNEL,foreground:true,smallIcon:'ic_stat_job',iconColor:'#ef2a31',schedule:{at:new Date(fireAt),allowWhileIdle:true},extra:{kind:OWNER,shopId:ctx.sid,jobId:String(job.id),userId:ctx.uid}}];
   });
 }
 async function ownedPending(){const pending=await local.getPending();return (pending.notifications||[]).filter(n=>n.extra?.kind===OWNER);}
