@@ -44,7 +44,10 @@ if(!xml.includes('android.permission.SCHEDULE_EXACT_ALARM')){
 }
 const assets='android/app/src/main/assets/native-alerts';
 fs.mkdirSync(assets,{recursive:true});
-for(const name of ['native-android-notifications.js','logout-screen.js','supabase-production.js'])fs.copyFileSync(path.join('../..',name),path.join(assets,name));
+for(const name of ['native-android-notifications.js'])fs.copyFileSync(path.join('../..',name),path.join(assets,name));
+// Shared account/workflow code must always come from the live site, so web
+// fixes reach Android too. Remove snapshots left by older build setups.
+for(const name of ['logout-screen.js','supabase-production.js'])fs.rmSync(path.join(assets,name),{force:true});
 // The current site loads push-notifications.js already. Initialize native support
 // immediately before that controller so an unmerged web change is not required.
 fs.writeFileSync(path.join(assets,'push-notifications.js'),

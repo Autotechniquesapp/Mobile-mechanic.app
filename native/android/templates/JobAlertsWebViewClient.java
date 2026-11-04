@@ -18,8 +18,6 @@ public class JobAlertsWebViewClient extends BridgeWebViewClient {
     static {
         SCRIPTS.put("/native-android-notifications.js", "native-alerts/native-android-notifications.js");
         SCRIPTS.put("/push-notifications.js", "native-alerts/push-notifications.js");
-        SCRIPTS.put("/logout-screen.js", "native-alerts/logout-screen.js");
-        SCRIPTS.put("/supabase-production.js", "native-alerts/supabase-production.js");
     }
 
     public JobAlertsWebViewClient(Bridge bridge) { super(bridge); this.bridge = bridge; }

@@ -9,6 +9,8 @@ test('native init/sync restores legacy and adaptive artwork, labels and reminder
     fs.writeFileSync(path.join(native,'android/app/src/main/res/values/strings.xml'),'<resources><string name="app_name">Old</string><string name="title_activity_main">Old</string></resources>');
     fs.writeFileSync(path.join(native,'android/app/src/main/AndroidManifest.xml'),'<manifest><application android:allowBackup="true"></application></manifest>');
     fs.writeFileSync(path.join(native,'android/app/build.gradle'),'versionCode 1\nversionName "1.0"');
+    const oldAssets=path.join(native,'android/app/src/main/assets/native-alerts');fs.mkdirSync(oldAssets,{recursive:true});
+    for(const name of ['supabase-production.js','logout-screen.js'])fs.writeFileSync(path.join(oldAssets,name),'stale shared web code');
     for(const name of ['native-android-notifications.js','native-schedule-reminders.js','push-notifications.js','logout-screen.js','supabase-production.js'])fs.copyFileSync(name,path.join(root,name));
     const script=path.resolve('native/android/scripts/configure-channel.mjs');
     execFileSync(process.execPath,[script],{cwd:native});execFileSync(process.execPath,[script],{cwd:native});
@@ -19,5 +21,6 @@ test('native init/sync restores legacy and adaptive artwork, labels and reminder
     for(const density of ['mdpi','hdpi','xhdpi','xxhdpi','xxxhdpi'])assert.deepEqual(fs.readFileSync(path.join(res,`mipmap-${density}/ic_launcher.png`)),fs.readFileSync(`native/android/resources/launcher-${density}.png`));
     assert.match(fs.readFileSync(path.join(native,'android/app/build.gradle'),'utf8'),/versionCode 2/);
     assert.match(fs.readFileSync(path.join(native,'android/app/src/main/assets/native-alerts/push-notifications.js'),'utf8'),/MobileMechanicScheduleReminders/);
+    for(const name of ['supabase-production.js','logout-screen.js'])assert.equal(fs.existsSync(path.join(oldAssets,name)),false,'shared web code must stay live');
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

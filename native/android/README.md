@@ -4,6 +4,12 @@ This is a Capacitor 8 Android wrapper for the existing Mobile Mechanic AI site.
 It prepares a dedicated Android notification category named New Customer Jobs.
 The website/PWA and its existing Chrome Web Push continue to operate.
 
+Shared customer, job, invoice, schedule and account code loads from the live
+website, so publishing those web fixes updates the Android experience too.
+The shell packages only its Android notification integration. Launcher branding,
+native reminder code, permissions and native plugin changes need a new APK or
+Play Store release; they cannot be delivered by changing the website alone.
+
 ## What the number badge represents
 
 The FCM message includes the number of intake_submissions with status=new in
