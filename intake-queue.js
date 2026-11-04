@@ -247,7 +247,7 @@ function intakeCard(i){
   return `<div class="list-item" style="align-items:flex-start">
     <div class="list-icon">📥</div>
     <div class="list-main">
-      <h3 style="margin:0 0 5px">${esc(i.customer_name||'Customer')}</h3>
+      <h3 style="margin:0 0 5px" role="link" tabindex="0" class="record-link" data-record-submission="${esc(i.id)}">${esc(i.customer_name||'Customer')}</h3>
       <div style="display:grid;gap:3px;margin-bottom:10px">
         <div><b>Phone:</b> ${intakePhoneMarkup(i.phone)}</div>
         <div><b>Received:</b> ${esc(intakeReceivedText(i.created_at).replace(/^Intake received:\s*/,''))}</div>

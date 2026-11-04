@@ -22,6 +22,7 @@ jobs:
           node-version: '22'
       - name: Check JavaScript syntax
         run: |
+          node --check record-links.js
           node --check app.js
           node --check admin.js
           node --check admin-access.js
