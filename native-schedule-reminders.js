@@ -42,6 +42,11 @@ async function sync(){
   try{
     let ctx=context();if(!ctx){await clear();return;}
     const pref=preferences(ctx.sid);if(!pref.enabled){await clear();return;}
+    // A locally completed/removed job or a previous account must never retain
+    // an alarm just because the next network refresh is unavailable.
+    const localIds=new Set((ctx.shop.jobs||[]).filter(j=>active(j)&&j.scheduledStart).map(j=>String(j.id)));
+    const stale=(await ownedPending()).filter(n=>n.extra?.shopId!==ctx.sid||n.extra?.userId!==ctx.uid||!localIds.has(n.extra?.jobId));
+    if(stale.length)await local.cancel({notifications:stale.map(n=>({id:n.id}))});
     ctx=await freshJobs(ctx);if(!ctx)return;
     const permission=await local.checkPermissions();if(permission.display!=='granted')return;
     await local.createChannel({id:CHANNEL,name:'Scheduled Jobs',description:'Reminders for appointments on your schedule',importance:4,visibility:0,vibration:true});
