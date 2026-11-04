@@ -25,6 +25,7 @@ async function sync(force=false,showMessage=false){
   syncing=true;updateSyncButtons(true);
   try{
     const data=await invoke('square-sync',{action:'sync_all'});
+    await window.MobileMechanicRefreshJobStatuses?.();
     localStorage.setItem(`${SYNC_KEY}${sid}`,String(Date.now()));
     if(showMessage){const customers=data.customers?.local??0,payments=data.payments?.completed??0;toast(`Square synced: ${customers} app customers sent to Square and ${payments} completed payments.`,`good`);}
     await Promise.all([renderDashboardSummary(true),renderProcessorStatus(data.status)]);

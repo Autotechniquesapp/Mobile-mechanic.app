@@ -53,8 +53,32 @@ function planToDb(v){ return v==='pro' ? 'pro_fleet' : (['solo','shop'].includes
 function planFromDb(v){ return v==='pro_fleet' ? 'pro' : (['solo','shop'].includes(v)?v:'shop'); }
 function roleFromDb(v){ return v==='shop_owner' ? 'owner' : v; }
 function statusToUi(v){
-  return ({new:'AI Pre-Workup',ai_workup:'AI Pre-Workup',scheduled:'Scheduled',diagnosing:'Diagnosis / Findings',estimate_sent:'Awaiting Approval',authorized:'Approved / Ready for Work',repairing:'In Progress',invoiced:'Invoiced',paid:'Paid',completed:'Completed',declined:'Customer Declined',warranty:'Warranty',comeback:'Comeback'})[v] || 'AI Pre-Workup';
+  return ({new:'AI Pre-Workup',ai_workup:'AI Pre-Workup',scheduled:'Scheduled',diagnosing:'Diagnosis / Findings',estimate_sent:'Awaiting Approval',authorized:'Approved / Ready for Work',repairing:'In Progress',invoiced:'Invoiced',paid:'Completed',completed:'Completed',declined:'Customer Declined',warranty:'Warranty',comeback:'Comeback'})[v] || 'AI Pre-Workup';
 }
+let refreshingJobStatuses=false;
+async function refreshJobStatuses(){
+  const before=readCache(),sid=before.session?.shopId;
+  if(!sid||before.session?.role!=='shop'||refreshingJobStatuses||document.visibilityState==='hidden')return;
+  refreshingJobStatuses=true;
+  try{
+    const {data,error}=await sb.from('jobs').select('id,status,completed_at').eq('shop_id',sid);
+    if(error)throw error;
+    const cache=readCache();if(cache.session?.shopId!==sid)return;
+    const jobs=cache.shops?.[sid]?.jobs||[];let changed=false;
+    for(const row of data||[]){
+      const job=jobs.find(j=>String(j.id)===String(row.id));if(!job)continue;
+      const status=statusToUi(row.status),completedAt=row.completed_at||null;
+      if(job.status!==status||job.completedAt!==completedAt){job.status=status;job.completedAt=completedAt;changed=true;}
+    }
+    if(changed){writeCache(cache);window.dispatchEvent(new Event('mobile-mechanic-jobs-updated'));}
+  }catch(err){console.warn('Could not refresh job completion status',err);}
+  finally{refreshingJobStatuses=false;}
+}
+window.MobileMechanicRefreshJobStatuses=refreshJobStatuses;
+window.addEventListener('focus',refreshJobStatuses);
+window.addEventListener('hashchange',refreshJobStatuses);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshJobStatuses();});
+setInterval(refreshJobStatuses,30000);
 const PPI_MARKER='\n\n[PPI DRAFT]\n';
 function ppiFromFindings(value){const text=String(value||''),at=text.lastIndexOf(PPI_MARKER);if(at<0)return null;try{return JSON.parse(text.slice(at+PPI_MARKER.length));}catch{return null;}}
 function findingsWithoutPpi(value){const text=String(value||''),at=text.lastIndexOf(PPI_MARKER);return (at<0?text:text.slice(0,at)).trimEnd();}
