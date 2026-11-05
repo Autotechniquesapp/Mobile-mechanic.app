@@ -359,7 +359,8 @@ async function importInvoice(ctx: Row, body: Row) {
       paid_at: square.status === "PAID" ? square.updated_at || new Date().toISOString() : null,
       processor_metadata: { source: "square_import", kind: "square_invoice", square_invoice_id: externalId,
         square_order_id: square.order_id, square_invoice_number: square.invoice_number || null,
-        total_paid: amounts.paid, remaining_calculated: amounts.balance, imported_at: new Date().toISOString() },
+        total_paid: amounts.paid,
+          provider_total_paid: amounts.paid, remaining_calculated: amounts.balance, imported_at: new Date().toISOString() },
     }).select("*").single();
     if (error && error.code !== "23505") throw error;
     if (error) {
@@ -464,6 +465,7 @@ async function syncInvoices(ctx: Row, suppliedInvoices: Row[] | null = null) {
           square_invoice_number: square.invoice_number || null,
           version: square.version ?? null,
           total_paid: amounts.paid,
+          provider_total_paid: amounts.paid,
           remaining_calculated: row.balance,
           due_date: amounts.dueDate,
           last_square_sync_at: now,
