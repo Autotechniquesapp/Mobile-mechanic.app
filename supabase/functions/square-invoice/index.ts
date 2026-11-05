@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
         square_invoice_number: square.invoice_number || null,
         version: square.version ?? null,
         total_paid: amounts.paid,
+          provider_total_paid: amounts.paid,
         remaining_calculated: amounts.balance,
         deposit_amount: amounts.deposit,
         deposit_paid: amounts.depositPaid,

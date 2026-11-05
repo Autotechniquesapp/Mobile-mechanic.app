@@ -64,23 +64,26 @@ async function loadInvoiceRows(){
   if(customerIds.length){const result=await sb.from('customers').select('id,name').eq('shop_id',sid).in('id',customerIds);if(!result.error)customers=result.data||[];}
   const customerNames=new Map(customers.map(row=>[String(row.id),row.name]));
   const rows=mirror.map(row=>{
+    const localInvoice=localById.get(String(row.local_invoice_id||'')),manual=Number(localInvoice?.processor_metadata?.manual_total_paid)>0;
     const matchedPayments=paymentsByInvoice.get(String(row.local_invoice_id||''))||paymentsByOrder.get(String(row.external_order_id||''))||[];
     return {source:'mirror',localId:row.local_invoice_id||null,externalId:row.external_invoice_id,externalOrderId:row.external_order_id||null,
     jobId:localById.get(String(row.local_invoice_id||''))?.job_id||null,invoiceNumber:row.invoice_number||'',customerName:customerNames.get(String(row.local_customer_id||''))||'',
-    status:String(row.status||'DRAFT').toUpperCase(),total:Number(row.total||0),paid:Number(row.paid||0),
-    balance:Number(row.balance||0),refundable:matchedPayments.reduce((sum,payment)=>sum+payment.refundable,0),payments:matchedPayments,
+    status:String(manual?localInvoice.status:row.status||'DRAFT').toUpperCase(),total:Number(manual?localInvoice.total:row.total||0),paid:Number(manual?localInvoice.processor_metadata.total_paid:row.paid||0),
+    balance:Number(manual?localInvoice.processor_metadata.remaining_calculated:row.balance||0),refundable:matchedPayments.reduce((sum,payment)=>sum+payment.refundable,0),payments:matchedPayments,
     url:safeSquareUrl(row.public_url),updatedAt:row.provider_updated_at||row.updated_at};
   });
   for(const row of local){
     if(mirroredLocal.has(String(row.id))||mirroredExternal.has(String(row.processor_metadata?.square_invoice_id||row.processor_payment_id||'')))continue;
     const paid=Number(row.processor_metadata?.total_paid||0),total=Number(row.total||0);
     rows.push({source:'local',localId:row.id,externalId:row.processor_payment_id||row.processor_metadata?.square_invoice_id||null,
-      jobId:row.job_id||null,invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(row.processor_status||row.status||'DRAFT').toUpperCase(),
+      jobId:row.job_id||null,invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(Number(row.processor_metadata?.manual_total_paid)>0?row.status:row.processor_status||row.status||'DRAFT').toUpperCase(),
       total,paid,balance:Math.max(0,Number(row.processor_metadata?.remaining_calculated??(total-paid))),refundable:0,payments:[],
       url:safeSquareUrl(row.processor_payment_url||row.payment_links?.square),updatedAt:row.created_at});
   }
   const openStatuses=new Set(['UNPAID','PARTIALLY_PAID','PAYMENT_PENDING','SCHEDULED','SENT','DEPOSIT_DUE']);
   const recentPayments=payments.map(payment=>({id:payment.external_payment_id,status:String(payment.status||'UNKNOWN').toUpperCase(),amount:Number(payment.amount||0),refunded:Number(payment.refunded||0),tip:Number(payment.tip||0),fee:Number(payment.processing_fee||0),receiptUrl:safeSquareUrl(payment.receipt_url),paidAt:payment.paid_at}));
+  for(const inv of local)for(const p of inv.processor_metadata?.manual_payments||[])recentPayments.push({id:p.id,status:({cash:'Cash',zelle:'Zelle',cash_app:'Cash App'})[p.method]||p.method,amount:Number(p.amount),refunded:0,tip:0,fee:0,receiptUrl:'',paidAt:p.paid_at});
+  recentPayments.sort((a,b)=>String(b.paidAt||'').localeCompare(String(a.paidAt||'')));
   return {open:rows.filter(row=>openStatuses.has(row.status)&&row.balance>0),drafts:rows.filter(row=>row.status==='DRAFT'),payments:recentPayments};
 }
 
