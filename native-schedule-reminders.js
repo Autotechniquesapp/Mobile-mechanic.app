@@ -12,16 +12,19 @@ function context(){try{const db=JSON.parse(localStorage.getItem(DBKEY)||'{}'),se
 function preferences(sid){try{const p=JSON.parse(localStorage.getItem(PREF+sid)||'{}');return {enabled:p.enabled!==false,minutes:[0,15,30,60,120].includes(p.minutes)?p.minutes:30};}catch{return {enabled:true,minutes:30};}}
 function active(job){return !job.completedAt&&!job.completed_at&&!/^(completed|paid|cancelled|canceled|customer declined|declined)$/i.test(job.status||'');}
 function plan(ctx,pref,now=Date.now()){
-  if(!ctx||!pref.enabled)return [];
+  if(!ctx)return [];
   const used=new Set();
   return (ctx.shop.jobs||[]).filter(j=>active(j)&&j.scheduledStart&&new Date(j.scheduledStart).getTime()>now).sort((a,b)=>String(a.id).localeCompare(String(b.id))).flatMap(job=>{
-    const start=new Date(job.scheduledStart).getTime(),at=start-pref.minutes*60000;
+    const lead=job.scheduleReminderMinutes;
+    if(lead===-1||(lead==null&&!pref.enabled))return [];
+    const minutes=Number.isInteger(lead)&&lead>=0?lead:pref.minutes;
+    const start=new Date(job.scheduledStart).getTime(),at=start-minutes*60000;
     // If the reminder window has passed, remind at appointment time rather than alerting late immediately.
     const fireAt=at>now?at:start;
     let id=2166136261;for(const c of `${ctx.sid}:${job.id}`)id=Math.imul(id^c.charCodeAt(0),16777619)>>>0;
     id=(id%2147483646)+1;while(used.has(id))id=id===2147483647?1:id+1;used.add(id);
     const vehicle=[job.vehicle?.year,job.vehicle?.make,job.vehicle?.model].filter(Boolean).join(' '),when=new Date(start).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    return [{id,title:`Scheduled job · ${when}`,body:[job.customerName||'Customer',vehicle,job.location||job.address].filter(Boolean).join(' · '),channelId:CHANNEL,foreground:true,smallIcon:'ic_stat_job',iconColor:'#ef2a31',schedule:{at:new Date(fireAt),allowWhileIdle:true},extra:{kind:OWNER,shopId:ctx.sid,jobId:String(job.id),userId:ctx.uid}}];
+    return [{id,title:`Scheduled job · ${when}`,body:[job.customerName||'Customer',vehicle,window.MobileMechanicScheduleDetails?.destination(job)||job.location||job.address].filter(Boolean).join(' · '),channelId:CHANNEL,actionTypeId:'mma-schedule-actions',foreground:true,smallIcon:'ic_stat_job',iconColor:'#ef2a31',schedule:{at:new Date(fireAt),allowWhileIdle:true},extra:{kind:OWNER,shopId:ctx.sid,jobId:String(job.id),userId:ctx.uid,destination:window.MobileMechanicScheduleDetails?.destination(job)||job.location||job.address||''}}];
   });
 }
 async function ownedPending(){const pending=await local.getPending();return (pending.notifications||[]).filter(n=>n.extra?.kind===OWNER);}
@@ -30,19 +33,19 @@ async function freshJobs(ctx){
   const sb=window.MobileMechanicSupabase;if(!sb)return ctx;
   const key=`${ctx.sid}:${ctx.uid}`;
   if(!lastSnapshot||lastSnapshot.key!==key||Date.now()-lastFetch>=30000){
-    const {data,error}=await sb.from('jobs').select('id,status,scheduled_start_at,completed_at').eq('shop_id',ctx.sid);
+    const {data,error}=await sb.from('jobs').select('id,status,scheduled_start_at,completed_at,schedule_reminder_minutes,current_location').eq('shop_id',ctx.sid);
     if(error)throw new Error('Could not refresh scheduled jobs. Existing reminders were kept.');
     if(context()?.sid!==ctx.sid||context()?.uid!==ctx.uid)return null;
     lastFetch=Date.now();lastSnapshot={key,rows:new Map((data||[]).map(row=>[String(row.id),row]))};
   }
-  return {...ctx,shop:{...ctx.shop,jobs:(ctx.shop.jobs||[]).filter(j=>lastSnapshot.rows.has(String(j.id))).map(job=>{const row=lastSnapshot.rows.get(String(job.id));return {...job,status:row.status,scheduledStart:row.scheduled_start_at,completedAt:row.completed_at};})}};
+  return {...ctx,shop:{...ctx.shop,jobs:(ctx.shop.jobs||[]).filter(j=>lastSnapshot.rows.has(String(j.id))).map(job=>{const row=lastSnapshot.rows.get(String(job.id));return {...job,status:row.status,scheduledStart:row.scheduled_start_at,completedAt:row.completed_at,scheduleReminderMinutes:row.schedule_reminder_minutes??null,currentLocation:row.current_location||{},location:row.current_location?row.current_location.raw||'':job.location};})}};
 }
 async function sync(){
   if(!ready)return;
   if(syncing){again=true;return;}syncing=true;
   try{
     let ctx=context();if(!ctx){await clear();return;}
-    const pref=preferences(ctx.sid);if(!pref.enabled){await clear();return;}
+    const pref=preferences(ctx.sid);
     // A locally completed/removed job or a previous account must never retain
     // an alarm just because the next network refresh is unavailable.
     const localIds=new Set((ctx.shop.jobs||[]).filter(j=>active(j)&&j.scheduledStart).map(j=>String(j.id)));
@@ -74,11 +77,12 @@ function openQueuedJob(){
   const ctx=context();if(!queuedJob||!ctx||!document.querySelector('#app .content'))return;
   const extra=queuedJob;queuedJob=null;
   if(extra.shopId!==ctx.sid||extra.userId!==ctx.uid||!ctx.shop.jobs?.some(j=>String(j.id)===extra.jobId))return;
+  if(extra.navigate&&extra.destination){window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(extra.destination)}`,'_blank','noopener');return;}
   const trigger=document.createElement('button');trigger.hidden=true;trigger.dataset.openJob=extra.jobId;trigger.dataset.mmaNativeOpen='1';document.body.appendChild(trigger);trigger.click();trigger.remove();
 }
 async function initialize(){
   await (window.MobileMechanicBootstrap||Promise.resolve());ready=true;
-  if(!listenerReady){listenerReady=true;await local.addListener('localNotificationActionPerformed',event=>{const extra=event.notification?.extra;if(extra?.kind===OWNER){queuedJob=extra;openQueuedJob();}});}
+  if(!listenerReady){listenerReady=true;await local.registerActionTypes?.({types:[{id:'mma-schedule-actions',actions:[{id:'navigate',title:'Navigate',foreground:true}]}]});await local.addListener('localNotificationActionPerformed',event=>{const extra=event.notification?.extra;if(extra?.kind===OWNER){queuedJob={...extra,navigate:event.actionId==='navigate'};openQueuedJob();}});}
   await sync();mount();
 }
 function mount(){
@@ -92,7 +96,7 @@ function mount(){
 document.addEventListener('change',async event=>{
   if(!event.target.matches('[data-schedule-reminder-lead]'))return;const ctx=context();if(!ctx)return;
   const value=event.target.value;localStorage.setItem(PREF+ctx.sid,JSON.stringify({enabled:value!=='off',minutes:value==='off'?30:Number(value)}));lastSignature='';lastFetch=0;
-  if(value==='off'){await clear();status('Schedule reminders are off.');}else await enable();
+  if(value==='off'){await sync();status('Default reminders are off. Individual job reminders still apply.');}else await enable();
 });
 document.addEventListener('click',async event=>{
   if(event.target.closest('[data-schedule-reminder-enable]')){const ctx=context();if(!ctx)return;const p=preferences(ctx.sid);localStorage.setItem(PREF+ctx.sid,JSON.stringify({...p,enabled:true}));await enable();}

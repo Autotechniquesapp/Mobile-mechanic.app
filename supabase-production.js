@@ -176,8 +176,8 @@ async function loadWorkspace(user, allowCreate=true){
       id:j.id,customerId:j.customer_id,customerName:c.name||'Customer',phone:c.phone||'',email:c.email||'',
       vehicle:{id:v.id,year:v.year||'',make:v.make||'',model:v.model||'',trim:v.submodel||'',engine:v.engine||'',drive:v.drivetrain||'',vin:v.vin||'',plate:v.license_plate||'',mileage:v.mileage||''},
       complaint:j.customer_states||'',requestType:'Repair / Diagnostic',availability:j.availability||'',
-      location:j.current_location?.raw||'',createdAt:j.created_at,status:statusToUi(j.status),assignedTo:j.assigned_user_id||null,
-      scheduledStart:j.scheduled_start_at||null,scheduledEnd:j.scheduled_end_at||null,estimatedLaborHours:Number(j.estimated_labor_hours||1),travelMinutes:Number(j.travel_minutes||0),bufferMinutes:Number(j.buffer_minutes??15),scheduleNotes:j.schedule_notes||'',
+      location:j.current_location?.raw||'',currentLocation:j.current_location||{},createdAt:j.created_at,status:statusToUi(j.status),assignedTo:j.assigned_user_id||null,
+      scheduledStart:j.scheduled_start_at||null,scheduledEnd:j.scheduled_end_at||null,estimatedLaborHours:Number(j.estimated_labor_hours||1),travelMinutes:Number(j.travel_minutes||0),bufferMinutes:Number(j.buffer_minutes??15),scheduleNotes:j.schedule_notes||'',scheduleReminderMinutes:j.schedule_reminder_minutes??null,
       findings:findingsWithoutPpi(j.findings),codes:j.codes||'',photos:[],inspectionDraft:ppiFromFindings(j.findings),estimate:j.estimate||null,approval:j.approval||null,
       completedAt:j.completed_at||null,carfax:{status:j.carfax_status||'Not Connected'}
     };
@@ -311,7 +311,7 @@ document.addEventListener('click',async e=>{
     const startVal=document.getElementById('scheduleStart')?.value;if(!startVal)return showStatus('Pick a start time.','bad');
     const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
     const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
-    try{const {error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||'',status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
+    try{const details=window.MobileMechanicScheduleDetails.read();const {error}=await sb.from('jobs').update({...details,scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
   if(action==='toggle-addon'){
