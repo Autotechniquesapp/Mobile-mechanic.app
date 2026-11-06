@@ -22,11 +22,16 @@ async function saveScheduleAndSync(el){
   const end=new Date(start.getTime()+(hours*60+travel+buffer)*60000);
   const oldText=el.textContent;el.disabled=true;el.textContent='Saving…';
   try{
-    const {error}=await sb.from('jobs').update({
-      scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,
-      travel_minutes:travel,buffer_minutes:buffer,schedule_notes:document.getElementById('scheduleNotes')?.value||''
-    }).eq('id',jobId).eq('shop_id',sid);
+    const details=window.MobileMechanicScheduleDetails.read();
+    const {data:updated,error}=await sb.from('jobs').update({
+      ...details,scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,
+      travel_minutes:travel,buffer_minutes:buffer
+    }).eq('id',jobId).eq('shop_id',sid).select('id').single();
     if(error)throw error;
+    if(!updated)throw new Error('The appointment could not be saved. Refresh and try again.');
+    const {c,j}=shopAndJob(jobId);if(j){Object.assign(j,{scheduledStart:start.toISOString(),scheduledEnd:end.toISOString(),scheduleNotes:details.schedule_notes,scheduleReminderMinutes:details.schedule_reminder_minutes,location:details.current_location.raw,currentLocation:details.current_location});localStorage.setItem(DBKEY,JSON.stringify(c));}
+    window.dispatchEvent(new Event('mobile-mechanic-jobs-updated'));
+    if(window.MobileMechanicScheduleReminders&&details.schedule_reminder_minutes!==-1){try{await window.MobileMechanicScheduleReminders.enable();}catch(err){console.warn('Appointment saved; phone reminders need attention.',err);}}
     try{
       const sync=await syncSchedule(jobId);
       if(sync?.skipped)notify('Schedule saved. No external calendar is connected.','good');
