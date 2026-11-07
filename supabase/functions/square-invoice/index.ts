@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
         const p = result.payment;
         if (p?.status === "COMPLETED" && p.location_id === credential.location_id
           && p.amount_money?.currency === "USD" && Number(p.amount_money?.amount) === Number(pending.amount_cents)
-          && String(p.note || "").includes(`Payment reference: ${pending.id}`)
+          && [p.note, ...(order.line_items || []).map((line: Row)=>line.note)].some((note)=>String(note||"").includes(`Payment reference: ${pending.id}`))
           && Date.parse(p.created_at) >= Date.parse(pending.created_at) - 60000) { verified = p; break; }
       }
       if (!verified) return json({ error: "Square has not verified this completed tap payment yet. Check the Square receipt before trying another charge." }, 409);
