@@ -392,6 +392,7 @@ function workup(jobId){
   const causes=genericWorkup(j), est=estimateFromJob(j,s);
   const content=`${pageTitle('AI Pre-Workup','AI assists the technician; final diagnosis remains with the professional.','jobs')}
   <div class="job-banner"><div class="avatar">${esc(j.customerName.split(/\s+/).map(x=>x[0]).join('').slice(0,2))}</div><div class="job-banner-main"><b>${esc(j.customerName)} • ${esc(vehicleText(j.vehicle))}</b><p>${esc(j.complaint)}</p></div><span class="badge red">${esc(j.status)}</span></div>
+  <section class="card card-pad" data-job-service-information style="margin-top:10px"><h3>Service Information</h3><div id="jobServiceInformationRoot"></div></section>
   <section class="work-white"><div class="work-grid"><div class="work-card"><h3>Vehicle / Complaint</h3><p><b>${esc(vehicleText(j.vehicle))}</b><br>${esc(j.vehicle.engine||'Engine not entered')} • ${esc(j.vehicle.mileage||'—')} mi<br><br>${esc(j.complaint)}</p></div><div class="work-card" data-module="ai"><h3>AI Status</h3><p><b>Structured demo workup</b><br>Production AI API is not connected yet. This screen is ready for secure server-side AI responses.</p></div></div>
   <div class="work-grid" style="margin-top:8px"><div class="work-card"><h3>Likely Areas to Check</h3><div class="cause-list">${causes.map(([t,p])=>`<div class="cause"><div><b>${esc(t)}</b><div class="confidence"><i style="width:${p}%"></i></div></div><strong>${p}%</strong></div>`).join('')}</div></div><div class="work-card"><h3>Diagnostic Path</h3>${['Confirm customer symptom and conditions','Scan all relevant modules and save codes/freeze-frame','Perform visual inspection and basic power/ground checks','Test the suspected system before replacing parts','Document measurements and compare to authoritative service data'].map(x=>`<label class="diag-check"><input type="checkbox">${esc(x)}</label>`).join('')}</div></div>
   <div class="work-card" style="margin-top:8px"><h3>Good / Better / Best — Technician Reviews Before Sending</h3><div class="estimate-options">${Object.entries(est).map(([k,o])=>`<div class="estimate-card ${k}"><b>${esc(o.title)}</b><strong>${money(o.price)}</strong><p>${esc(o.summary)}</p></div>`).join('')}</div><div class="btn-row" style="margin-top:9px"><button class="btn btn-primary" data-action="save-estimate" data-job="${j.id}">${ic('money')} Save Estimate Options</button><button class="btn btn-soft" data-action="send-estimate" data-job="${j.id}">${ic('send')} Send to Customer</button><button class="btn btn-soft" data-action="single-estimate" data-job="${j.id}">Send One Option Instead</button></div></div>
@@ -399,6 +400,7 @@ function workup(jobId){
   </section>
   <div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-route="findings">Technician Findings</button><button class="btn btn-soft" data-route="service-info">${ic('book')} Service Information</button><button class="btn btn-soft" data-route="ai-second">AI Second Opinion</button><button class="btn btn-soft" data-module="ai" data-action="ask-vehicle" data-job="${j.id}">${ic('brain')} Ask AI About This Vehicle</button></div>`;
   shopShell(content,'jobs');
+  window.MobileMechanicServiceInformation?.render(document.getElementById('jobServiceInformationRoot'),{shop:s,job:j});
 }
 
 function findings(){
@@ -819,5 +821,6 @@ window.addEventListener('mobile-mechanic-jobs-updated',()=>{
 });
 
 })();
+
 
 

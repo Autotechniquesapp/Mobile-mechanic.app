@@ -109,7 +109,7 @@
   <script src="estimate-approvals.js?v=20261014-signatures1"></script>
   <script src="logout-screen.js?v=20260906-logout1"></script>
   <script src="supabase-production.js?v=20261014-calendar-slots1&paid=20261103&schedule=20261106"></script>
-  <script src="job-work-order.js?v=20261030-clean-invoice2"></script>
+  <script src="job-work-order.js?v=20261107-job-service1"></script>
   <script src="job-paperwork.js?v=20261030-clean-invoice2&payments=20261107"></script>
   <script src="job-workflow-tools.js?v=20261030-tax-guard1&paid=20261103&payments=20261107"></script>
   <script src="pwa-install.js?v=20261030-tax-guard1"></script>
@@ -156,12 +156,13 @@
     ]).finally(() => {
       if (window.MobileMechanicPublicHandled) return;
       const script = document.createElement('script');
-      script.src = 'app.js?v=20261014-calendar-slots1&paid=20261103&schedule=20261106&customersearch=20261107';
+      script.src = 'app.js?v=20261014-calendar-slots1&paid=20261103&schedule=20261106&customersearch=20261107&jobservice=20261107';
       document.body.appendChild(script);
     });
   </script>
 </body>
 </html>
+
 
 
 
