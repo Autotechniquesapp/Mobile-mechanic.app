@@ -64,18 +64,19 @@ async function loadInvoiceRows(){
   if(customerIds.length){const result=await sb.from('customers').select('id,name').eq('shop_id',sid).in('id',customerIds);if(!result.error)customers=result.data||[];}
   const customerNames=new Map(customers.map(row=>[String(row.id),row.name]));
   const rows=mirror.map(row=>{
+    const localInvoice=localById.get(String(row.local_invoice_id||''));
     const matchedPayments=paymentsByInvoice.get(String(row.local_invoice_id||''))||paymentsByOrder.get(String(row.external_order_id||''))||[];
     return {source:'mirror',localId:row.local_invoice_id||null,externalId:row.external_invoice_id,externalOrderId:row.external_order_id||null,
     jobId:localById.get(String(row.local_invoice_id||''))?.job_id||null,invoiceNumber:row.invoice_number||'',customerName:customerNames.get(String(row.local_customer_id||''))||'',
-    status:String(row.status||'DRAFT').toUpperCase(),total:Number(row.total||0),paid:Number(row.paid||0),
-    balance:Number(row.balance||0),refundable:matchedPayments.reduce((sum,payment)=>sum+payment.refundable,0),payments:matchedPayments,
+    status:String(localInvoice?.status==='paid'?'PAID':Number(localInvoice?.processor_metadata?.received_payment_total)>0?localInvoice.status:row.status||'DRAFT').toUpperCase(),total:Number(row.total||0),paid:Number(localInvoice?.processor_metadata?.total_paid??row.paid??0),
+    balance:Number(localInvoice?.processor_metadata?.remaining_calculated??row.balance??0),refundable:matchedPayments.reduce((sum,payment)=>sum+payment.refundable,0),payments:matchedPayments,
     url:safeSquareUrl(row.public_url),updatedAt:row.provider_updated_at||row.updated_at};
   });
   for(const row of local){
     if(mirroredLocal.has(String(row.id))||mirroredExternal.has(String(row.processor_metadata?.square_invoice_id||row.processor_payment_id||'')))continue;
     const paid=Number(row.processor_metadata?.total_paid||0),total=Number(row.total||0);
     rows.push({source:'local',localId:row.id,externalId:row.processor_payment_id||row.processor_metadata?.square_invoice_id||null,
-      jobId:row.job_id||null,invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(row.processor_status||row.status||'DRAFT').toUpperCase(),
+      jobId:row.job_id||null,invoiceNumber:row.processor_metadata?.square_invoice_number||'',customerName:'',status:String(row.status==='paid'?'PAID':Number(row.processor_metadata?.received_payment_total)>0?row.status:row.processor_status||row.status||'DRAFT').toUpperCase(),
       total,paid,balance:Math.max(0,Number(row.processor_metadata?.remaining_calculated??(total-paid))),refundable:0,payments:[],
       url:safeSquareUrl(row.processor_payment_url||row.payment_links?.square),updatedAt:row.created_at});
   }
@@ -190,3 +191,4 @@ setInterval(()=>{if(document.visibilityState==='visible'&&['dashboard','settings
 setTimeout(mount,900);
 window.MobileMechanicSquareSync={sync,openInvoices,refreshDashboard:renderDashboardSummary,requestFinalBalances};
 })();
+

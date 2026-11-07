@@ -308,6 +308,43 @@ Deno.serve(async (req) => {
     };
     const metadata = { ...(invoice.processor_metadata || {}) };
     const squareInvoiceId = String(metadata.square_invoice_id || invoice.processor_payment_id || "");
+    if (action === "confirm_pos_payment") {
+      const pending = (metadata.pos_payment_requests || []).find((row: Row)=>row.id===String(body.request_id||"")) || metadata.pending_pos_payment || {};
+      if (!pending.id || String(body.request_id || "") !== pending.id) return json({ error: "This tap payment request does not match the invoice." }, 409);
+      const orderId = String(body.transaction_id || "");
+      if (!orderId) return json({ error: "Square has not returned an online transaction ID. Check Square before retrying payment." }, 409);
+      const orderResult = await squareRequest(`/v2/orders/${encodeURIComponent(orderId)}`);
+      const order = orderResult.order;
+      if (!order || order.location_id !== credential.location_id) return json({ error: "Square transaction belongs to a different location." }, 409);
+      let verified: Row | null = null;
+      for (const tender of (order.tenders || []).slice(0, 20)) {
+        const id = String(tender.payment_id || tender.id || "");
+        if (!id) continue;
+        const result = await squareRequest(`/v2/payments/${encodeURIComponent(id)}`);
+        const p = result.payment;
+        if (p?.status === "COMPLETED" && p.location_id === credential.location_id
+          && p.amount_money?.currency === "USD" && Number(p.amount_money?.amount) === Number(pending.amount_cents)
+          && String(p.note || "").includes(`Payment reference: ${pending.id}`)
+          && Date.parse(p.created_at) >= Date.parse(pending.created_at) - 60000) { verified = p; break; }
+      }
+      if (!verified) return json({ error: "Square has not verified this completed tap payment yet. Check the Square receipt before trying another charge." }, 409);
+      const recorded = await admin.rpc("record_received_invoice_payment", {
+        p_invoice_id: invoice.id, p_amount: Number(pending.amount_cents) / 100, p_method: "square_pos",
+        p_reference: String(verified.id), p_request_id: pending.id,
+      });
+      if (recorded.error) throw recorded.error;
+      const now = new Date().toISOString();
+      const saved = await admin.from("payment_transactions").upsert({
+        shop_id: membership.shop_id, provider: "square", external_payment_id: String(verified.id),
+        local_invoice_id: invoice.id, external_order_id: orderId, location_id: credential.location_id,
+        status: "COMPLETED", source_type: verified.source_type || "CARD", currency: "USD",
+        amount: dollars(verified.total_money || verified.amount_money), refunded: dollars(verified.refunded_money),
+        tip: dollars(verified.tip_money), receipt_url: verified.receipt_url || null, paid_at: verified.created_at || now,
+        metadata: { environment, pos_invoice_id: invoice.id }, updated_at: now,
+      }, { onConflict: "shop_id,provider,external_payment_id" });
+      if (saved.error) throw saved.error;
+      return json({ ok: true, invoice: recorded.data, payment_id: verified.id });
+    }
     if (action === "pos_checkout_link") {
       const appId = Deno.env.get("SQUARE_APPLICATION_ID") || "";
       if (!appId) return json({ error: "Square application credentials are missing." }, 503);
@@ -318,7 +355,7 @@ Deno.serve(async (req) => {
         if (!current.invoice) return json({ error: "Could not verify the Square invoice balance." }, 502);
         const synced = await syncInvoice(current.invoice);
         status = synced.status;
-        balance = synced.amounts.balance;
+        balance = Math.max(0, synced.amounts.balance - Number(metadata.received_payment_total || 0));
       }
       if (["PAID", "CANCELED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"].includes(status) || !(balance > 0)) {
         return json({ error: "This invoice has no collectible balance. Refresh the payment status." }, 409);
@@ -332,12 +369,18 @@ Deno.serve(async (req) => {
         if(!signature.data)return json({error:"Customer signature required for this card-payment amount. Open the signing link in the job first.",code:"signature_required"},409);
       }
       const callbackUrl = safePosCallback(body.callback_url);
+      const pending = { id: crypto.randomUUID(), amount_cents: amountCents, created_at: new Date().toISOString() };
+      const storedRequest = await admin.from("invoices").update({
+        processor_metadata: { ...(invoice.processor_metadata || {}), pending_pos_payment: pending, pos_payment_requests: [...(invoice.processor_metadata?.pos_payment_requests || []).slice(-19), pending] },
+      }).eq("id", invoice.id).eq("shop_id", membership.shop_id);
+      if (storedRequest.error) throw storedRequest.error;
       const state = JSON.stringify({
         invoice_id: String(invoice.id),
+        request_id: pending.id,
         shop_id: String(membership.shop_id),
         job_id: invoice.job_id ? String(invoice.job_id) : null,
       });
-      const note = [warrantyText,String(body.note || `Mobile Mechanic AI invoice ${invoice.id}`)].filter(Boolean).join("\n").slice(0, 500);
+      const note = [`Payment reference: ${pending.id}`, warrantyText,String(body.note || `Mobile Mechanic AI invoice ${invoice.id}`)].filter(Boolean).join("\n").slice(0, 500);
       const tenderTypes = "com.squareup.pos.TENDER_CARD";
       const androidUrl = [
         "intent:#Intent",
@@ -802,3 +845,4 @@ Deno.serve(async (req) => {
     return json({ error: error instanceof Error ? error.message : "Square invoice request failed." }, 500);
   }
 });
+

@@ -7,6 +7,28 @@ const { JSDOM } = require('jsdom');
 const payment = fs.readFileSync('next-invoice.js', 'utf8');
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+for (const status of ['paid','partially_paid']) test(`${status}: invoice links, copy and refresh controls work and server errors are readable`, async () => {
+  const invoice={id:'inv',total:4,status,processor_status:status.toUpperCase(),processor_payment_url:'https://squareup.com/invoice/pay/test',processor_metadata:{source:'additional_work_estimate',square_invoice_id:'square-inv',total_paid:status==='paid'?4:3}};
+  const {dom,w,timers,calls}=browser(invoice),opened=[],copied=[];
+  w.open=url=>opened.push(url);
+  Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async url=>copied.push(url)}});
+  w.eval(payment); await Promise.all(timers.splice(0).map(fn=>fn())); await settle();
+  assert.equal(w.document.querySelector('[data-nxe-publish-square]'),null);
+  assert.equal(w.document.querySelector('[data-nxe-email-square]'),null);
+  w.document.querySelector('[data-nxe-open-square-dashboard]').click();
+  w.document.querySelector('[data-nxe-open-payment-link]').click();
+  w.document.querySelector('[data-nxe-copy-payment-link]').click(); await settle();
+  assert.equal(opened.length,2); assert.equal(opened[1],invoice.processor_payment_url); assert.equal(copied[0],invoice.processor_payment_url);
+  w.MobileMechanicSupabase.functions.invoke=async(name,args)=>{calls.push(args.body);return {data:{status},error:null}};
+  w.document.querySelector('[data-nxe-refresh-square]').click(); await settle(); await settle();
+  assert.ok(calls.some(x=>x.action==='status'&&x.invoice_id==='inv'));
+  assert.match(w.document.querySelector('.next-estimate-toast').textContent,/Square invoice is/);
+  w.MobileMechanicSupabase.functions.invoke=async()=>({error:{message:'Edge Function returned a non-2xx status code',context:{json:async()=>({error:'Square connection needs attention.'})}}});
+  w.document.querySelector('[data-nxe-refresh-square]').click(); await settle(); await settle();
+  assert.equal(w.document.querySelector('.next-estimate-toast').textContent,'Square connection needs attention.');
+  dom.window.close();
+});
+
 function browser(invoice) {
   const dom = new JSDOM('<body><section data-job-work-order></section></body>', {url:'https://mobile-mechanic.app/#workup',runScripts:'outside-only'});
   const w = dom.window, timers = [], calls = [];
@@ -39,6 +61,28 @@ test('paid invoice has no tap charge control', async () => {
   w.eval(payment);await Promise.all(timers.splice(0).map(fn=>fn()));await settle();
   assert.equal(w.document.querySelector('[data-nxe-tap-square]'),null);
   dom.window.close();
+});
+
+test('tap payment accepts a smaller amount and requests a signature for exactly that amount', async () => {
+  const {dom,w,timers,calls}=browser({id:'inv',total:100,status:'partially_paid',processor_metadata:{source:'additional_work_estimate',total_paid:20}});
+  const signatures=[];w.MobileMechanicJobPaperwork={prepareCardSignature:async(id,amount)=>{signatures.push({id,amount});return true;}};
+  w.eval(payment);await Promise.all(timers.splice(0).map(fn=>fn()));await settle();
+  const amount=w.document.querySelector('[data-nxe-tap-amount]');assert.equal(amount.value,'80');amount.value='25';amount.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.document.querySelector('[data-nxe-tap-square]').click();await settle();await settle();
+  assert.deepEqual(signatures,[{id:'inv',amount:25}]);assert.equal(calls.find(x=>x.action==='pos_checkout_link').amount,25);
+  const invalid=w.document.querySelector('[data-nxe-tap-amount]');invalid.value='81';invalid.dispatchEvent(new w.Event('input',{bubbles:true}));w.document.querySelector('[data-nxe-tap-square]').click();await settle();
+  assert.equal(calls.filter(x=>x.action==='pos_checkout_link').length,1);assert.match(w.document.querySelector('.next-estimate-toast').textContent,/remaining balance/);dom.window.close();
+});
+
+for(const method of ['cash','zelle','cash_app','other'])test(`Record Payment saves ${method} with amount and a stable request ID`,async()=>{
+  const inv={id:'inv',total:100,status:'partially_paid',processor_metadata:{source:'additional_work_estimate',total_paid:20,remaining_calculated:80}};
+  const {dom,w,timers}=browser(inv),recorded=[];
+  w.MobileMechanicSupabase.rpc=async(name,args)=>{recorded.push({name,args});return {data:{...inv,processor_metadata:{...inv.processor_metadata,total_paid:45,remaining_calculated:55,received_payments:[{id:'p',method,amount:25,recorded_at:new Date().toISOString()}]}},error:null}};
+  w.eval(payment);await Promise.all(timers.splice(0).map(fn=>fn()));await settle();
+  w.document.querySelector('[data-nxe-record-payment]').click();
+  w.document.querySelector('[data-received-method]').value=method;w.document.querySelector('[data-received-amount]').value='25';w.document.querySelector('[data-received-reference]').value='test reference';
+  const save=w.document.querySelector('[data-nxe-payment-save]');save.click();save.click();await settle();await settle();
+  assert.equal(recorded.length,1);assert.equal(recorded[0].name,'record_received_invoice_payment');assert.equal(recorded[0].args.p_method,method);assert.equal(recorded[0].args.p_amount,25);assert.match(recorded[0].args.p_request_id,/^[a-f\d-]{36}$/);assert.equal(w.document.querySelector('[data-received-payment-modal]'),null);assert.match(w.document.querySelector('[data-next-invoice]').textContent,/55.00 remaining/);dom.window.close();
 });
 
 test('partial payment charges only the balance, preserves invoice amounts, and resets after failure', async () => {
@@ -96,3 +140,4 @@ test('AutoTechniques card checkout rejects an unsigned amount and permits a sign
   assert.equal((await posRequest('PARTIALLY_PAID',300,1,'missing')).status,409);
   assert.equal((await posRequest('PARTIALLY_PAID',300,1,'signed')).status,200);
 });
+

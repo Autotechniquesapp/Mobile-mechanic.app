@@ -26,7 +26,8 @@ function invoiceBlock(inv,label='Square Invoice'){
   if(status==='DRAFT'&&meta.square_invoice_id)actions.push(`<button class="btn btn-primary" data-square-publish="${esc(inv.id)}">Publish After Review</button>`);
   if(meta.balance_due_on_completion===true&&['DRAFT','UNPAID','PARTIALLY_PAID','SCHEDULED','SENT'].includes(status))actions.push(`<button class="btn btn-soft" data-square-balance-due="${esc(inv.id)}">Request Final Balance</button>`);
   if(['UNPAID','PARTIALLY_PAID','PAYMENT_PENDING','SCHEDULED','SENT'].includes(status))actions.push(`<button class="btn btn-danger" data-square-cancel="${esc(inv.id)}">Cancel</button>`);
-  if(paid>0)actions.push(`<button class="btn btn-soft" data-square-refund="${esc(inv.id)}" data-square-refundable="${paid.toFixed(2)}">Refund</button>`);
+  const squareRefundable=Number(meta.provider_total_paid??Math.max(0,paid-Number(meta.received_payment_total||0)))+(meta.received_payments||[]).filter(p=>p.method==='square_pos').reduce((sum,p)=>sum+Number(p.amount||0)-Number(p.refunded_amount||0),0);
+  if(squareRefundable>0)actions.push(`<button class="btn btn-soft" data-square-refund="${esc(inv.id)}" data-square-refundable="${squareRefundable.toFixed(2)}">Refund</button>`);
   if(meta.square_invoice_id)actions.push(`<button class="btn btn-soft" data-square-refresh="${esc(inv.id)}">Refresh</button>`);
   const paymentSummary=paid>0?`${money(paid)} paid • ${money(remaining)} remaining`:deposit>0?`${money(deposit)} deposit • ${money(final)} due when complete`:`${money(total)} total`;
   return `<div class="list-item"><div class="list-main"><b>${esc(label)}${no} — ${money(total)}</b><p>${paymentSummary}</p></div><span class="badge ${remaining<=0?'green':'orange'}">${esc(String(inv.status||'draft').replaceAll('_',' '))}</span></div>${actions.length?`<div class="btn-row" style="margin:8px 0 12px">${actions.join('')}</div>`:''}`;
@@ -65,3 +66,4 @@ document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-invoices
 new MutationObserver(()=>{suppressStripe();setTimeout(()=>render(false),0);}).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(()=>render(true),100));suppressStripe();setTimeout(()=>render(true),650);
 })();
+

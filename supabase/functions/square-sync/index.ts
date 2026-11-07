@@ -491,12 +491,15 @@ async function syncInvoices(ctx: Row, suppliedInvoices: Row[] | null = null) {
 
 async function syncPayments(ctx: Row) {
   const squarePayments = await listSquare(ctx, `/v2/payments?location_id=${encodeURIComponent(ctx.credential.location_id)}&limit=100&sort_order=ASC`, "payments");
-  const [{ data: invoiceRows, error: invoiceError }, customerMappings] = await Promise.all([
+  const [{ data: invoiceRows, error: invoiceError }, customerMappings, {data: existingPayments,error: existingError}] = await Promise.all([
     ctx.admin.from("payment_processor_invoices").select("external_order_id,local_invoice_id")
       .eq("shop_id", ctx.shopId).eq("provider", "square"),
     mappings(ctx, "customer"),
+    ctx.admin.from("payment_transactions").select("external_payment_id,local_invoice_id,metadata").eq("shop_id",ctx.shopId).eq("provider","square"),
   ]);
   if (invoiceError) throw invoiceError;
+  if (existingError) throw existingError;
+  const existingById = new Map((existingPayments || []).filter((row: Row)=>row.local_invoice_id).map((row: Row)=>[String(row.external_payment_id),row]));
   const invoiceByOrder = new Map((invoiceRows || []).filter((row: Row) => row.external_order_id)
     .map((row: Row) => [String(row.external_order_id), row.local_invoice_id || null]));
   const customerByExternal = new Map(customerMappings.map((row: Row) => [String(row.external_id), String(row.local_id)]));
@@ -514,7 +517,7 @@ async function syncPayments(ctx: Row) {
       shop_id: ctx.shopId,
       provider: "square",
       external_payment_id: String(payment.id),
-      local_invoice_id: payment.order_id ? invoiceByOrder.get(String(payment.order_id)) || null : null,
+      local_invoice_id: existingById.get(String(payment.id))?.local_invoice_id || (payment.order_id ? invoiceByOrder.get(String(payment.order_id)) || null : null),
       local_customer_id: payment.customer_id ? customerByExternal.get(String(payment.customer_id)) || null : null,
       external_order_id: payment.order_id || null,
       external_customer_id: payment.customer_id || null,
@@ -529,6 +532,7 @@ async function syncPayments(ctx: Row) {
       receipt_url: payment.receipt_url || null,
       paid_at: status === "COMPLETED" ? (payment.created_at || payment.updated_at || now) : null,
       metadata: {
+        ...(existingById.get(String(payment.id))?.metadata || {}),
         environment: ctx.environment,
         receipt_number: payment.receipt_number || null,
       },
@@ -538,6 +542,10 @@ async function syncPayments(ctx: Row) {
       updated_at: now,
     }, { onConflict: "shop_id,provider,external_payment_id" });
     if (error) throw error;
+    if(existingById.get(String(payment.id))?.metadata?.pos_invoice_id){
+    const refundUpdate = await ctx.admin.rpc("update_received_pos_refund",{p_payment_id:String(payment.id),p_refunded:refundedAmount});
+    if (refundUpdate.error) throw refundUpdate.error;
+    }
     if (status === "COMPLETED") {
       completed++;
       collected += Math.max(0, amount - refundedAmount);
@@ -650,3 +658,4 @@ Deno.serve(async (req) => {
     return json({ error: error instanceof Error ? error.message : "Square synchronization failed." }, 500);
   }
 });
+
