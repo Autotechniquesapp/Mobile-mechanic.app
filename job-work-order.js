@@ -216,6 +216,7 @@ function markup(state){
     <div class="jwo-top"><b>Repair Order</b>${canDeleteJob()?`<button type="button" class="btn btn-danger jwo-delete-job" data-action="delete-job" data-job="${esc(job?.id||'')}">Delete Job</button>`:''}</div><div class="jwo-complaint"><label><b>Work requested</b>
     ${editable?`<textarea class="jwo-complaint-input" rows="2" data-jwo-complaint placeholder="What is the customer asking you to do?">${esc(complaint)}</textarea>`:`<p>${esc(complaint)}</p>`}</label></div>
     <div class="jwo-complaint" data-job-repair-details><b>Repair details / findings</b><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(findings||'No repair findings recorded yet.')}</p><small>Codes / test results: ${esc(codes||'None recorded')}</small><div class="btn-row" style="margin-top:8px"><button type="button" class="btn btn-soft" data-route="findings">Edit Findings</button></div></div>
+    ${window.MobileMechanicRepairVideos?.markup({...job,customer_states:complaint,codes})||''}
   </section>`;
 }
 function css(){if(document.getElementById('job-work-order-style'))return;const s=document.createElement('style');s.id='job-work-order-style';s.textContent=`

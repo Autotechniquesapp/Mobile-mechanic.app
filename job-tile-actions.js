@@ -167,7 +167,7 @@ function compactIntake(j){
     <div class="mma-tech-field"><b>Service location</b><span>${esc(loc)}</span></div>
     <div class="mma-tech-field"><b>Requested time</b><span>${esc(preferred)}</span></div>
     ${email?`<div class="mma-tech-field"><b>Email</b><span>${esc(email)}</span></div>`:''}
-  </div><details class="mma-tech-more"><summary>More intake details</summary>${intakeTable(j)}</details></div>`;
+  </div>${window.MobileMechanicRepairVideos?.markup(j)||''}<details class="mma-tech-more"><summary>More intake details</summary>${intakeTable(j)}</details></div>`;
 }
 function isCompleted(j){return String(j?.status||'').toLowerCase()==='completed'||!!j?.completedAt;}
 function completedJobs(){const s=shop();const seen=new Set(),out=[];[...(s?.completedJobs||[]),...(s?.jobs||[]).filter(isCompleted)].forEach(j=>{const id=String(j.id||'');if(id&&!seen.has(id)){seen.add(id);out.push(j);}});return out.sort((a,b)=>String(b.completedAt||b.updatedAt||b.createdAt||'').localeCompare(String(a.completedAt||a.updatedAt||a.createdAt||'')));}

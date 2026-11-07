@@ -260,6 +260,7 @@ function intakeCard(i){
         ${vehicle.details.length?`<div class="small muted" style="margin-top:3px">${vehicle.details.map(esc).join(' • ')}</div>`:''}
       </div>
       <div style="margin-bottom:8px"><b>Customer states:</b><br>${esc(i.customer_states||'No complaint entered')}</div>
+      ${window.MobileMechanicRepairVideos?.markup(i)||''}
       <div style="padding:9px;border:1px solid #39434e;border-radius:9px">
         <b>Requested Date & Time</b>
         <div style="margin-top:4px">${esc(i.availability||'No requested date or time')}</div>
@@ -447,3 +448,4 @@ setTimeout(()=>{refreshQueueOnResume();startVisiblePolling();},250);
   s.src='intake-repair.js?v=20260914-share-card1';
   document.head.appendChild(s);
 })();
+
