@@ -4,3 +4,10 @@ test('service information is reachable from dashboard and job',()=>{assert.match
 test('all requested service categories are present',()=>{for(const id of ['procedures','specifications','parts-labor','figures','wiring','tsbs','quick','recalls'])assert.match(moduleSource,new RegExp(`'${id}'`));});
 test('official data and provider adapter are wired',()=>{assert.match(moduleSource,/api\.nhtsa\.gov/);assert.match(moduleSource,/registerProvider/);assert.match(html,/service-information\.js/);});
 test('general searches always offer official manufacturer and NHTSA sources',()=>{assert.match(moduleSource,/manufacturerSource/);assert.match(moduleSource,/Open official manufacturer source/);assert.match(moduleSource,/Open NHTSA vehicle record/);});
+
+test('job page renders service information for the opened job outside the legacy workup',()=>{
+  const workup=app.slice(app.indexOf('function workup(jobId)'),app.indexOf('function findings()'));
+  assert.match(workup,/id="jobServiceInformationRoot"/);
+  assert.match(workup,/render\\(document.getElementById\\('jobServiceInformationRoot'\\),\\{shop:s,job:j\\}\\)/);
+  assert.ok(workup.indexOf('jobServiceInformationRoot')<workup.indexOf('<section class="work-white">'));
+});
