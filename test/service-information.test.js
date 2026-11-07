@@ -8,6 +8,6 @@ test('general searches always offer official manufacturer and NHTSA sources',()=
 test('job page renders service information for the opened job outside the legacy workup',()=>{
   const workup=app.slice(app.indexOf('function workup(jobId)'),app.indexOf('function findings()'));
   assert.match(workup,/id="jobServiceInformationRoot"/);
-  assert.match(workup,/render\\(document.getElementById\\('jobServiceInformationRoot'\\),\\{shop:s,job:j\\}\\)/);
+  assert.ok(workup.includes("render(document.getElementById('jobServiceInformationRoot'),{shop:s,job:j})"));
   assert.ok(workup.indexOf('jobServiceInformationRoot')<workup.indexOf('<section class="work-white">'));
 });
