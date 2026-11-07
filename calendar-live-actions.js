@@ -15,12 +15,23 @@ const dateLabel=d=>new Date(d).toLocaleDateString([],{weekday:'long',month:'long
 let week=startWeek(new Date()),selected=new Date(),view=window.innerWidth<700?'day':'week';
 
 function shop(){const db=read(),sid=db.session?.shopId;return sid?db.shops?.[sid]:null;}
+function canManageInvoices(){const db=read(),user=shop()?.users?.find(u=>String(u.id)===String(db.session?.userId));return ['owner','shop_owner','manager','service_writer'].includes(user?.role);}
+function finishActions(j){return `<button type="button" class="btn btn-green" data-action="complete-job" data-job="${esc(j.id)}">Complete Job</button>${canManageInvoices()?`<button type="button" class="btn btn-primary" data-cal-invoice="${esc(j.id)}">Invoice / Record Payment</button>`:''}`;}
 function activeJobs(){return (shop()?.jobs||[]).filter(j=>!j.completedAt&&!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));}
 function scheduled(){return activeJobs().filter(j=>j.scheduledStart).sort((a,b)=>new Date(a.scheduledStart)-new Date(b.scheduledStart));}
 function unscheduled(){return activeJobs().filter(j=>!j.scheduledStart);}
 function notify(msg,type='good'){if(typeof window.toast==='function')return window.toast(msg,type);document.querySelector('.toast')?.remove();const d=document.createElement('div');d.className=`toast ${type}`;d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),3000);}
 function openJob(id){const trigger=document.createElement('div');trigger.setAttribute('data-open-job',String(id));trigger.setAttribute('role','button');trigger.hidden=true;document.body.appendChild(trigger);trigger.click();setTimeout(()=>trigger.remove(),0);}
-function openSchedule(id,start=''){const b=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(id))}"]`);if(!b)return notify('That job could not be opened for scheduling.','bad');b.click();if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input){input.value=start;window.MobileMechanicSchedulePicker?.setStart(start);}},80);}
+function openSchedule(id,start=''){const b=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(id))}"]`);if(!b)return notify('That job could not be opened for scheduling.','bad');b.click();const job=scheduled().find(j=>String(j.id)===String(id)),save=$('[data-action="save-schedule"]');if(job&&save&&!$('[data-cal-finish-actions]'))save.insertAdjacentHTML('afterend',`<div class="btn-row" data-cal-finish-actions style="margin-top:12px">${finishActions(job)}</div>`);if(start)setTimeout(()=>{const input=$('#scheduleStart');if(input){input.value=start;window.MobileMechanicSchedulePicker?.setStart(start);}},80);}
+function openInvoice(id){
+  if(!canManageInvoices())return;
+  const db=read(),job=shop()?.jobs?.find(j=>String(j.id)===String(id));if(!job)return notify('This job is no longer available.','bad');
+  db.session.activeJobId=job.id;write(db);document.querySelector('.modal-backdrop')?.remove();
+  let timer;const observer=new MutationObserver(()=>focusInvoice());
+  function focusInvoice(){const invoice=$('[data-next-invoice]');if(!invoice||String(read().session?.activeJobId)!==String(id))return;observer.disconnect();clearTimeout(timer);invoice.scrollIntoView?.({block:'start',behavior:'smooth'});}
+  observer.observe(document.documentElement,{childList:true,subtree:true});timer=setTimeout(()=>observer.disconnect(),10000);
+  const trigger=document.createElement('button');trigger.hidden=true;trigger.dataset.openJob=String(id);trigger.dataset.mmaNativeOpen='1';document.body.appendChild(trigger);trigger.click();trigger.remove();focusInvoice();
+}
 function openPendingIntakeSchedule(){let pending=null;try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}if(!pending?.jobId)return;if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');if(pending.start){const d=new Date(pending.start);if(!Number.isNaN(d.getTime())){selected=d;week=startWeek(d);render();}}openSchedule(String(pending.jobId),String(pending.start||''));}
 async function removeSchedule(id){
   if(!confirm('Remove this appointment from the calendar? The job stays saved.'))return;
@@ -56,7 +67,7 @@ function render(){
   $$('[data-cal-view]').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.calView===view));b.classList.toggle('btn-primary',b.dataset.calView===view);});
   dayTitle.textContent=dateLabel(selected);renderSlots();
   const rows=scheduled().filter(j=>sameDay(j.scheduledStart,selected));
-  agenda.innerHTML=rows.length?rows.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-cal-open-job="${esc(j.id)}"><time>${esc(time(j.scheduledStart))}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicle(j.vehicle))}</span><small>${esc((window.MobileMechanicScheduleDetails?.destination(j)||j.location||'')||'No service location')}</small><div class="ops-agenda-actions"><button type="button" class="btn btn-soft" data-cal-edit="${esc(j.id)}">Edit Time</button><button type="button" class="btn btn-soft" data-cal-maps="${esc((window.MobileMechanicScheduleDetails?.destination(j)||j.location||''))}">Navigate</button><button type="button" class="btn btn-soft" data-cal-remove="${esc(j.id)}">Remove</button></div></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">No jobs on this day.</div>';
+  agenda.innerHTML=rows.length?rows.map(j=>`<div class="ops-agenda-row" role="button" tabindex="0" data-cal-open-job="${esc(j.id)}"><time>${esc(time(j.scheduledStart))}</time><div><b>${esc(j.customerName||'Customer')}</b><span>${esc(vehicle(j.vehicle))}</span><small>${esc((window.MobileMechanicScheduleDetails?.destination(j)||j.location||'')||'No service location')}</small><div class="ops-agenda-actions">${finishActions(j)}<button type="button" class="btn btn-soft" data-cal-edit="${esc(j.id)}">Edit Time</button><button type="button" class="btn btn-soft" data-cal-maps="${esc((window.MobileMechanicScheduleDetails?.destination(j)||j.location||''))}">Navigate</button><button type="button" class="btn btn-soft" data-cal-remove="${esc(j.id)}">Remove</button></div></div><em>${esc(j.status||'Job')}</em></div>`).join(''):'<div class="mmp-empty">No jobs on this day.</div>';
   const pending=unscheduled();
   needs.innerHTML=pending.length?pending.map(j=>`<div class="ops-need-card"><b>${esc(j.customerName||'Customer')} · ${esc(vehicle(j.vehicle))}</b><span>${esc(j.availability||'No requested time')}</span><small>${esc(j.complaint||'')}</small><div class="list-actions"><button class="btn btn-primary" type="button" data-cal-edit="${esc(j.id)}">Schedule</button><button class="btn btn-soft" type="button" data-cal-open-job="${esc(j.id)}">Open Job</button></div></div>`).join(''):'<div class="mmp-empty">Everything active is scheduled.</div>';
 }
@@ -72,12 +83,14 @@ document.addEventListener('click',e=>{
   if(e.target.closest?.('[data-cal-week-prev]')){if(view==='month'){selected=new Date(selected.getFullYear(),selected.getMonth()-1,1);week=startWeek(selected);}else{week=addDays(week,-7);selected=week;}render();return;}
   if(e.target.closest?.('[data-cal-week-next]')){if(view==='month'){selected=new Date(selected.getFullYear(),selected.getMonth()+1,1);week=startWeek(selected);}else{week=addDays(week,7);selected=week;}render();return;}
   if(e.target.closest?.('[data-cal-today]')){selected=new Date();week=startWeek(selected);render();return;}
+  const invoice=e.target.closest?.('[data-cal-invoice]');if(invoice){e.preventDefault();e.stopImmediatePropagation();openInvoice(invoice.dataset.calInvoice);return;}
   const edit=e.target.closest?.('[data-cal-edit]');if(edit){e.preventDefault();e.stopPropagation();const job=scheduled().find(j=>String(j.id)===String(edit.dataset.calEdit));const start=job?.scheduledStart||`${dayKey(selected)}T09:00`;openSchedule(edit.dataset.calEdit,start);return;}
   const map=e.target.closest?.('[data-cal-maps]');if(map){e.preventDefault();e.stopPropagation();maps(map.dataset.calMaps);return;}
   const rem=e.target.closest?.('[data-cal-remove]');if(rem){e.preventDefault();e.stopPropagation();removeSchedule(rem.dataset.calRemove);return;}
   const job=e.target.closest?.('[data-cal-open-job]');if(job){e.preventDefault();openJob(job.dataset.calOpenJob);}
 },true);
-document.addEventListener('keydown',e=>{const job=e.target.closest?.('[data-cal-open-job]');if(job&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openJob(job.dataset.calOpenJob);}});
+document.addEventListener('keydown',e=>{const job=e.target.closest?.('[data-cal-open-job]'),control=e.target.closest?.('button,a,input,select,textarea');if(control&&control!==job)return;if(job&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openJob(job.dataset.calOpenJob);}});
 new MutationObserver(()=>setTimeout(render,40)).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(()=>{render();openPendingIntakeSchedule();},80));setTimeout(()=>{render();openPendingIntakeSchedule();},120);
 })();
+
