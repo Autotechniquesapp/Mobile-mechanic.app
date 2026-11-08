@@ -267,7 +267,7 @@ function intakeCard(i){
         ${when?`<div class="small muted" style="margin-top:3px">${esc(intakeReceivedText(i.created_at))}</div>`:''}
         <button class="btn btn-primary" style="margin-top:9px" data-convert-intake-calendar="${esc(i.id)}" data-calendar-start="${esc(calendarStartHint(i.availability||''))}">📅 Add to Calendar</button>
       </div>
-      <div class="list-actions" style="margin-top:10px"><button class="btn btn-primary" data-convert-intake="${esc(i.id)}">Convert to Job</button><button class="btn btn-soft" data-close-intake="${esc(i.id)}">Close Intake</button></div>
+      <div class="list-actions" style="margin-top:10px"><button type="button" class="btn btn-soft" data-close-intake-modal>Close for Now</button><button type="button" class="btn btn-soft" data-delete-intake="${esc(i.id)}">Delete Intake</button></div>
     </div>
   </div>`;
 }
@@ -278,7 +278,7 @@ async function openQueue(){
     renderQueueButton(items.length);
     document.querySelector('.modal-backdrop')?.remove();
     const d=document.createElement('div');d.className='modal-backdrop';d.dataset.intakeQueueModal='1';
-    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer details, vehicle, concern, and requested appointment before converting it to a job.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
+    d.innerHTML=`<div class="modal" style="max-width:880px"><div class="modal-head"><div><h2>Customer Intake Queue</h2><p class="small muted" style="margin:3px 0 0">Review the customer details, vehicle, concern, and requested appointment before adding it to the calendar. Close for Now keeps the intake waiting.</p></div><button class="close-btn" data-close-intake-modal>×</button></div><div class="list">${items.length?items.map(intakeCard).join(''):'<div class="customer-card" style="text-align:center"><h3>No waiting intakes</h3><p class="muted">New customer link submissions will appear here.</p></div>'}</div></div>`;
     document.body.appendChild(d);
     mountIntakePartsMaps();
   }catch(err){notice(err.message||'Could not open intake queue.','bad');}
@@ -384,13 +384,17 @@ async function convertIntake(id,button){
   }catch(err){button.disabled=false;button.textContent='Convert to Job';notice(err.message||'Could not convert intake.','bad');}
 }
 
-async function closeIntake(id,button){
+async function deleteIntake(id,button){
+  const sid=shopId();
+  if(!id||!sid||button.disabled)return;
+  if(!confirm('Permanently delete this intake? This cannot be undone. To keep it for later, choose Cancel and use Close for Now.'))return;
   button.disabled=true;
   try{
-    const {error}=await sb.from('intake_submissions').update({status:'closed',updated_at:new Date().toISOString()}).eq('id',id).eq('shop_id',shopId());
+    const {data,error}=await sb.from('intake_submissions').delete().eq('id',id).eq('shop_id',sid).eq('status','new').select('id');
     if(error)throw error;
-    notice('Intake closed.','good');await openQueue();await injectDashboardQueue(true);
-  }catch(err){button.disabled=false;notice(err.message||'Could not close intake.','bad');}
+    if(!data?.length)throw new Error('This intake changed or could not be deleted. Refresh and try again.');
+    notice('Intake deleted.','good');await openQueue();await injectDashboardQueue(true);
+  }catch(err){button.disabled=false;notice(err.message||'Could not delete intake.','bad');}
 }
 
 function startRealtimeIntakeAlerts(){
@@ -421,11 +425,11 @@ document.addEventListener('pointerdown',armAudibleAlerts,{once:true,capture:true
 document.addEventListener('keydown',armAudibleAlerts,{once:true,capture:true});
 document.addEventListener('click',e=>{
   const q=e.target.closest('[data-production-intake-queue]');if(q){e.preventDefault();openQueue();return;}
-  const close=e.target.closest('[data-close-intake-modal]');if(close){document.querySelector('.modal-backdrop')?.remove();return;}
+  const close=e.target.closest('[data-close-intake-modal],[data-close-intake]');if(close){e.preventDefault();document.querySelector('[data-intake-queue-modal]')?.remove();return;}
+  const del=e.target.closest('[data-delete-intake]');if(del){e.preventDefault();deleteIntake(del.dataset.deleteIntake,del);return;}
   const retry=e.target.closest('[data-retry-intake-ai]');if(retry){e.preventDefault();retryAiWorkup(retry.dataset.retryIntakeAi,retry);return;}
   const calendar=e.target.closest('[data-convert-intake-calendar]');if(calendar){e.preventDefault();convertIntakeToCalendar(calendar.dataset.convertIntakeCalendar,calendar);return;}
   const convert=e.target.closest('[data-convert-intake]');if(convert){e.preventDefault();convertIntake(convert.dataset.convertIntake,convert);return;}
-  const closeItem=e.target.closest('[data-close-intake]');if(closeItem){e.preventDefault();closeIntake(closeItem.dataset.closeIntake,closeItem);return;}
 },true);
 
 let scheduled=false;
