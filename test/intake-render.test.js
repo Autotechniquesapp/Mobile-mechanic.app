@@ -232,9 +232,9 @@ describe('intake queue live render', () => {
     }
   });
 
-  test('converting the intake carries the workup onto the job', () => {
+  test('adding the intake to the calendar carries the workup onto the job', () => {
     const doc = ctx.window.document;
-    const convert = doc.querySelector('[data-convert-intake]');
+    const convert = doc.querySelector('[data-convert-intake-calendar]');
     assert.ok(convert, 'the convert button was never rendered');
     convert.click();
     return new Promise(r => ctx.window.setTimeout(r, 300)).then(() => {
