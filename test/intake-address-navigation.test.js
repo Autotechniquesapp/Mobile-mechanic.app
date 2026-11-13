@@ -57,5 +57,5 @@ test('untrusted intake address is HTML escaped but retained in the encoded map d
 test('intake card uses the address directions link and shell cache-busts it',()=>{
   const card=extract('function intakeCard(i){','\nasync function openQueue(){');
   assert.ok(card.includes('<b>Address:</b> '+'$'+'{intakeAddressMarkup(i)}'));
-  assert.ok(html.includes('intake-queue.js?v=20261006-phone-alerts1&nav=20261021-address'));
+  assert.ok(html.includes('intake-queue.js?v=20261113-intake-save1&nav=20261021-address'));
 });

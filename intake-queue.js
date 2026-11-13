@@ -352,18 +352,35 @@ async function alignRepeatCustomerIdentity(intakeId){
   return true;
 }
 
+async function saveIntakeAppointment(jobId,startValue){
+  if(!startValue)return null;
+  const start=new Date(startValue);
+  if(Number.isNaN(start.getTime()))throw new Error('Choose a valid appointment time.');
+  const sid=shopId();
+  const {data:job,error:readError}=await sb.from('jobs').select('id,scheduled_start_at,estimated_labor_hours,travel_minutes,buffer_minutes').eq('id',jobId).eq('shop_id',sid).single();
+  if(readError)throw readError;
+  // A retry must not move an appointment already saved for this intake.
+  if(job.scheduled_start_at)return job.scheduled_start_at;
+  const minutes=Math.max(.25,Number(job.estimated_labor_hours||1))*60+Number(job.travel_minutes||0)+Number(job.buffer_minutes??15);
+  const {data,error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:new Date(start.getTime()+minutes*60000).toISOString(),status:'scheduled'}).eq('id',jobId).eq('shop_id',sid).is('scheduled_start_at',null).select('id');
+  if(error)throw error;
+  if(!data?.length)throw new Error('The appointment changed. Refresh and check its scheduled time.');
+  return start.toISOString();
+}
+
 async function convertIntakeToCalendar(id,button){
   if(!id||button?.disabled)return;
   const original=button.textContent;
-  button.disabled=true;button.textContent='Opening Calendar…';
+  button.disabled=true;button.textContent='Adding to Calendar…';
   try{
     await alignRepeatCustomerIdentity(id);
     const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
     if(error)throw error;
+    const scheduledStart=await saveIntakeAppointment(data,button.dataset.calendarStart||'');
     await carryWorkupToJob(id,data);
     const c=cache();
     if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
-    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:data,start:button.dataset.calendarStart||'',createdAt:Date.now()}));
+    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:data,start:scheduledStart||'',saved:!!scheduledStart,createdAt:Date.now()}));
     document.querySelector('.modal-backdrop')?.remove();
     location.hash='#calendar';
     location.reload();

@@ -32,7 +32,19 @@ function openInvoice(id){
   observer.observe(document.documentElement,{childList:true,subtree:true});timer=setTimeout(()=>observer.disconnect(),10000);
   const trigger=document.createElement('button');trigger.hidden=true;trigger.dataset.openJob=String(id);trigger.dataset.mmaNativeOpen='1';document.body.appendChild(trigger);trigger.click();trigger.remove();focusInvoice();
 }
-function openPendingIntakeSchedule(){let pending=null;try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}if(!pending?.jobId)return;if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');if(pending.start){const d=new Date(pending.start);if(!Number.isNaN(d.getTime())){selected=d;week=startWeek(d);render();}}openSchedule(String(pending.jobId),String(pending.start||''));}
+function openPendingIntakeSchedule(){
+  let pending=null;try{pending=JSON.parse(localStorage.getItem('mobile_mechanic_pending_calendar_schedule')||'null');}catch{}
+  if(!pending?.jobId||location.hash.split('?')[0]!=='#calendar')return;
+  if(pending.createdAt&&Date.now()-Number(pending.createdAt)>10*60*1000){localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');return;}
+  // Bootstrap must load the converted job and bind calendar controls before consuming the handoff.
+  if(!$('[data-mma-calendar]')||!shop()?.jobs?.some(j=>String(j.id)===String(pending.jobId)))return;
+  const trigger=$(`[data-cal-schedule-triggers] [data-action="schedule-job"][data-job="${CSS.escape(String(pending.jobId))}"]`);
+  if(!pending.saved&&!trigger)return;
+  localStorage.removeItem('mobile_mechanic_pending_calendar_schedule');
+  if(pending.start){const d=new Date(pending.start);if(!Number.isNaN(d.getTime())){selected=d;week=startWeek(d);render();}}
+  if(pending.saved){notify('Appointment added to the calendar.');return;}
+  openSchedule(String(pending.jobId),String(pending.start||''));
+}
 async function removeSchedule(id){
   if(!confirm('Remove this appointment from the calendar? The job stays saved.'))return;
   const db=read(),sid=db.session?.shopId,j=db.shops?.[sid]?.jobs?.find(x=>String(x.id)===String(id));if(!sid||!j)return;
@@ -90,7 +102,7 @@ document.addEventListener('click',e=>{
   const job=e.target.closest?.('[data-cal-open-job]');if(job){e.preventDefault();openJob(job.dataset.calOpenJob);}
 },true);
 document.addEventListener('keydown',e=>{const job=e.target.closest?.('[data-cal-open-job]'),control=e.target.closest?.('button,a,input,select,textarea');if(control&&control!==job)return;if(job&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openJob(job.dataset.calOpenJob);}});
-new MutationObserver(()=>setTimeout(render,40)).observe(document.documentElement,{childList:true,subtree:true});
+new MutationObserver(()=>setTimeout(()=>{render();openPendingIntakeSchedule();},40)).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',()=>setTimeout(()=>{render();openPendingIntakeSchedule();},80));setTimeout(()=>{render();openPendingIntakeSchedule();},120);
 })();
 
