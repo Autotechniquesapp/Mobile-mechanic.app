@@ -55,7 +55,8 @@ async function loadSquareDraft(job){
  const {data,error}=await sb.from('invoices').select('*').eq('job_id',job.id).eq('shop_id',sid).order('created_at',{ascending:false}).limit(100);
  if(error)throw error;
  const rows=(data||[]).filter(row=>!['void','canceled','cancelled'].includes(String(row.status||'').toLowerCase())
-   && (row.payment_processor==='square'||row.processor_metadata?.square_invoice_id||row.processor_metadata?.payment_link_id));
+   && (row.payment_processor==='square'||row.processor_metadata?.square_invoice_id||row.processor_metadata?.payment_link_id
+     ||['additional_work_estimate','square_import'].includes(row.processor_metadata?.source)));
  // A published/draft Square invoice or checkout link always takes precedence;
  // otherwise an older local draft could generate a second payment request.
  const squareLinked=rows.find(row=>row.processor_metadata?.square_invoice_id);
@@ -149,7 +150,7 @@ function tapActions(){if(squareDraft?.processor_metadata?.source==='square_impor
 function markup(){
  const pt=partsTotal(),lt=laborTotal(),tt=taxTotal(),tr=travelTotal(),imported=squareDraft?.processor_metadata?.source==='square_import',locked=financialsLocked();
  const total=locked?Number(squareDraft?.processor_metadata?.square_total??squareDraft?.total??0):estimateTotal();
- return `<section class="nxe" data-next-invoice><div class="nxe-title"><div><div class="eyebrow">PAYMENT</div><h3>Square Invoice</h3><small>${imported?'Imported from your existing Square invoice.':'Edit the saved invoice for this job, then save it to Square to bill the customer.'}</small></div>${!locked&&estimateComplete()?'<button type="button" class="btn btn-primary" data-nxe-save-draft '+(squareBusy?'disabled':'')+'>Save in Square</button>':''}</div>
+ return `<section class="nxe" data-next-invoice><div class="nxe-title"><div><div class="eyebrow">PAYMENT</div><h3>Square Invoice</h3><small>${imported?'Imported from your existing Square invoice.':'Uses the Parts and Labor entered in the work order above, or the charges saved on this invoice. Edit here before sending it to Square.'}</small></div>${!locked&&estimateComplete()?'<button type="button" class="btn btn-primary" data-nxe-save-draft '+(squareBusy?'disabled':'')+'>Save in Square</button>':''}</div>
  ${locked?`<section class="nxe-summary">${(squareDraft?.line_items||[]).map(item=>`<div><span>${esc(item.description)} × ${esc(item.quantity||1)}</span><strong>${money(item.amount)}</strong></div>`).join('')}<div><span>Tax</span><strong>${money(squareDraft?.tax)}</strong></div><div class="nxe-total"><span>Square invoice total</span><strong>${money(total)}</strong></div></section>`:`
  ${group('Labor / services','labor',state.labor)}
  ${group('Parts','parts',state.parts)}
