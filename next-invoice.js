@@ -64,8 +64,10 @@ async function loadSquareDraft(job){
  if(checkoutLinked)return checkoutLinked;
  const original=rows.find(row=>row.processor_metadata?.source!=='additional_work_estimate'
    && Array.isArray(row.line_items)&&row.line_items.length>0);
- return original||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate')
-   ||rows.find(row=>Array.isArray(row.line_items)&&row.line_items.length>0)||null;
+ return original||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate'
+   && Array.isArray(row.line_items)&&row.line_items.length>0)
+   ||rows.find(row=>Array.isArray(row.line_items)&&row.line_items.length>0)
+   ||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate')||null;
 }
 // A local invoice can exist without a matching AI work-order estimate. Its saved
 // line items are the source of truth: never show $0 and offer to bill them again.
