@@ -56,8 +56,14 @@ async function loadSquareDraft(job){
  if(error)throw error;
  const rows=(data||[]).filter(row=>!['void','canceled','cancelled'].includes(String(row.status||'').toLowerCase())
    && (row.payment_processor==='square'||row.processor_metadata?.square_invoice_id||row.processor_metadata?.payment_link_id));
+ // A published/draft Square invoice or checkout link always takes precedence;
+ // otherwise an older local draft could generate a second payment request.
+ const squareLinked=rows.find(row=>row.processor_metadata?.square_invoice_id);
+ if(squareLinked)return squareLinked;
+ const checkoutLinked=rows.find(row=>row.processor_metadata?.payment_link_id);
+ if(checkoutLinked)return checkoutLinked;
  const original=rows.find(row=>row.processor_metadata?.source!=='additional_work_estimate'
-   && ((Array.isArray(row.line_items)&&row.line_items.length>0)||row.processor_metadata?.square_invoice_id));
+   && Array.isArray(row.line_items)&&row.line_items.length>0);
  return original||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate')
    ||rows.find(row=>Array.isArray(row.line_items)&&row.line_items.length>0)||null;
 }
