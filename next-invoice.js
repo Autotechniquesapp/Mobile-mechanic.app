@@ -47,7 +47,59 @@ async function load(job){
   }
   return n;
 }
-async function loadSquareDraft(job){if(!sb||!job?.id)return null;const {sid}=context();const {data,error}=await sb.from('invoices').select('*').eq('job_id',job.id).eq('shop_id',sid).order('created_at',{ascending:false}).limit(20);if(error)throw error;return (data||[]).find(x=>['additional_work_estimate','square_import'].includes(x?.processor_metadata?.source))||null;}
+// Reuse the original billed invoice before opening a second, empty billing record.
+// The original may predate the additional-work editor and have a different source tag.
+async function loadSquareDraft(job){
+ if(!sb||!job?.id)return null;
+ const {sid}=context();
+ const {data,error}=await sb.from('invoices').select('*').eq('job_id',job.id).eq('shop_id',sid).order('created_at',{ascending:false}).limit(100);
+ if(error)throw error;
+ const rows=(data||[]).filter(row=>!['void','canceled','cancelled'].includes(String(row.status||'').toLowerCase())
+   && (row.payment_processor==='square'||row.processor_metadata?.square_invoice_id||row.processor_metadata?.payment_link_id
+     ||['additional_work_estimate','square_import'].includes(row.processor_metadata?.source)));
+ // A published/draft Square invoice or checkout link always takes precedence;
+ // otherwise an older local draft could generate a second payment request.
+ const squareLinked=rows.find(row=>row.processor_metadata?.square_invoice_id);
+ if(squareLinked)return squareLinked;
+ const checkoutLinked=rows.find(row=>row.processor_metadata?.payment_link_id);
+ if(checkoutLinked)return checkoutLinked;
+ const original=rows.find(row=>row.processor_metadata?.source!=='additional_work_estimate'
+   && Array.isArray(row.line_items)&&row.line_items.length>0);
+ return original||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate'
+   && Array.isArray(row.line_items)&&row.line_items.length>0)
+   ||rows.find(row=>Array.isArray(row.line_items)&&row.line_items.length>0)
+   ||rows.find(row=>row.processor_metadata?.source==='additional_work_estimate')||null;
+}
+// A local invoice can exist without a matching AI work-order estimate. Its saved
+// line items are the source of truth: never show $0 and offer to bill them again.
+function stateFromExistingInvoice(current,invoice){
+ if(!invoice||!Array.isArray(invoice.line_items)||!invoice.line_items.length)return current;
+ const parts=[],labor=[];let travel=0;
+ for(const item of invoice.line_items){
+  const amount=Number(item?.amount??item?.total);
+  if(!Number.isFinite(amount)||amount<0)continue;
+  const name=String(item.description||item.name||'Service');
+  const kind=String(item.kind||item.type||'').toLowerCase();
+  const quantity=Math.max(1,Number(item.quantity)||1);
+  if(kind==='travel'){travel+=amount;continue;}
+  if(kind==='part'||kind==='parts'){
+   parts.push({name,quantity,amount:roundMoney(amount),unit_price:roundMoney(Number(item.unit_price??amount/quantity))});
+  }else{
+   const hours=Number(item.labor_hours),rate=Number(item.labor_rate);
+   const hourly=item.flat_fee!==true&&Number.isFinite(hours)&&hours>0&&Number.isFinite(rate)&&rate>=0;
+   labor.push(hourly?{name,flat_fee:false,hours,rate,amount:roundMoney(amount)}
+     :{name,flat_fee:true,hours:null,rate:null,amount:roundMoney(amount)});
+  }
+ }
+ const meta=invoice.processor_metadata||{},tax=Number(invoice.tax||0),base=parts.reduce((n,x)=>n+x.amount,0)+labor.reduce((n,x)=>n+x.amount,0);
+ const taxRate=Number(meta.tax_rate);
+ return {...current,parts,labor,
+  tax_rate:Number.isFinite(taxRate)&&taxRate>=0?taxRate:base>0?roundMoney(tax/base*100):0,
+  tax_enabled:typeof meta.tax_enabled==='boolean'?meta.tax_enabled:tax>0,
+  travel_fee:meta.travel_fee!=null?Number(meta.travel_fee):roundMoney(travel),
+  travel_enabled:typeof meta.travel_enabled==='boolean'?meta.travel_enabled:travel>0};
+}
+function isSquareCheckoutLink(invoice){return !!invoice?.processor_metadata?.payment_link_id&&!invoice?.processor_metadata?.square_invoice_id;}
 function recalc(item){if(item.flat_fee){item.amount=item.amount===null||item.amount===''?null:roundMoney(item.amount);return;}const h=Number(item.hours),r=Number(item.rate??shopRate());item.amount=Number.isFinite(h)&&h>=0&&item.hours!==null&&item.hours!==''?roundMoney(h*r):null;}
 function partsTotal(){return roundMoney((state?.parts||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0));}
 function laborTotal(){return roundMoney((state?.labor||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0));}
@@ -57,7 +109,17 @@ function subtotal(){return roundMoney(partsTotal()+laborTotal()+travelTotal());}
 function estimateTotal(){return roundMoney(subtotal()+taxTotal());}
 function chosenDeposit(){if(state?.deposit_mode==='none')return 0;if(state?.deposit_mode==='percent')return roundMoney(estimateTotal()*Math.max(0,Number(state.deposit_percent)||0)/100);return roundMoney(Math.max(0,Number(state?.deposit_amount)||0));}
 function validDeposit(){const deposit=chosenDeposit(),total=estimateTotal();if(state?.deposit_mode==='none')return 0;if(!(deposit>0))throw new Error('Choose the deposit amount for this job.');if(deposit>=total)throw new Error('The deposit must be less than the total so a final balance remains.');return deposit;}
-function financialsLocked(){return !!squareDraft?.processor_metadata?.square_invoice_id||!!squareDraft&&String(squareDraft.status||'draft').toLowerCase()!=='draft'||squareDraft?.processor_metadata?.source==='square_import';}
+function financialsLocked(){
+ if(!squareDraft)return false;
+ const status=String(squareDraft.status||'draft').toLowerCase();
+ const paid=Number(squareDraft.processor_metadata?.total_paid||0)>0
+   ||Number(squareDraft.processor_metadata?.received_payment_total||0)>0;
+ // Square disallows changing the amount-bearing order lines after an invoice is
+ // attached. Lock synced invoices and any local draft that has collected money.
+ return isSquareCheckoutLink(squareDraft)||!!squareDraft.processor_metadata?.square_invoice_id
+   ||squareDraft.processor_metadata?.source==='square_import'||paid
+   ||['paid','refunded','partially_refunded','void','canceled','cancelled'].includes(status);
+}
 function vehicleText(v={}){return [v.year,v.make,v.model,v.trim].filter(Boolean).join(' ');}
 function priorJobs(){const {shop,job}=context();if(!shop||!job)return[];const customerId=String(job.customerId||job.customer_id||''),vin=String(job.vehicle?.vin||'').trim().toLowerCase();return (shop.jobs||[]).filter(x=>String(x.id)!==String(job.id)&&((customerId&&String(x.customerId||x.customer_id||'')===customerId)||(vin&&String(x.vehicle?.vin||'').trim().toLowerCase()===vin))).sort((a,b)=>String(b.createdAt||b.created_at||'').localeCompare(String(a.createdAt||a.created_at||'')));}
 function partLine(x,i){const locked=financialsLocked();return `<div class="nxe-edit-row"><label>Part / description<input type="text" data-nxe-name data-nxe-type="parts" data-nxe-index="${i}" value="${esc(x.name||'Part')}" ${locked?'disabled':''}></label><label>Quantity<input type="number" min="1" step="1" data-nxe-quantity data-nxe-index="${i}" value="${esc(x.quantity||1)}" ${locked?'disabled':''}></label><label>Unit price ($)<input type="number" min="0" step="0.01" inputmode="decimal" data-nxe-unit-price data-nxe-index="${i}" value="${esc(x.unit_price??'')}" ${locked?'disabled':''}></label><strong data-nxe-line-total="parts" data-nxe-index="${i}">${money(x.amount)}</strong>${locked?'':`<button type="button" class="nxe-remove" data-nxe-remove data-nxe-type="parts" data-nxe-index="${i}" aria-label="Remove part">×</button>`}</div>`;}
@@ -73,6 +135,10 @@ function squareTotalMismatch(){
  return meta.square_total!=null&&Math.abs(Number(meta.square_total)-Number(squareDraft?.total||0))>0.005;
 }
 function squareActions(){
+ if(isSquareCheckoutLink(squareDraft)){
+  const url=squareDraft.processor_payment_url||'';
+  return `<section class="nxe-square"><b>Existing Square checkout link</b><small>This is a payment link, not a Square Invoice. It will not appear in Square's Invoices list. Do not create another invoice or take another payment while this link is active.</small><div class="nxe-square-actions">${url?'<button class="btn btn-primary" type="button" data-nxe-open-payment-link>Open Existing Payment Link</button>':''}<button class="btn btn-soft" type="button" data-nxe-open-square-dashboard>Open Square</button></div></section>`;
+ }
  const hasDraft=!!squareDraft?.processor_metadata?.square_invoice_id;
  if(hasDraft){const num=squareDraft?.processor_metadata?.square_invoice_number||'',meta=squareDraft?.processor_metadata||{},mismatch=squareTotalMismatch(),status=String(squareDraft?.processor_status||squareDraft?.status||'DRAFT').toUpperCase(),url=squareDraft?.processor_payment_url||squareDraft?.payment_links?.square||'',draft=status==='DRAFT',actions=[`<button class="btn btn-primary" type="button" data-nxe-open-square-dashboard>Open in Square</button>`,draft&&!mismatch?`<button class="btn btn-soft" type="button" data-nxe-publish-square ${squareBusy?'disabled':''}>Publish / Share</button>`:'',url?`<button class="btn btn-soft" type="button" data-nxe-open-payment-link>Open Customer Link</button><button class="btn btn-soft" type="button" data-nxe-copy-payment-link>Copy Link</button>`:'',`<button class="btn btn-soft" type="button" data-nxe-refresh-square>Refresh</button>`].filter(Boolean).join('');return `<section class="nxe-square"><div><b>Square ${esc(status.replaceAll('_',' '))}</b>${num?`<small>Invoice ${esc(num)}</small>`:''}<small>${money(Number(meta.total_paid||0))} paid • ${money(Number(meta.remaining_calculated??Math.max(0,Number(squareDraft.total||0)-Number(meta.total_paid||0))))} remaining</small><small>${Number(meta.deposit_amount||0)>0?`${money(meta.deposit_amount)} deposit requested, balance due later`:'Full payment requested'}.</small><small>Square total: ${money(meta.square_total??squareDraft.total)} • App total: ${money(squareDraft.total)}</small>${mismatch?`<strong class="nxe-square-mismatch">STOP: Square has an extra ${money(Math.max(0,Number(meta.square_total)-Number(squareDraft.total)))} in charges or tax. Do not send or collect payment. Review the existing invoice in Square.</strong>`:''}<small>To change a Square-linked invoice, cancel or revise it in Square first.</small></div><div class="nxe-square-actions">${actions}</div>${draft&&!mismatch?`<div class="nxe-email-send"><label>Customer email<input type="email" autocomplete="email" inputmode="email" data-nxe-recipient-email placeholder="customer@example.com" value="${esc(recipientEmail())}" ${squareBusy?'disabled':''}></label><button class="btn btn-primary" type="button" data-nxe-email-square ${squareBusy?'disabled':''}>Email Customer to Pay</button><small>Square emails this invoice and its secure payment link when you press the button. Deposit or full balance is based on the saved invoice.</small></div>`:''}</section>`;}
  if(squareDraft&&squareDraft.status!=='draft')return `<section class="nxe-payment"><b>${squareDraft.status==='paid'?'Paid':'Partially paid'}</b><small>Payment history and remaining balance are below.</small></section>`;
@@ -80,11 +146,11 @@ function squareActions(){
  return `<section class="nxe-payment"><b>Deposit / payment terms</b><label>Deposit option<select data-nxe-deposit-mode><option value="none" ${mode==='none'?'selected':''}>No deposit, pay in full</option><option value="fixed" ${mode==='fixed'?'selected':''}>Fixed deposit ($)</option><option value="percent" ${mode==='percent'?'selected':''}>Percentage deposit (%)</option></select></label>${mode==='none'?'':`<label>${mode==='percent'?'Deposit percentage':'Deposit amount'}<span class="nxe-money-input"><input id="nxeDepositAmount" data-nxe-deposit-amount type="number" min="0" max="${mode==='percent'?99.99:Math.max(0,total-.01).toFixed(2)}" step="0.01" inputmode="decimal" value="${esc(mode==='percent'?(state.deposit_percent??''):(state.deposit_amount??''))}" placeholder="${mode==='percent'?'Percent':'Amount'}">${mode==='percent'?'%':'$'}</span></label>`}<div class="nxe-balance"><span>Deposit due</span><strong data-nxe-total="deposit">${money(deposit)}</strong></div><div class="nxe-balance"><span>Balance due</span><strong data-nxe-total="balance">${money(final)}</strong></div><div class="nxe-actions"><button class="btn btn-primary btn-wide" type="button" data-nxe-save-draft ${squareBusy?'disabled':''}>${squareBusy?'Saving to Square…':'Save Draft in Square'}</button></div><small>Your edits save here automatically. Press Save Draft in Square to create an unsent Square invoice. Nothing is sent or charged until you choose to publish or collect payment.</small></section>`;
 }
 function tapAmount(){if(squareTotalMismatch())return 0;if(!squareDraft)return estimateTotal();const status=String(squareDraft.processor_status||squareDraft.status||'').toUpperCase();if(['PAID','CANCELED','CANCELLED','REFUNDED','PARTIALLY_REFUNDED'].includes(status))return 0;return Math.max(0,Number(squareDraft.total||0)-Number(squareDraft.processor_metadata?.total_paid||0));}
-function tapActions(){if(squareDraft?.processor_metadata?.source==='square_import')return '';const total=tapAmount();if(!(total>0))return '';const requested=tapRequested===null?total:tapRequested;return `<section class="nxe-tap"><div><b>In-person tap payment</b><small>Choose a partial payment or the full remaining balance.</small><label>Amount to collect ($)<input type="number" data-nxe-tap-amount min="0.01" max="${total.toFixed(2)}" step="0.01" inputmode="decimal" value="${esc(requested)}" ${tapBusy?'disabled':''}></label><small>Remaining balance: ${money(total)}</small></div><button class="btn btn-primary" type="button" data-nxe-tap-square ${tapBusy?'disabled':''}>${tapBusy?'Opening…':`Take Tap Payment ${money(requested)}`}</button></section>`;}
+function tapActions(){if(squareDraft?.processor_metadata?.source==='square_import'||isSquareCheckoutLink(squareDraft))return '';const total=tapAmount();if(!(total>0))return '';const requested=tapRequested===null?total:tapRequested;return `<section class="nxe-tap"><div><b>In-person tap payment</b><small>Choose a partial payment or the full remaining balance.</small><label>Amount to collect ($)<input type="number" data-nxe-tap-amount min="0.01" max="${total.toFixed(2)}" step="0.01" inputmode="decimal" value="${esc(requested)}" ${tapBusy?'disabled':''}></label><small>Remaining balance: ${money(total)}</small></div><button class="btn btn-primary" type="button" data-nxe-tap-square ${tapBusy?'disabled':''}>${tapBusy?'Opening…':`Take Tap Payment ${money(requested)}`}</button></section>`;}
 function markup(){
  const pt=partsTotal(),lt=laborTotal(),tt=taxTotal(),tr=travelTotal(),imported=squareDraft?.processor_metadata?.source==='square_import',locked=financialsLocked();
  const total=locked?Number(squareDraft?.processor_metadata?.square_total??squareDraft?.total??0):estimateTotal();
- return `<section class="nxe" data-next-invoice><div class="nxe-title"><div><div class="eyebrow">PAYMENT</div><h3>Square Invoice</h3><small>${imported?'Imported from your existing Square invoice.':'Uses the Parts and Labor entered in the work order above. Edit charges here for this job.'}</small></div></div>
+ return `<section class="nxe" data-next-invoice><div class="nxe-title"><div><div class="eyebrow">PAYMENT</div><h3>Square Invoice</h3><small>${imported?'Imported from your existing Square invoice.':'Uses the Parts and Labor entered in the work order above, or the charges saved on this invoice. Edit here before sending it to Square.'}</small></div>${!locked&&estimateComplete()?'<button type="button" class="btn btn-primary" data-nxe-save-draft '+(squareBusy?'disabled':'')+'>Save in Square</button>':''}</div>
  ${locked?`<section class="nxe-summary">${(squareDraft?.line_items||[]).map(item=>`<div><span>${esc(item.description)} × ${esc(item.quantity||1)}</span><strong>${money(item.amount)}</strong></div>`).join('')}<div><span>Tax</span><strong>${money(squareDraft?.tax)}</strong></div><div class="nxe-total"><span>Square invoice total</span><strong>${money(total)}</strong></div></section>`:`
  ${group('Labor / services','labor',state.labor)}
  ${group('Parts','parts',state.parts)}
@@ -147,7 +213,7 @@ async function save(silent=false){
   const r=await sb.from('jobs').update({ai_workup:ai,updated_at:new Date().toISOString()}).eq('id',job.id).eq('shop_id',sid);if(r.error)throw r.error;
   if(squareDraft&&!squareDraft.processor_metadata?.square_invoice_id&&String(squareDraft.status||'draft')==='draft'){
    const lines=invoiceLines(),amount=subtotal(),tax=taxTotal(),deposit=chosenDeposit();
-   const processor_metadata={...(squareDraft.processor_metadata||{}),source:'additional_work_estimate',tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled,deposit_mode:state.deposit_mode,deposit_amount:deposit,deposit_percent:state.deposit_percent??null,recipient_email:state.recipient_email||null,final_balance_amount:roundMoney(estimateTotal()-deposit),balance_due_on_completion:deposit>0};
+   const processor_metadata={...(squareDraft.processor_metadata||{}),source:squareDraft.processor_metadata?.source||'additional_work_estimate',tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled,deposit_mode:state.deposit_mode,deposit_amount:deposit,deposit_percent:state.deposit_percent??null,recipient_email:state.recipient_email||null,final_balance_amount:roundMoney(estimateTotal()-deposit),balance_due_on_completion:deposit>0};
    const update=await sb.from('invoices').update({line_items:lines,subtotal:amount,tax,total:estimateTotal(),processor_metadata,updated_at:new Date().toISOString()}).eq('id',squareDraft.id).eq('shop_id',sid).eq('status','draft').select('*').single();
    if(update.error)throw update.error;squareDraft=update.data;
   }else if(!squareDraft && estimateComplete()){
@@ -193,7 +259,7 @@ function invoiceLines(){
  if(travelTotal()>0)labor.push({kind:'travel',description:'Mobile service travel',quantity:1,unit_price:travelTotal(),amount:travelTotal()});
  return [...parts,...labor];
 }
-function invoiceMeta(deposit){return {...(squareDraft?.processor_metadata||{}),source:'additional_work_estimate',estimate_snapshot_at:new Date().toISOString(),deposit_mode:state.deposit_mode,deposit_amount:deposit,deposit_percent:state.deposit_percent??null,recipient_email:state.recipient_email||null,final_balance_amount:roundMoney(estimateTotal()-deposit),balance_due_on_completion:deposit>0,tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled};}
+function invoiceMeta(deposit){return {...(squareDraft?.processor_metadata||{}),source:squareDraft?.processor_metadata?.source||'additional_work_estimate',estimate_snapshot_at:new Date().toISOString(),deposit_mode:state.deposit_mode,deposit_amount:deposit,deposit_percent:state.deposit_percent??null,recipient_email:state.recipient_email||null,final_balance_amount:roundMoney(estimateTotal()-deposit),balance_due_on_completion:deposit>0,tax_rate:state.tax_rate,tax_enabled:!!state.tax_enabled,travel_fee:travelTotal(),travel_enabled:!!state.travel_enabled};}
 async function ensureLocalInvoice(deposit){
  const {sid,job}=context(),total=estimateTotal(),lines=invoiceLines(),processor_metadata=invoiceMeta(deposit);
  if(squareDraft){if(financialsLocked())throw new Error('This invoice is already connected to Square. Refresh or revise it there.');const {data,error}=await sb.from('invoices').update({line_items:lines,subtotal:subtotal(),tax:taxTotal(),total,processor_metadata}).eq('id',squareDraft.id).eq('shop_id',sid).eq('status','draft').select('*').single();if(error)throw error;squareDraft=data;return data;}
@@ -376,7 +442,7 @@ function bind(){
   if(e.target.matches?.('[data-nxe-history-modal]'))closeHistory();
  },true);
 }
-async function mount(){if(mounting||document.querySelector('[data-next-invoice]'))return;const {db,job}=context();if(db.session?.role!=='shop'||!job||!canManagePayments())return;const work=document.querySelector('[data-job-work-order]');if(!work)return;mounting=true;try{css();state=await load(job);squareDraft=await loadSquareDraft(job);if(!work.isConnected||String(context().job?.id)!==String(job.id)||document.querySelector('[data-next-invoice]'))return;work.insertAdjacentHTML('afterend',markup());try{await confirmReturnedTap();}catch(error){toast(error.message,'bad');}}finally{mounting=false;}}
+async function mount(){if(mounting||document.querySelector('[data-next-invoice]'))return;const {db,job}=context();if(db.session?.role!=='shop'||!job||!canManagePayments())return;const work=document.querySelector('[data-job-work-order]');if(!work)return;mounting=true;try{css();const [loaded,existing]=await Promise.all([load(job),loadSquareDraft(job)]);squareDraft=existing;state=stateFromExistingInvoice(loaded,existing);if(!work.isConnected||String(context().job?.id)!==String(job.id)||document.querySelector('[data-next-invoice]'))return;work.insertAdjacentHTML('afterend',markup());try{await confirmReturnedTap();}catch(error){toast(error.message,'bad');}}finally{mounting=false;}}
 window.MobileMechanicInvoiceEditor={flushSave:()=>queueInvoiceSave(true)};
 bind();new MutationObserver(()=>setTimeout(mount,0)).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('hashchange',()=>{state=null;squareDraft=null;tapRequested=null;closeHistory();closeImport();setTimeout(mount,150);});setTimeout(mount,900);
 })();
