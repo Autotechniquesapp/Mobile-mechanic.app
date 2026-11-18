@@ -125,6 +125,7 @@ function makeSupabase(recorder) {
         select(_cols, opts) { if (opts?.head) chain._mode = 'count'; return chain; },
         eq() { return chain; },
         order() { return chain; },
+        single() { return result(rows(table)[0]); },
         maybeSingle() {
           if (table === 'intake_submissions') return result({ ai_workup: INTAKE.ai_workup });
           return result(recorder.jobRow);
@@ -232,18 +233,17 @@ describe('intake queue live render', () => {
     }
   });
 
-  test('adding the intake to the calendar carries the workup onto the job', () => {
-    const doc = ctx.window.document;
-    const convert = doc.querySelector('[data-convert-intake-calendar]');
-    assert.ok(convert, 'the convert button was never rendered');
-    convert.click();
-    return new Promise(r => ctx.window.setTimeout(r, 300)).then(() => {
-      assert.deepEqual(ctx.recorder.rpc.map(c => c.name), ['convert_intake_to_job']);
-      const jobUpdate = ctx.recorder.updates.find(u => u.table === 'jobs' && u.patch.ai_workup);
-      assert.ok(jobUpdate, 'the AI workup was not written to the job');
-      assert.equal(jobUpdate.patch.ai_workup.carried_from_intake, INTAKE.id);
-      assert.equal(jobUpdate.patch.ai_workup.summary, INTAKE.ai_workup.summary);
-      assert.ok(!('work_order' in jobUpdate.patch.ai_workup), 'an empty work_order key was carried over');
-    });
+  test('opening the scheduling modal makes no conversion call', async () => {
+    const {window:w}=ctx;
+    let opened;
+    w.MobileMechanicOpenSchedule=(job,options)=>{
+      opened={job,options};
+      return w.document.createElement('div');
+    };
+    w.document.querySelector('[data-convert-intake-calendar]').click();
+    await new Promise(r=>w.setTimeout(r,300));
+    assert.ok(opened,'the scheduling modal was never opened');
+    assert.equal(opened.options.intakeId,INTAKE.id);
+    assert.equal(ctx.recorder.rpc.length,0);
   });
 });

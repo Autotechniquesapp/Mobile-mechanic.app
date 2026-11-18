@@ -9,41 +9,129 @@ async function invoke(fn,body){const {data,error}=await sb.functions.invoke(fn,{
 async function statuses(){try{const d=await invoke('business-integrations',{action:'status'});return Object.fromEntries((d.integrations||[]).map(x=>[x.provider,x]));}catch{return {};}}
 async function action(name,payload={}){return invoke('integration-actions',{action:name,...payload});}
 function shopAndJob(jobId){const c=cache(),sid=c.session?.shopId,s=c.shops?.[sid],j=s?.jobs?.find(x=>String(x.id)===String(jobId));return {c,s,j};}
-async function syncSchedule(jobId){const result=await invoke('calendar-sync',{action:'sync_job',job_id:jobId});try{await action('zapier.emit',{event:'job_scheduled',payload:{job_id:jobId}});}catch{}return result;}
-async function saveScheduleAndSync(el){
-  const jobId=el.dataset.job,sid=cache().session?.shopId;if(!jobId||!sid)return;
-  const startVal=document.getElementById('scheduleStart')?.value;
-  if(!startVal){notify('Pick a start time.','bad');return;}
-  const hours=Math.max(.25,Number(document.getElementById('scheduleHours')?.value||1));
-  const travel=Math.max(0,Number(document.getElementById('scheduleTravel')?.value||0));
-  const buffer=Math.max(0,Number(document.getElementById('scheduleBuffer')?.value||15));
-  const start=new Date(startVal);
-  if(Number.isNaN(start.getTime())){notify('Pick a valid start time.','bad');return;}
+async function syncSchedule(jobId,sid){const result=await invoke('calendar-sync',{action:'sync_job',job_id:jobId,shop_id:sid});try{await action('zapier.emit',{event:'job_scheduled',payload:{job_id:jobId}});}catch{}return result;}
+window.MobileMechanicSaveSchedule=async function(el,job,options={}){
+  if(el.disabled)return;
+  const sid=cache().session?.shopId;
+  if(!sid||options.shopId&&options.shopId!==sid)return;
+  const panel=el.closest('.modal-backdrop'),message=panel.querySelector('[data-schedule-error]');
+  const field=id=>panel.querySelector('#'+id);
+  const start=window.MobileMechanicScheduleTime.toInstant(field('scheduleStart').value);
+  const hours=Number(field('scheduleHours').value),travel=Number(field('scheduleTravel').value),buffer=Number(field('scheduleBuffer').value);
+  const show=msg=>{message.textContent=msg;message.hidden=false;};
+  if(!start)return show('Choose a valid appointment date and time.');
+  if(!Number.isFinite(hours)||hours<.25||![travel,buffer].every(n=>Number.isInteger(n)&&n>=0))
+    return show('Check labor hours, travel minutes and buffer minutes.');
   const end=new Date(start.getTime()+(hours*60+travel+buffer)*60000);
-  const oldText=el.textContent;el.disabled=true;el.textContent='Saving…';
+  if(!Number.isFinite(end.getTime())||end-start>31*86400000)return show('Choose a shorter appointment.');
+  let details;
+  try{details=window.MobileMechanicScheduleDetails.read();}catch(err){return show(err.message);}
+  const initial=el.textContent;
+  el.disabled=true;el.textContent='Saving…';panel.dataset.saving='true';message.hidden=true;
+  let jobId=job.id||panel.dataset.convertedJob;
+  const firstSchedule=!!options.intakeId||!job.scheduledStart;
+  let saved,changed=false;
+  function updateCache(row){
+    const {c,j}=shopAndJob(jobId);
+    if(!j||c.session?.shopId!==sid)return;
+    Object.assign(j,{scheduledStart:row.scheduled_start_at,scheduledEnd:row.scheduled_end_at,
+      status:row.status==='scheduled'?'Scheduled':j.status,scheduleNotes:details.schedule_notes,
+      scheduleReminderMinutes:details.schedule_reminder_minutes,currentLocation:details.current_location,
+      location:details.current_location.raw,estimatedLaborHours:hours,travelMinutes:travel,bufferMinutes:buffer});
+    localStorage.setItem(DBKEY,JSON.stringify(c));
+  }
+  const columns='id,status,scheduled_start_at,scheduled_end_at';
+  async function readJob(){
+    const {data,error}=await sb.from('jobs').select(columns).eq('shop_id',sid).eq('id',jobId).single();
+    if(error||!data)throw new Error('Could not read the saved job.');
+    return data;
+  }
   try{
-    const details=window.MobileMechanicScheduleDetails.read();
-    const {data:updated,error}=await sb.from('jobs').update({
-      ...details,scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,
-      travel_minutes:travel,buffer_minutes:buffer
-    }).eq('id',jobId).eq('shop_id',sid).select('id').single();
-    if(error)throw error;
-    if(!updated)throw new Error('The appointment could not be saved. Refresh and try again.');
-    const {c,j}=shopAndJob(jobId);if(j){Object.assign(j,{scheduledStart:start.toISOString(),scheduledEnd:end.toISOString(),scheduleNotes:details.schedule_notes,scheduleReminderMinutes:details.schedule_reminder_minutes,location:details.current_location.raw,currentLocation:details.current_location});localStorage.setItem(DBKEY,JSON.stringify(c));}
-    window.dispatchEvent(new Event('mobile-mechanic-jobs-updated'));
-    if(window.MobileMechanicScheduleReminders&&details.schedule_reminder_minutes!==-1){try{await window.MobileMechanicScheduleReminders.enable();}catch(err){console.warn('Appointment saved; phone reminders need attention.',err);}}
-    try{
-      const sync=await syncSchedule(jobId);
-      if(sync?.skipped)notify('Schedule saved. No external calendar is connected.','good');
-      else notify('Schedule saved and calendar updated.','good');
-    }catch(err){console.warn('Calendar sync failed',err);notify('Schedule saved. Calendar sync needs attention.','bad');}
-    setTimeout(()=>{location.hash='#calendar';location.reload();},650);
-  }catch(err){console.warn('Schedule save failed',err);notify(err?.message||'Could not save schedule.','bad');el.disabled=false;el.textContent=oldText;}
-}
+    if(!jobId){
+      jobId=await options.convert();
+      if(!jobId)throw new Error('Could not confirm the intake conversion.');
+      panel.dataset.convertedJob=jobId;
+    }
+    const live=await readJob();
+    if(firstSchedule&&live.scheduled_start_at)saved=live;
+    if(!saved){
+      if(firstSchedule){
+        const {data,error}=await sb.functions.invoke('public-availability',{
+          body:{shop_id:sid,range_start:start.toISOString(),range_end:end.toISOString()}
+        });
+        if(error||!Array.isArray(data?.busy)||data.calendar_check_failed)
+          throw new Error('Could not check calendar availability. Try again.');
+        if(data.busy.some(slot=>Date.parse(slot.start)<end.getTime()&&Date.parse(slot.end)>start.getTime()))
+          throw new Error('That time overlaps a busy calendar block. Choose another time.');
+      }else{
+        const {data,error}=await sb.from('jobs').select('status').eq('shop_id',sid).neq('id',jobId)
+          .lt('scheduled_start_at',end.toISOString()).gt('scheduled_end_at',start.toISOString());
+        if(error)throw new Error('Could not check shop calendar availability.');
+        if(data.some(row=>!['completed','declined','cancelled'].includes(row.status)))
+          throw new Error('That time overlaps another job. Choose another time.');
+      }
+      if(cache().session?.shopId!==sid)throw new Error('Shop session changed.');
+      let update=sb.from('jobs').update({
+        ...details,scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),
+        estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,
+        status:['new','ai_workup'].includes(live.status)?'scheduled':live.status
+      }).eq('shop_id',sid).eq('id',jobId);
+      if(firstSchedule)update=update.is('scheduled_start_at',null);
+      const {data,error}=await update.select(columns).maybeSingle();
+      if(data&&!error){saved=data;changed=true;updateCache(data);}
+      else if(firstSchedule){
+        const recovered=await readJob();
+        if(recovered.scheduled_start_at)saved=recovered;
+      }
+      if(!saved)throw new Error('Could not save the appointment. Try again.');
+    }
+    // Refresh before opening the calendar so the converted job is in the agenda.
+    try{await window.MobileMechanicReloadShopJobs(sid);}catch{
+      if(!shopAndJob(jobId).j||cache().session?.shopId!==sid)throw new Error('Calendar refresh failed.');
+      window.dispatchEvent(new Event('mobile-mechanic-jobs-updated'));
+    }
+    panel.remove();
+    panel.dispatchEvent(new Event('schedule-closed'));
+    window.MobileMechanicCalendar?.showJob(jobId,saved.scheduled_start_at);
+    notify(changed?'Appointment saved.':'Appointment already saved.','good');
+  }catch(err){
+    if(options.intakeId&&jobId){
+      let refreshed=false;
+      try{await window.MobileMechanicReloadShopJobs(sid);refreshed=true;}catch{}
+      const link=document.createElement('a');
+      link.textContent='View Needs Time';link.href='#calendar';
+      link.onclick=e=>{
+        e.preventDefault();
+        panel.remove();
+        panel.dispatchEvent(new Event('schedule-closed'));
+        window.MobileMechanicCalendar?.showNeedsTime();
+      };
+      show(saved?'Appointment saved. Refresh the calendar to see it.':err.message||'Could not save the appointment.');
+      if(!saved)message.append(refreshed?' The job is saved in Needs Time. ':' The job was converted. Refresh the calendar or retry here. ',link);
+    }else show(saved?'Appointment saved. Refresh the calendar to see it.':err.message||'Could not save the appointment.');
+    el.textContent='Retry';
+    return;
+  }finally{
+    delete panel.dataset.saving;
+    el.disabled=false;
+    if(message.hidden)el.textContent=initial;
+  }
+  if(!changed)return;
+  if(details.schedule_reminder_minutes!==-1){
+    try{await window.MobileMechanicScheduleReminders?.enable();}catch{}
+  }
+  try{
+    const result=await syncSchedule(jobId,sid);
+    if(!result?.ok)throw new Error('Calendar sync was not confirmed.');
+    if(!result.skipped)notify('Appointment saved and external calendar updated.','good');
+  }catch{
+    notify('Appointment saved. External calendar sync needs attention.','bad');
+  }
+};
 async function deliverQueuedMessages(){try{await invoke('message-delivery',{action:'deliver_queued',limit:10});}catch(e){console.warn('Queued message delivery is waiting for a connected email/SMS provider.',e);}}
 function jobExportText(s,j){if(!j)return '';const v=j.vehicle||{};return [`${s?.name||'Shop'} - Service Record`,`Job: ${j.id||''}`,`Customer: ${j.customerName||''}`,`Vehicle: ${[v.year,v.make,v.model,v.trim].filter(Boolean).join(' ')}`,`VIN: ${v.vin||''}`,`Mileage: ${v.mileage||''}`,`Customer States: ${j.complaint||''}`,`Findings: ${j.findings||''}`,`Codes: ${j.codes||''}`,`Status: ${j.status||''}`,`Completed: ${j.completedAt||new Date().toISOString()}`].join('\n');}
 async function completeJobSync(jobId){const {s,j}=shopAndJob(jobId),st=await statuses();if(!j)return;const text=jobExportText(s,j),name=`${[j.customerName,j.vehicle?.year,j.vehicle?.make,j.vehicle?.model,'service-record'].filter(Boolean).join('-').replace(/[^a-z0-9_-]+/gi,'-')}.txt`;try{if(st.google_drive?.status==='connected')await action('google_drive.upload_text',{name,text});else if(st.onedrive?.status==='connected')await action('onedrive.upload_text',{name,text});}catch(e){console.warn('Service record backup failed',e);}try{if(j.customerId&&st.quickbooks?.status==='connected')await action('quickbooks.sync_customer',{customer_id:j.customerId});}catch(e){console.warn('QuickBooks customer sync failed',e);}try{if(j.customerId&&st.xero?.status==='connected')await action('xero.sync_contact',{customer_id:j.customerId});}catch(e){console.warn('Xero contact sync failed',e);}try{await action('zapier.emit',{event:'job_completed',payload:{job_id:jobId,customer_id:j.customerId||null}});}catch{}}
-window.addEventListener('click',e=>{const el=e.target.closest?.('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='save-schedule'){e.preventDefault();e.stopImmediatePropagation();saveScheduleAndSync(el);return;}if(a==='complete-job'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>completeJobSync(jobId),2200);}if(a==='save-estimate'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>action('zapier.emit',{event:'estimate_saved',payload:{job_id:jobId}}).catch(()=>{}),1200);}},true);
+window.addEventListener('click',e=>{const el=e.target.closest?.('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='complete-job'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>completeJobSync(jobId),2200);}if(a==='save-estimate'){const jobId=el.dataset.job||cache().session?.activeJobId;if(jobId)setTimeout(()=>action('zapier.emit',{event:'estimate_saved',payload:{job_id:jobId}}).catch(()=>{}),1200);}},true);
 window.addEventListener('submit',e=>{const form=e.target;if(form?.id!=='teamForm')return;const d=Object.fromEntries(new FormData(form));setTimeout(async()=>{await deliverQueuedMessages();try{await action('zapier.emit',{event:'staff_invited',payload:{email:String(d.email||'').trim()||null,role:String(d.role||'')||null}});}catch{}},1800);},true);
 })();
 

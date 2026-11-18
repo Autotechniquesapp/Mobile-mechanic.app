@@ -72,17 +72,20 @@ async function openSubmission(id){
 }
 let returnFocus;
 function close(){const panel=document.querySelector('[data-record-profile]');if(panel){panel.remove();if(returnFocus?.isConnected)returnFocus.focus();}}
-function show(candidates,submissionId,preferredJobId){
+function show(candidates,submissionId,preferredJobId,chooseJob=false){
   const s=context();if(!s)return;
   const rows=records(s),customers=candidates.map(id=>rows.find(c=>String(c.id)===String(id))).filter(Boolean);
   if(!customers.length)return;
+  const c=customers[0],jobs=relatedJobs(s,c);
+  if(chooseJob&&customers.length===1&&jobs.length===1)return openJob(jobs[0].id);
   returnFocus=document.activeElement;
   document.querySelector('[data-record-profile]')?.remove();
   const panel=document.createElement('div');panel.className='modal-backdrop';panel.dataset.recordProfile='1';
-  const c=customers[0],jobs=relatedJobs(s,c),vehicles=[...(c.vehicles||[]),...jobs.map(j=>j.vehicle).filter(Boolean)];
+  if(chooseJob)panel.dataset.chooseJob='1';
+  const vehicles=[...(c.vehicles||[]),...jobs.map(j=>j.vehicle).filter(Boolean)];
   const uniqueVehicles=[...new Map(vehicles.map(v=>[v.vin||vehicle(v),v])).values()];
   const contact=(value,kind,label)=>value?`<p><b>${label}:</b> <a class="record-link" href="${esc(kind==='phone'?`tel:${String(value).replace(/[^+\d]/g,'')}`:kind==='email'?`mailto:${value}`:`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(value)}`)}" ${kind==='address'?'target="_blank" rel="noopener"':''}>${esc(value)}</a>${kind==='phone'?` <a class="record-link" href="sms:${esc(String(value).replace(/[^+\d]/g,''))}">Text</a>`:''}</p>`:'';
-  panel.innerHTML=`<section class="modal" role="dialog" aria-modal="true" aria-label="Customer intake form"><div class="modal-head"><h2>${customers.length>1?'Choose customer':esc(c.name||'Customer')}</h2><button type="button" class="close-btn" data-record-close aria-label="Close customer information">×</button></div>${customers.length>1?`<p>More than one customer has this name. Choose the correct record.</p>${customers.map(row=>`<button type="button" class="btn btn-soft btn-wide" data-record-customer="${esc(row.id)}">${esc(row.name)} · ${esc(row.phone||row.email||'No contact saved')}</button>`).join('')}`:`<section data-record-intake-content aria-live="polite"><p>Loading the submitted intake…</p></section><details><summary>Customer information, vehicles &amp; jobs (${jobs.length})</summary><div class="work-card">${contact(c.phone,'phone','Phone')}${contact(c.email,'email','Email')}${contact(c.address||jobs[0]?.location,'address','Address')}${!c.phone&&!c.email?'<p>No contact information saved.</p>':''}</div><h3>Vehicles</h3>${uniqueVehicles.map(v=>`<p>${esc(vehicle(v)||'Vehicle details pending')}${v.vin?` · VIN ${esc(v.vin)}`:''}</p>`).join('')||'<p>No vehicles saved.</p>'}<h3>Jobs (${jobs.length})</h3><div class="list">${jobs.map(j=>`<button type="button" class="list-item record-job" data-record-job="${esc(j.id)}"><div class="list-main"><b>${esc(vehicle(j.vehicle)||'Job')}</b><p>${esc(j.status||'Status not set')} · ${esc(j.createdAt?new Date(j.createdAt).toLocaleDateString():'Date not set')}<br>${esc(j.complaint||'No complaint saved')}</p></div></button>`).join('')||'<p>No jobs yet.</p>'}</div></details>`}</section>`;
+  panel.innerHTML=`<section class="modal" role="dialog" aria-modal="true" aria-label="Customer intake form"><div class="modal-head"><h2>${customers.length>1?'Choose customer':esc(c.name||'Customer')}</h2><button type="button" class="close-btn" data-record-close aria-label="Close customer information">×</button></div>${customers.length>1?`<p>More than one customer has this name. Choose the correct record.</p>${customers.map(row=>`<button type="button" class="btn btn-soft btn-wide" data-record-customer="${esc(row.id)}">${esc(row.name)} · ${esc(row.phone||row.email||'No contact saved')}</button>`).join('')}`:`<section data-record-intake-content aria-live="polite"><p>Loading the submitted intake…</p></section><details ${chooseJob&&jobs.length?'open':''}><summary>Customer information, vehicles &amp; jobs (${jobs.length})</summary><div class="work-card">${contact(c.phone,'phone','Phone')}${contact(c.email,'email','Email')}${contact(c.address||jobs[0]?.location,'address','Address')}${!c.phone&&!c.email?'<p>No contact information saved.</p>':''}</div><h3>Vehicles</h3>${uniqueVehicles.map(v=>`<p>${esc(vehicle(v)||'Vehicle details pending')}${v.vin?` · VIN ${esc(v.vin)}`:''}</p>`).join('')||'<p>No vehicles saved.</p>'}<h3>Jobs (${jobs.length})</h3><div class="list">${jobs.map(j=>`<button type="button" class="list-item record-job" data-record-job="${esc(j.id)}"><div class="list-main"><b>${esc(vehicle(j.vehicle)||'Job')}</b><p>${esc(j.status||'Status not set')} · ${esc(j.createdAt?new Date(j.createdAt).toLocaleDateString():'Date not set')}<br>${j.scheduledStart?esc(new Date(j.scheduledStart).toLocaleString([],{timeZone:window.MobileMechanicScheduleTime?.zone()})):'Needs Time'}<br>${esc(j.complaint||'No complaint saved')}</p></div></button>`).join('')||'<p>No jobs yet.</p>'}</div></details>`}</section>`;
   document.body.appendChild(panel);panel.querySelector('[data-record-close]').focus();
   if(customers.length===1)loadIntakes(panel,s,c,submissionId,preferredJobId);
 }
@@ -110,7 +113,7 @@ function decorate(){
     while((node=walker.nextNode()))nodes.push(node);
     for(const text of nodes){
       const parent=text.parentElement;
-      if(!parent||parent.closest('a,input,textarea,select,option,label,script,style,[contenteditable],[data-record-link],[data-record-submission],[data-record-profile],.customer-shell'))continue;
+      if(!parent||parent.closest('a,input,textarea,select,option,label,script,style,[data-cal-open-job] button,[contenteditable],[data-record-link],[data-record-submission],[data-record-profile],button[data-cal-open-job],.customer-shell'))continue;
       const button=parent.closest('button');
       if(button&&!button.matches('[data-open-job],[data-cal-edit],[data-cal-month-day],[data-cal-open-job],[data-mma-completed-open],.mmp-job-row,.mma-day-row'))continue;
       const value=text.textContent;expression.lastIndex=0;const matches=[...value.matchAll(expression)].filter(m=>!/[\p{L}\p{N}_]/u.test(value[m.index-1]||'')&&!/[\p{L}\p{N}_]/u.test(value[m.index+m[0].length]||''));
@@ -125,7 +128,7 @@ function decorate(){
           if(job)link.dataset.recordJobContext=String(job.id);
           link.dataset.recordCustomers=JSON.stringify(job?[String(customerForJob(s,job).id)]:entry.ids);
         }
-        link.setAttribute('aria-label',`${entry.kind==='customer'?'Open customer':entry.kind==='phone'?'Call or text':entry.kind==='email'?'Email':'Navigate to'} ${match[0]}`);
+        link.setAttribute('aria-label',`${entry.kind==='customer'?'Open job for':entry.kind==='phone'?'Call or text':entry.kind==='email'?'Email':'Navigate to'} ${match[0]}`);
         link.textContent=match[0];fragment.appendChild(link);start=match.index+match[0].length;
       }
       fragment.append(value.slice(start));text.replaceWith(fragment);
@@ -141,9 +144,12 @@ function activate(e){
   if(target.hasAttribute('data-record-close'))return close();
   if(target.dataset.recordJob)return openJob(target.dataset.recordJob);
   if(target.dataset.recordSubmission)return openSubmission(target.dataset.recordSubmission);
-  if(target.dataset.recordCustomer)return show([target.dataset.recordCustomer]);
+  if(target.dataset.recordCustomer)return show([target.dataset.recordCustomer],undefined,undefined,!!target.closest('[data-choose-job]'));
   if(target.dataset.openCustomerIntake)return show([target.dataset.openCustomerIntake]);
-  if(target.dataset.recordLink==='customer')return show(JSON.parse(target.dataset.recordCustomers),undefined,target.dataset.recordJobContext);
+  if(target.dataset.recordLink==='customer'){
+    if(target.dataset.recordJobContext)return openJob(target.dataset.recordJobContext);
+    return show(JSON.parse(target.dataset.recordCustomers),undefined,undefined,true);
+  }
   const value=target.dataset.recordValue;
   if(target.dataset.recordLink==='phone'){
     document.querySelector('[data-record-profile]')?.remove();const panel=document.createElement('div');panel.className='modal-backdrop';panel.dataset.recordProfile='1';returnFocus=target;

@@ -34,14 +34,6 @@ test('intake queue header no longer tells mechanic to review AI workup',()=>{
   assert.match(queue,/Review the customer details, vehicle, concern, and requested appointment/);
 });
 
-test('Add to Calendar converts the intake then hands the new job to the live scheduler',()=>{
-  assert.match(intake,/mobile_mechanic_pending_calendar_schedule/);
-  assert.match(intake,/location\.hash='#calendar'/);
-  assert.match(calendar,/mobile_mechanic_pending_calendar_schedule/);
-  assert.match(calendar,/data-action="schedule-job"/);
-  assert.match(calendar,/openSchedule\(String\(pending\.jobId\),String\(pending\.start\|\|''\)\)/);
-});
-
 test('production shell cache-busts the cleaned intake and calendar scripts',()=>{
   assert.match(html,/calendar-live-actions\.js\?v=20261113-intake-save1/);
   assert.match(html,/intake-queue\.js\?v=20261113-intake-save1/);

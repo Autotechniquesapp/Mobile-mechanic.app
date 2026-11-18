@@ -8,11 +8,19 @@ Deno.serve(async(req)=>{
  const supabaseUrl=Deno.env.get("SUPABASE_URL")!,anon=envKey("SUPABASE_PUBLISHABLE_KEYS","SUPABASE_ANON_KEY"),service=envKey("SUPABASE_SECRET_KEYS","SUPABASE_SERVICE_ROLE_KEY"),auth=req.headers.get("Authorization")||"";
  const uc=createClient(supabaseUrl,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false}}),admin=createClient(supabaseUrl,service,{auth:{persistSession:false}});
  const {data:{user}}=await uc.auth.getUser();if(!user)return json({error:"Authentication required."},401);
- const {data:member}=await admin.from("shop_members").select("shop_id,status").eq("user_id",user.id).eq("status","active").limit(1).maybeSingle();if(!member)return json({error:"Active shop membership required."},403);
- const body=await req.json().catch(()=>({}));if(String(body.action||"sync_job")!=="sync_job")return json({error:"Unknown action."},400);const jobId=String(body.job_id||"");if(!jobId)return json({error:"Job is required."},400);
- const {data:ints}=await admin.from("shop_integrations").select("provider,status").eq("shop_id",member.shop_id).in("provider",["google_calendar","microsoft_calendar"]);
+ const body=await req.json().catch(()=>({}));
+ if(String(body.action||"sync_job")!=="sync_job")return json({error:"Unknown action."},400);
+ const jobId=String(body.job_id||"");
+ if(!jobId)return json({error:"Job is required."},400);
+ let membership=admin.from("shop_members").select("shop_id,status").eq("user_id",user.id).eq("status","active");
+ if(body.shop_id)membership=membership.eq("shop_id",String(body.shop_id));
+ const {data:member}=await membership.limit(1).maybeSingle();
+ if(!member)return json({error:"Active shop membership required."},403);
+ const {data:j,error:je}=await admin.from("jobs").select("*,customers(name,phone),vehicles(year,make,model)").eq("shop_id",member.shop_id).eq("id",jobId).single();
+ if(je||!j)return json({error:"Job not found."},404);
+ const {data:ints,error:integrationError}=await admin.from("shop_integrations").select("provider,status").eq("shop_id",member.shop_id).in("provider",["google_calendar","microsoft_calendar"]);
+ if(integrationError)return json({error:"Could not read calendar connections."},503);
  const status=Object.fromEntries((ints||[]).map((x:any)=>[x.provider,x.status]));const provider=status.google_calendar==="connected"?"google_calendar":status.microsoft_calendar==="connected"?"microsoft_calendar":null;if(!provider)return json({ok:true,skipped:true,reason:"No external calendar connected."});
- const {data:j,error:je}=await admin.from("jobs").select("*,customers(name,phone),vehicles(year,make,model)").eq("shop_id",member.shop_id).eq("id",jobId).single();if(je||!j)return json({error:"Job not found."},404);
  let {data:c}=await admin.from("shop_integration_credentials").select("*").eq("shop_id",member.shop_id).eq("provider",provider).maybeSingle();if(!c?.access_token)return json({error:"Calendar credentials are missing. Reconnect the calendar."},409);
  const exp=c.token_expires_at?new Date(c.token_expires_at).getTime():0;
  if(exp&&exp<Date.now()+120000&&c.refresh_token){
@@ -43,7 +51,7 @@ Deno.serve(async(req)=>{
   let url=externalId?`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(externalId)}`:"https://www.googleapis.com/calendar/v3/calendars/primary/events",method=externalId?"PATCH":"POST",r=await fetch(url,{method,headers:{Authorization:`Bearer ${c.access_token}`,"Content-Type":"application/json"},body:JSON.stringify(event)});
   if(r.status===404&&externalId){externalId=null;r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",{method:"POST",headers:{Authorization:`Bearer ${c.access_token}`,"Content-Type":"application/json"},body:JSON.stringify(event)});}const d=await r.json();if(!r.ok)return json({error:d?.error?.message||"Google Calendar sync failed."},r.status);externalId=d.id;link=d.htmlLink||null;
  }else{
-  const iso=(v:string)=>String(v).replace(/Z$/,""),event={subject:title,body:{contentType:"Text",content:description},start:{dateTime:iso(j.scheduled_start_at),timeZone:"UTC"},end:{dateTime:iso(j.scheduled_end_at),timeZone:"UTC"},location:{displayName:destination},...(minutes===-1?{isReminderOn:false}:customReminder?{isReminderOn:true,reminderMinutesBeforeStart:minutes}:{})};
+  const iso=(v:string)=>new Date(v).toISOString().replace(/Z$/,""),event={subject:title,body:{contentType:"Text",content:description},start:{dateTime:iso(j.scheduled_start_at),timeZone:"UTC"},end:{dateTime:iso(j.scheduled_end_at),timeZone:"UTC"},location:{displayName:destination},...(minutes===-1?{isReminderOn:false}:customReminder?{isReminderOn:true,reminderMinutesBeforeStart:minutes}:{})};
   let url=externalId?`https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(externalId)}`:"https://graph.microsoft.com/v1.0/me/events",method=externalId?"PATCH":"POST",r=await fetch(url,{method,headers:{Authorization:`Bearer ${c.access_token}`,"Content-Type":"application/json"},body:JSON.stringify(event)});
   if(r.status===404&&externalId){externalId=null;r=await fetch("https://graph.microsoft.com/v1.0/me/events",{method:"POST",headers:{Authorization:`Bearer ${c.access_token}`,"Content-Type":"application/json"},body:JSON.stringify(event)});}const t=await r.text(),d=t?JSON.parse(t):{};if(!r.ok)return json({error:d?.error?.message||"Outlook Calendar sync failed."},r.status);externalId=d.id||externalId;link=d.webLink||null;
  }

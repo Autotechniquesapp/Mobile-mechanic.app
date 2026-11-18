@@ -232,14 +232,6 @@ function intakeVehicleDetails(v={}){
   if(v.mileage)details.push(`Mileage: ${v.mileage}`);
   return {primary,details};
 }
-function calendarStartHint(value=''){
-  const raw=String(value||'').trim();
-  if(!raw||/as soon as possible/i.test(raw))return '';
-  const parsed=new Date(raw.replace(/\s+at\s+/i,' '));
-  if(Number.isNaN(parsed.getTime()))return '';
-  const pad=n=>String(n).padStart(2,'0');
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth()+1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
-}
 function intakeCard(i){
   const v=i.vehicle||{};
   const vehicle=intakeVehicleDetails(v);
@@ -265,7 +257,7 @@ function intakeCard(i){
         <b>Requested Date & Time</b>
         <div style="margin-top:4px">${esc(i.availability||'No requested date or time')}</div>
         ${when?`<div class="small muted" style="margin-top:3px">${esc(intakeReceivedText(i.created_at))}</div>`:''}
-        <button class="btn btn-primary" style="margin-top:9px" data-convert-intake-calendar="${esc(i.id)}" data-calendar-start="${esc(calendarStartHint(i.availability||''))}">📅 Add to Calendar</button>
+        <button class="btn btn-primary" style="margin-top:9px" data-convert-intake-calendar="${esc(i.id)}">📅 Add to Calendar</button>
       </div>
       <div class="list-actions" style="margin-top:10px"><button type="button" class="btn btn-soft" data-close-intake-modal>Close for Now</button><button type="button" class="btn btn-soft" data-delete-intake="${esc(i.id)}">Delete Intake</button></div>
     </div>
@@ -352,47 +344,57 @@ async function alignRepeatCustomerIdentity(intakeId){
   return true;
 }
 
-async function saveIntakeAppointment(jobId,startValue){
-  if(!startValue)return null;
-  const start=new Date(startValue);
-  if(Number.isNaN(start.getTime()))throw new Error('Choose a valid appointment time.');
-  const sid=shopId();
-  const {data:job,error:readError}=await sb.from('jobs').select('id,scheduled_start_at,estimated_labor_hours,travel_minutes,buffer_minutes').eq('id',jobId).eq('shop_id',sid).single();
+async function confirmIntakeConversion(sid,id){
+  if(shopId()!==sid)throw new Error('Shop session changed.');
+  const {data:latest,error:readError}=await sb.from('intake_submissions').select('converted_job_id')
+    .eq('shop_id',sid).eq('id',id).single();
   if(readError)throw readError;
-  // A retry must not move an appointment already saved for this intake.
-  if(job.scheduled_start_at)return job.scheduled_start_at;
-  const minutes=Math.max(.25,Number(job.estimated_labor_hours||1))*60+Number(job.travel_minutes||0)+Number(job.buffer_minutes??15);
-  const {data,error}=await sb.from('jobs').update({scheduled_start_at:start.toISOString(),scheduled_end_at:new Date(start.getTime()+minutes*60000).toISOString(),status:'scheduled'}).eq('id',jobId).eq('shop_id',sid).is('scheduled_start_at',null).select('id');
+  if(latest.converted_job_id)return latest.converted_job_id;
+  await alignRepeatCustomerIdentity(id);
+  const {data:jobId,error}=await sb.rpc('convert_schedule_intake_once',{p_shop_id:sid,p_intake_id:id});
   if(error)throw error;
-  if(!data?.length)throw new Error('The appointment changed. Refresh and check its scheduled time.');
-  return start.toISOString();
+  await carryWorkupToJob(id,jobId);
+  return jobId;
 }
 
 async function convertIntakeToCalendar(id,button){
-  if(!id||button?.disabled)return;
-  const original=button.textContent;
-  button.disabled=true;button.textContent='Adding to Calendar…';
+  const sid=shopId();
+  if(!id||!sid||button.disabled)return;
+  button.disabled=true;
   try{
-    await alignRepeatCustomerIdentity(id);
-    const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
-    if(error)throw error;
-    const scheduledStart=await saveIntakeAppointment(data,button.dataset.calendarStart||'');
-    await carryWorkupToJob(id,data);
-    const c=cache();
-    if(c.session){c.session.activeJobId=data;localStorage.setItem(DBKEY,JSON.stringify(c));}
-    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:data,start:scheduledStart||'',saved:!!scheduledStart,createdAt:Date.now()}));
-    document.querySelector('.modal-backdrop')?.remove();
-    location.hash='#calendar';
-    location.reload();
-  }catch(err){button.disabled=false;button.textContent=original;notice(err.message||'Could not open this intake on the calendar.','bad');}
+    const {data:intake,error}=await sb.from('intake_submissions').select('*')
+      .eq('shop_id',sid).eq('id',id).single();
+    if(error||shopId()!==sid)throw new Error('This intake is unavailable.');
+    const opened=window.MobileMechanicOpenSchedule?.({
+      customerName:intake.customer_name,vehicle:intake.vehicle,phone:intake.phone,
+      complaint:intake.customer_states,location:intake.address,currentLocation:intake.current_location,
+      availability:intake.availability
+    },{
+      shopId:sid,intakeId:id,
+      convert:()=>confirmIntakeConversion(sid,id)
+    });
+    if(!opened)throw new Error('Could not open the scheduling form.');
+    const queue=document.querySelector('[data-intake-queue-modal]');
+    const queueDisplay=queue?.style.display;
+    if(queue)queue.style.display='none';
+    opened.addEventListener('schedule-closed',()=>{
+      if(opened.dataset.convertedJob){
+        queue?.remove();
+      }else if(queue){
+        queue.style.display=queueDisplay;
+        button.focus();
+      }
+    },{once:true});
+  }catch{
+    notice('Could not open this intake for scheduling. Try again.','bad');
+  }finally{
+    button.disabled=false;
+  }
 }
 async function convertIntake(id,button){
   button.disabled=true;button.textContent='Converting…';
   try{
-    await alignRepeatCustomerIdentity(id);
-    const {data,error}=await sb.rpc('convert_intake_to_job',{p_intake_id:id});
-    if(error)throw error;
-    await carryWorkupToJob(id,data);
+    const data=await confirmIntakeConversion(shopId(),id);
     notice('Customer, vehicle, and job created.','good');
     document.querySelector('.modal-backdrop')?.remove();
     const c=cache();
