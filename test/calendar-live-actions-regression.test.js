@@ -12,9 +12,9 @@ test('calendar renders a seven day shop schedule and needs-time queue',()=>{
 });
 
 test('calendar opens the actual job and edits schedule from the same screen',()=>{
-  assert.match(calendar,/data-open-job/);
+  assert.match(calendar,/dataset.openJob/);
   assert.match(calendar,/data-cal-edit/);
-  assert.match(calendar,/\[data-cal-schedule-triggers\]/);
+  assert.match(calendar,/MobileMechanicOpenSchedule/);
 });
 
 test('removing a schedule persists and syncs the external calendar',()=>{

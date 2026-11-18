@@ -10,7 +10,7 @@ function setup(value){
   elements.scheduleStart.value=value;
   elements.scheduleTime.value=value.slice(11);
   const ctx={Date,Event:class {},document:{getElementById:id=>elements[id]},window:{}};
-  vm.createContext(ctx);vm.runInContext(helpers,ctx);ctx.bindSchedulePicker();
+  vm.createContext(ctx);vm.runInContext(helpers,ctx);ctx.window.MobileMechanicScheduleTime={wallValue:ctx.localDateTimeValue};ctx.bindSchedulePicker();
   return {ctx,e:elements,click(data){elements.scheduleDateCalendar.handlers.click({target:{closest:selector=>selector===data.selector?{dataset:data.dataset}:null}});}};
 }
 test('new jobs start scheduling on the local current date and existing appointments retain their start',()=>{

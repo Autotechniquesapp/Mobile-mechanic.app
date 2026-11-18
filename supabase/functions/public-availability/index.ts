@@ -34,21 +34,25 @@ Deno.serve(async(req)=>{
   const {data:shop,error:shopErr}=await q.maybeSingle();
   if(shopErr||!shop)return json({error:"Shop not found."},404);
 
-  const busy:{start:string,end:string,source:"shop"|"google"}[]=[];
-  const {data:jobs}=await admin.from("jobs")
+  const busy:{start:string,end:string,source:"shop"|"google"|"outlook"}[]=[];
+  const {data:jobs,error:jobsError}=await admin.from("jobs")
     .select("scheduled_start_at,scheduled_end_at,status")
     .eq("shop_id",shop.shop_id)
     .not("scheduled_start_at","is",null)
     .lt("scheduled_start_at",end.toISOString())
     .gt("scheduled_end_at",start.toISOString());
+  if(jobsError)return json({error:"Shop availability unavailable."},503);
   for(const j of jobs||[]){
     const state=String(j.status||"").toLowerCase();
     if(state==="completed"||state==="cancelled"||state.includes("declined"))continue;
     if(j.scheduled_start_at&&j.scheduled_end_at)busy.push({start:j.scheduled_start_at,end:j.scheduled_end_at,source:"shop"});
   }
 
-  const {data:int}=await admin.from("shop_integrations").select("status").eq("shop_id",shop.shop_id).eq("provider","google_calendar").maybeSingle();
-  let googleConnected=int?.status==="connected";
+  const {data:integrations,error:integrationError}=await admin.from("shop_integrations")
+    .select("provider,status").eq("shop_id",shop.shop_id).in("provider",["google_calendar","microsoft_calendar"]);
+  if(integrationError)return json({error:"Calendar connections unavailable."},503);
+  const connected=(provider:string)=>integrations?.some(row=>row.provider===provider&&row.status==="connected")??false;
+  let googleConnected=connected("google_calendar");
   if(googleConnected){
     let {data:c}=await admin.from("shop_integration_credentials").select("*").eq("shop_id",shop.shop_id).eq("provider","google_calendar").maybeSingle();
     if(c?.access_token){
@@ -69,10 +73,10 @@ Deno.serve(async(req)=>{
         const u=new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
         u.searchParams.set("timeMin",start.toISOString());u.searchParams.set("timeMax",end.toISOString());
         u.searchParams.set("singleEvents","true");u.searchParams.set("showDeleted","false");u.searchParams.set("maxResults","2500");
-        u.searchParams.set("fields","items(start,end,status,transparency)");
+        u.searchParams.set("fields","nextPageToken,items(start,end,status,transparency)");
         const gr=await fetch(u,{headers:{Authorization:`Bearer ${c.access_token}`}});
         const gd=await gr.json().catch(()=>({}));
-        if(gr.ok){
+        if(gr.ok&&!gd.nextPageToken){
           for(const ev of gd.items||[]){
             if(ev.status==="cancelled"||ev.transparency==="transparent")continue;
             const s=ev.start?.dateTime||ev.start?.date,e=ev.end?.dateTime||ev.end?.date;
@@ -83,6 +87,52 @@ Deno.serve(async(req)=>{
     } else googleConnected=false;
   }
 
+  let outlookChecked=!connected("microsoft_calendar");
+  if(!outlookChecked){
+    const {data:credentials}=await admin.from("shop_integration_credentials").select("*")
+      .eq("shop_id",shop.shop_id).eq("provider","microsoft_calendar").maybeSingle();
+    let access=credentials?.access_token;
+    const expires=Date.parse(credentials?.token_expires_at||"");
+    if(expires<Date.now()+120000&&credentials?.refresh_token){
+      const tenant=Deno.env.get("MICROSOFT_TENANT_ID")||"common";
+      const form=new URLSearchParams({
+        client_id:Deno.env.get("MICROSOFT_CLIENT_ID")||"",
+        client_secret:Deno.env.get("MICROSOFT_CLIENT_SECRET")||"",
+        refresh_token:credentials.refresh_token,grant_type:"refresh_token"
+      });
+      const refresh=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,{
+        method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:form
+      });
+      const token=await refresh.json().catch(()=>({}));
+      access=refresh.ok?token.access_token:null;
+      if(access){
+        await admin.from("shop_integration_credentials").update({
+          access_token:access,refresh_token:token.refresh_token||credentials.refresh_token,
+          token_expires_at:addSeconds(Number(token.expires_in||3600)),updated_at:new Date().toISOString()
+        }).eq("shop_id",shop.shop_id).eq("provider","microsoft_calendar");
+      }
+    }
+    if(access){
+      const view=new URL("https://graph.microsoft.com/v1.0/me/calendarView");
+      view.searchParams.set("startDateTime",start.toISOString());
+      view.searchParams.set("endDateTime",end.toISOString());
+      view.searchParams.set("$select","start,end,showAs,isCancelled");
+      view.searchParams.set("$top","1000");
+      const response=await fetch(view,{headers:{Authorization:`Bearer ${access}`,Prefer:'outlook.timezone="UTC"'}});
+      const result=await response.json().catch(()=>({}));
+      if(response.ok&&Array.isArray(result.value)&&!result["@odata.nextLink"]){
+        outlookChecked=true;
+        for(const event of result.value){
+          if(event.isCancelled||event.showAs==="free")continue;
+          const utc=(value:unknown)=>typeof value==="string"&&validIso(/[zZ]|[+-]\d{2}:\d{2}$/.test(value)?value:value+"Z");
+          const from=utc(event.start?.dateTime),to=utc(event.end?.dateTime);
+          if(!from||!to){outlookChecked=false;break;}
+          busy.push({start:from.toISOString(),end:to.toISOString(),source:"outlook"});
+        }
+      }
+    }
+  }
+
   busy.sort((a,b)=>new Date(a.start).getTime()-new Date(b.start).getTime());
   const merged:{start:string,end:string}[]=[];
   for(const row of busy){
@@ -91,5 +141,5 @@ Deno.serve(async(req)=>{
       if(new Date(row.end)>new Date(last.end))last.end=row.end;
     }else merged.push({start:row.start,end:row.end});
   }
-  return json({ok:true,shop_id:shop.shop_id,google_connected:googleConnected,busy:merged});
+  return json({ok:true,shop_id:shop.shop_id,google_connected:googleConnected,calendar_check_failed:!outlookChecked||(connected("google_calendar")&&!googleConnected),busy:merged});
 });

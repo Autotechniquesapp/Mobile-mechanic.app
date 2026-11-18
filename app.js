@@ -281,7 +281,7 @@ function shopIntake(s, publicMode=false){
   <form id="intakeForm" data-shop="${s.id}" data-public="${publicMode}">
     <section class="customer-card"><h3>1 • Customer Information</h3><div class="row2"><div class="field"><label>Name</label><input name="customerName" required placeholder="Full name"></div><div class="field"><label>Phone</label><input name="phone" type="tel" required placeholder="Phone"></div></div><div class="row2"><div class="field"><label>Email</label><input name="email" type="email" placeholder="Email"></div><div class="field"><label>Availability</label><input name="availability" placeholder="Date / time window"></div></div><div class="field"><label>Service Location</label><div class="field-inline"><input id="serviceLocation" name="location" placeholder="Address or current location"><button type="button" class="btn btn-soft" data-action="location">${ic('location')} Use Current</button></div></div></section>
     <section class="customer-card"><h3>2 • ${esc(assetTerm(s))}</h3><div class="row3"><div class="field"><label>Year</label><select name="year" required><option value="">Year</option>${yearOptions()}</select></div><div class="field"><label>Make</label><select name="make" required><option value="">Make</option>${vehMakes.map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>Model</label><input name="model" required placeholder="Model / Other"></div></div><div class="row3"><div class="field"><label>Submodel / Trim</label><input name="trim" placeholder="LT, XLE, Sport..."></div><div class="field"><label>Engine</label><input name="engine" placeholder="1.8L / 3.5L..."></div><div class="field"><label>Drive</label><select name="drive"><option>2WD</option><option>FWD</option><option>RWD</option><option>4WD</option><option>AWD</option><option>Other</option></select></div></div><div class="row2"><div class="field"><label>VIN</label><div class="field-inline"><input id="vinInput" name="vin" maxlength="17" placeholder="17-digit VIN"><button type="button" class="btn btn-soft" data-action="vin-decode">Decode</button></div></div><div class="field"><label>License Plate</label><input name="plate" placeholder="Plate (lookup API later)"></div></div><div class="row2"><div class="field"><label>Mileage</label><input name="mileage" type="number" placeholder="Current mileage"></div><div class="field"><label>VIN / Plate Scan</label><button type="button" class="btn btn-soft btn-wide" data-action="scan-placeholder">${ic('camera')} Camera Scan</button></div></div><div id="vinResult" class="small muted"></div></section>
-    <section class="customer-card"><h3>3 • ${esc(assetTerm(s))} Concern</h3><div class="field"><label>What's going on with the ${esc(assetTermLower(s))}?</label><textarea id="complaintInput" name="complaint" required placeholder="Describe the problem, symptoms, noises, warning lights, when it happens, etc."></textarea></div><div class="btn-row"><button type="button" class="btn btn-soft" data-action="voice-customer">${ic('mic')} Speak Concern</button><span class="badge">Voice transcription when supported by device</span></div></section>
+    <section class="customer-card"><h3>3 • ${esc(assetTerm(s))} Concern</h3><div class="field"><label>What's going on with the ${esc(assetTermLower(s))}?</label><textarea id="complaintInput" name="complaint" required placeholder="Please be as detailed as possible. Include when it started, when it happens, any noises or warning lights, and any recent repairs."></textarea></div><div class="btn-row"><button type="button" class="btn btn-soft" data-action="voice-customer">${ic('mic')} Speak Concern</button><span class="badge">Voice transcription when supported by device</span></div></section>
     <section class="customer-card"><h3>4 • Request Type</h3><div class="row2"><label class="list-item"><input type="radio" name="requestType" value="Repair / Diagnostic" checked><div class="list-main"><b>Repair / Diagnostic</b><p>Send your ${esc(assetTermLower(s))} request to the shop.</p></div></label><label class="list-item"><input type="radio" name="requestType" value="Pre-Purchase Inspection"><div class="list-main"><b>Pre-Purchase Inspection</b><p>Vehicle inspection before purchase.</p></div></label></div></section>
   </form></div><div class="customer-footer"><button class="customer-submit" type="submit" form="intakeForm">SEND TO ${esc(s.name).toUpperCase()}</button><p class="tiny muted" style="text-align:center;margin:7px 0 0">Your information is sent securely to this shop.</p></div></div></section>`;
   bind();
@@ -314,7 +314,7 @@ function jobs(){
   const s=currentShop();
   const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const buckets=[
-    ['Need Time',active.filter(j=>!j.scheduledStart&&j.status!=='Awaiting Approval')],
+    ['Needs Time',active.filter(j=>!j.scheduledStart)],
     ['Awaiting Approval',active.filter(j=>j.status==='Awaiting Approval')],
     ['Scheduled',active.filter(j=>j.scheduledStart&&/scheduled|pre-workup/i.test(String(j.status||'')))],
     ['In Progress',active.filter(j=>/in progress|diagnosis|findings|approved|ready for work/i.test(String(j.status||'')))],
@@ -333,43 +333,45 @@ function scheduleDurationMinutes(j){ return Math.max(15,Math.round(Number(j.esti
 function scheduleEnd(start,j){ return new Date(new Date(start).getTime()+scheduleDurationMinutes(j)*60000); }
 function localDateTimeValue(v){ if(!v)return ''; const d=new Date(v),pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function schedulePickerMarkup(j){
-  const value=localDateTimeValue(j.scheduledStart||new Date());
-  return `<input id="scheduleStart" type="datetime-local" value="${value}" hidden><div class="row2"><div class="field"><label for="scheduleDateButton">Start Date</label><button id="scheduleDateButton" type="button" class="btn btn-soft btn-wide" aria-expanded="false" aria-controls="scheduleDateCalendar">📅 Select date</button></div><div class="field"><label for="scheduleTime">Start Time</label><input id="scheduleTime" type="time" value="${value.slice(11)}" hidden><b id="scheduleTimeLabel"></b></div></div><div id="scheduleDateCalendar" class="work-card" style="margin-bottom:16px;max-width:420px"></div><div class="field"><label>Tap a start time</label><div id="scheduleTimeSlots" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;max-height:210px;overflow:auto"></div></div>`;
+  const value=j.scheduleInput??localDateTimeValue(j.scheduledStart||new Date());
+  return `<input id="scheduleStart" type="datetime-local" value="${value}" hidden><div class="row2"><div class="field"><label for="scheduleDateButton">Start Date</label><button id="scheduleDateButton" type="button" class="btn btn-soft btn-wide" aria-expanded="false" aria-controls="scheduleDateCalendar">📅 Select date</button></div><div class="field"><label for="scheduleTime">Start Time</label><input id="scheduleTime" type="time" value="${value.slice(11)}"><b id="scheduleTimeLabel"></b></div></div><div id="scheduleDateCalendar" class="work-card" style="margin-bottom:16px;max-width:420px"></div><div class="field"><label>Tap a start time</label><div id="scheduleTimeSlots" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;max-height:210px;overflow:auto"></div></div>`;
 }
 function bindSchedulePicker(){
   const input=document.getElementById('scheduleStart'),button=document.getElementById('scheduleDateButton'),calendar=document.getElementById('scheduleDateCalendar'),timeInput=document.getElementById('scheduleTime');
   if(!input||!button||!calendar||!timeInput)return;
-  let month=new Date(`${input.value.slice(0,10)}T12:00:00`);month.setDate(1);
+  const todayKey=()=>window.MobileMechanicScheduleTime.wallValue(new Date()).slice(0,10);
+  let month=new Date(`${input.value.slice(0,10)||todayKey()}T12:00:00`);month.setDate(1);
   const key=d=>localDateTimeValue(d).slice(0,10);
   function renderMonth(){
-    const first=new Date(month.getFullYear(),month.getMonth(),1),days=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(),chosen=input.value.slice(0,10),today=key(new Date());
+    const first=new Date(month.getFullYear(),month.getMonth(),1),days=new Date(month.getFullYear(),month.getMonth()+1,0).getDate(),chosen=button.dataset.date,today=todayKey();
     calendar.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px"><button type="button" class="btn btn-soft" data-schedule-month="-1" aria-label="Previous month">‹</button><b aria-live="polite">${month.toLocaleDateString([],{month:'long',year:'numeric'})}</b><button type="button" class="btn btn-soft" data-schedule-month="1" aria-label="Next month">›</button></div><div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<small aria-hidden="true">${d}</small>`).join('')}${Array.from({length:first.getDay()},()=>'<span></span>').join('')}${Array.from({length:days},(_,i)=>{const d=new Date(month.getFullYear(),month.getMonth(),i+1,12),value=key(d);return `<button type="button" class="btn ${value===chosen?'btn-primary':'btn-soft'}" style="padding:8px 0;min-height:40px" data-schedule-date="${value}" aria-label="${d.toLocaleDateString([],{weekday:'long',year:'numeric',month:'long',day:'numeric'})}" aria-pressed="${value===chosen}" ${value===today?'aria-current="date"':''}>${i+1}</button>`;}).join('')}</div><button type="button" class="btn btn-soft" style="margin-top:12px" data-schedule-today>Today</button>`;
   }
   function renderTimes(){
     const slots=document.getElementById('scheduleTimeSlots'),label=document.getElementById('scheduleTimeLabel');if(!slots)return;
     const values=new Set(Array.from({length:48},(_,i)=>`${String(Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}`));if(timeInput.value)values.add(timeInput.value);
     const labelFor=v=>new Date(`2000-01-01T${v}`).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    if(label)label.textContent=labelFor(timeInput.value||'09:00');
+    if(label)label.textContent=timeInput.value?labelFor(timeInput.value):'';
     slots.innerHTML=[...values].sort().map(v=>`<button type="button" class="btn ${v===timeInput.value?'btn-primary':'btn-soft'}" data-schedule-time="${v}" aria-pressed="${v===timeInput.value}">${labelFor(v)}</button>`).join('');
   }
   function sync(){
-    button.dataset.date=input.value.slice(0,10);
+    button.dataset.date=input.value.slice(0,10)||button.dataset.date||todayKey();
     const date=new Date(`${button.dataset.date}T12:00:00`);
     button.textContent=`📅 ${date.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'})}`;
     timeInput.value=input.value.slice(11,16);renderTimes();
   }
-  function selectDate(value){input.value=`${value}T${timeInput.value||'09:00'}`;sync();renderMonth();input.dispatchEvent(new Event('change',{bubbles:true}));}
-  button.addEventListener('click',()=>{calendar.hidden=!calendar.hidden;button.setAttribute('aria-expanded',String(!calendar.hidden));if(!calendar.hidden){month=new Date(`${input.value.slice(0,10)}T12:00:00`);month.setDate(1);renderMonth();}});
-  calendar.addEventListener('click',e=>{const nav=e.target.closest('[data-schedule-month]');if(nav){month.setMonth(month.getMonth()+Number(nav.dataset.scheduleMonth));renderMonth();return;}const day=e.target.closest('[data-schedule-date]');if(day){selectDate(day.dataset.scheduleDate);return;}if(e.target.closest('[data-schedule-today]'))selectDate(key(new Date()));});
+  function selectDate(value){button.dataset.date=value;
+    input.value=timeInput.value?`${value}T${timeInput.value}`:'';sync();renderMonth();input.dispatchEvent(new Event('change',{bubbles:true}));}
+  button.addEventListener('click',()=>{calendar.hidden=!calendar.hidden;button.setAttribute('aria-expanded',String(!calendar.hidden));if(!calendar.hidden){month=new Date(`${button.dataset.date||todayKey()}T12:00:00`);month.setDate(1);renderMonth();}});
+  calendar.addEventListener('click',e=>{const nav=e.target.closest('[data-schedule-month]');if(nav){month.setMonth(month.getMonth()+Number(nav.dataset.scheduleMonth));renderMonth();return;}const day=e.target.closest('[data-schedule-date]');if(day){selectDate(day.dataset.scheduleDate);return;}if(e.target.closest('[data-schedule-today]'))selectDate(todayKey());});
   calendar.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();calendar.hidden=true;button.setAttribute('aria-expanded','false');button.focus();}});
   timeInput.addEventListener('change',()=>{input.value=timeInput.value?`${button.dataset.date}T${timeInput.value}`:'';renderTimes();});
-  window.MobileMechanicSchedulePicker={setStart(value){const d=new Date(value);if(Number.isNaN(d.getTime()))return;input.value=localDateTimeValue(d);sync();if(!calendar.hidden){month=new Date(d.getFullYear(),d.getMonth(),1);renderMonth();}}};
+  window.MobileMechanicSchedulePicker={setStart(value){const d=new Date(value);if(Number.isNaN(d.getTime()))return;input.value=window.MobileMechanicScheduleTime.wallValue(d);sync();if(!calendar.hidden){month=new Date(d.getFullYear(),d.getMonth(),1);renderMonth();}}};
   const slots=document.getElementById('scheduleTimeSlots');
   slots?.addEventListener('click',e=>{const slot=e.target.closest('[data-schedule-time]');if(!slot)return;timeInput.value=slot.dataset.scheduleTime;input.value=`${button.dataset.date}T${timeInput.value}`;renderTimes();input.dispatchEvent(new Event('change',{bubbles:true}));});
   sync();calendar.hidden=false;button.setAttribute('aria-expanded','true');renderMonth();
 }
 function scheduleWindow(j){ if(!j.scheduledStart)return j.availability||'Schedule time not set'; const start=new Date(j.scheduledStart),end=j.scheduledEnd?new Date(j.scheduledEnd):scheduleEnd(j.scheduledStart,j); return `${start.toLocaleDateString()} ${start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`; }
-function scheduleConflict(job,start,end){ const s=currentShop(); return s.jobs.find(j=>j.id!==job.id&&j.scheduledStart&&j.scheduledEnd&&new Date(j.scheduledStart)<end&&new Date(j.scheduledEnd)>start); }
+
 function genericWorkup(j){
   const c=(j.complaint||'').toLowerCase();
   let causes=[['Confirm complaint and scan all modules',86],['Inspect power, grounds, connectors, and obvious mechanical faults',78],['Use service information to test the affected system before replacing parts',72]];
@@ -525,7 +527,6 @@ function more(){
 
 function calendar(){
   const s=currentShop();
-  const active=s.jobs.filter(j=>!['Completed','Cancelled'].includes(j.status)&&!String(j.status||'').toLowerCase().includes('declined'));
   const content=`${pageTitle('Schedule','Your live shop calendar. Tap a day, open a job, or change a time without leaving the schedule.')}
   <section class="card card-pad ops-calendar" data-mma-calendar>
     <div class="ops-calendar-toolbar"><div><button class="btn btn-soft" type="button" data-cal-week-prev>‹</button><button class="btn btn-soft" type="button" data-cal-today>Today</button><button class="btn btn-soft" type="button" data-cal-week-next>›</button></div><b data-cal-week-title></b><div class="btn-row"><button class="btn btn-soft" type="button" data-cal-view="day">Day</button><button class="btn btn-soft" type="button" data-cal-view="week">Week</button><button class="btn btn-soft" type="button" data-cal-view="month">Month</button></div><button class="btn btn-primary" data-route="new-intake">+ New Job</button></div>
@@ -533,8 +534,7 @@ function calendar(){
     <div class="ops-day-head"><div><b data-cal-day-title></b><span>Time · customer · vehicle · location</span></div></div>
     <div data-cal-slot-grid></div><div class="ops-agenda-list" data-cal-agenda></div>
   </section>
-  <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests that are not on the calendar yet</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>
-  <div hidden data-cal-schedule-triggers>${active.map(j=>`<button type="button" data-action="schedule-job" data-job="${esc(j.id)}">Schedule</button>`).join('')}</div>`;
+  <section class="card card-pad ops-needs-time"><div class="ops-section-head"><div><b>Needs Time</b><span>Customer requests that are not on the calendar yet</span></div></div><div class="ops-needs-grid" data-cal-unscheduled></div></section>`;
   shopShell(content,'calendar');
 }
 function reportJobFacts(s,j){
@@ -606,9 +606,33 @@ function addVehicle(customerId){
   const s=currentShop(),c=s.customers.find(x=>x.id===customerId); if(!c)return;
   modal('Add Vehicle',`<form id="addVehicleForm" data-customer="${c.id}"><div class="row2"><div class="field"><label>Year</label><select name="year">${yearOptions()}</select></div><div class="field"><label>Make</label><input name="make" required></div></div><div class="row2"><div class="field"><label>Model</label><input name="model" required></div><div class="field"><label>Engine</label><input name="engine"></div></div><div class="field"><label>VIN</label><input name="vin" maxlength="17"></div><button class="btn btn-primary">Save Vehicle</button></form>`);
 }
-function closeModal(){ document.querySelector('.modal-backdrop')?.remove(); }
-function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" type="button" data-action="close-modal" aria-label="Close">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); }
-document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-backdrop');if(e.target.closest?.('[data-action="close-modal"]')||e.target===backdrop)closeModal();},true);
+function closeModal(target){
+  const panel=target?.closest?.('.modal-backdrop')||Array.from(document.querySelectorAll('.modal-backdrop')).at(-1);
+  if(!panel||panel.dataset.saving==='true')return;
+  panel.remove();
+  panel.dispatchEvent(new Event('schedule-closed'));
+}
+function openScheduleModal(job,options={}){
+  const details=window.MobileMechanicScheduleDetails, clock=window.MobileMechanicScheduleTime;
+  if(!details||!clock||!window.MobileMechanicSaveSchedule)return;
+  const initial=options.initialStart?clock.wallValue(options.initialStart):job.scheduledStart?clock.wallValue(job.scheduledStart):
+    options.intakeId?clock.requestedValue(job.availability):clock.wallValue(new Date());
+  const panel=modal('Schedule Job',`<p><b>${esc(job.customerName||'Customer')}</b> · ${esc(vehicleText(job.vehicle)||'Vehicle details pending')}</p>
+    <p class="small muted">Times shown in ${esc(clock.zone())}.</p>
+    ${options.intakeId?`<p>Requested time: ${esc(job.availability||'No time requested')}</p>`:''}
+    ${schedulePickerMarkup({...job,scheduleInput:initial})}
+    <div class="row3"><div class="field"><label for="scheduleHours">Labor Hours</label><input id="scheduleHours" type="number" step=".25" min=".25" value="${Number(job.estimatedLaborHours||1)}"></div><div class="field"><label for="scheduleTravel">Travel Minutes</label><input id="scheduleTravel" type="number" min="0" value="${Number(job.travelMinutes||0)}"></div><div class="field"><label for="scheduleBuffer">Buffer Minutes</label><input id="scheduleBuffer" type="number" min="0" value="${Number(job.bufferMinutes??15)}"></div></div>
+    ${details.markup(job)}
+    <p data-schedule-error role="alert" hidden></p>
+    <button type="button" class="btn btn-primary btn-wide" data-action="save-schedule" data-job="${esc(job.id||'')}">Confirm &amp; Save</button>`);
+  bindSchedulePicker();
+  details.bind(job);
+  panel.querySelector('[data-action="save-schedule"]').addEventListener('click',e=>window.MobileMechanicSaveSchedule(e.currentTarget,job,options));
+  return panel;
+}
+window.MobileMechanicOpenSchedule=openScheduleModal;
+function modal(title,body){ const d=document.createElement('div'); d.className='modal-backdrop'; d.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" type="button" data-action="close-modal" aria-label="Close">×</button></div>${body}</div>`; document.body.appendChild(d); bind(); return d; }
+document.addEventListener('click',e=>{const backdrop=e.target.closest?.('.modal-backdrop');if(e.target.closest?.('[data-action="close-modal"]')||e.target===backdrop)closeModal(e.target);},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 function bind(){
@@ -667,8 +691,11 @@ function bind(){
   document.querySelectorAll('[data-action="copy-text"]').forEach(b=>b.addEventListener('click',()=>navigator.clipboard?.writeText(b.dataset.copy||'').then(()=>toast('Copied.','good'))));
 
   document.querySelector('[data-action="save-estimate"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.estimate=estimateFromJob(j,currentShop());j.status='Estimate Ready';save();toast('Good / Better / Best saved to job.','good');});
-  document.querySelectorAll('[data-action="schedule-job"]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const j=jobById(b.dataset.job);if(!j)return;modal('Schedule Job',`${schedulePickerMarkup(j)}<div class="row3"><div class="field"><label>Labor Hours</label><input id="scheduleHours" type="number" step=".25" min=".25" value="${Number(j.estimatedLaborHours||1)}"></div><div class="field"><label>Travel Minutes</label><input id="scheduleTravel" type="number" min="0" value="${Number(j.travelMinutes||0)}"></div><div class="field"><label>Buffer Minutes</label><input id="scheduleBuffer" type="number" min="0" value="${Number(j.bufferMinutes??15)}"></div></div>${window.MobileMechanicScheduleDetails.markup(j)}<button class="btn btn-primary btn-wide" data-action="save-schedule" data-job="${j.id}">${ic('calendar')} Save Schedule Block</button><p class="small muted">End time is calculated from labor + travel + buffer. The app warns you if another scheduled job overlaps.</p>`);bindSchedulePicker();window.MobileMechanicScheduleDetails.bind(j);}));
-  document.querySelector('[data-action="save-schedule"]')?.addEventListener('click',async e=>{const j=jobById(e.currentTarget.dataset.job);if(!j)return;const startVal=document.getElementById('scheduleStart').value;if(!startVal)return toast('Pick a start time.','bad');j.estimatedLaborHours=Number(document.getElementById('scheduleHours').value||1);j.travelMinutes=Number(document.getElementById('scheduleTravel').value||0);j.bufferMinutes=Number(document.getElementById('scheduleBuffer').value||15);let details;try{details=window.MobileMechanicScheduleDetails.read();}catch(err){return toast(err.message,'bad');}j.scheduleNotes=details.schedule_notes;j.scheduleReminderMinutes=details.schedule_reminder_minutes;j.location=details.current_location.raw;j.currentLocation=details.current_location;const start=new Date(startVal),end=scheduleEnd(start,j),conflict=scheduleConflict(j,start,end);if(conflict&&!confirm(`This overlaps ${conflict.customerName || 'another job'}. Save anyway?`))return;j.scheduledStart=start.toISOString();j.scheduledEnd=end.toISOString();j.status=j.status==='AI Pre-Workup'?'Scheduled':j.status;save();toast('Schedule block saved.','good');document.querySelector('.modal-backdrop')?.remove();calendar();});
+  document.querySelectorAll('[data-action="schedule-job"]').forEach(b=>b.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    const j=jobById(b.dataset.job);
+    if(j)openScheduleModal(j);
+  }));
   document.querySelectorAll('[data-action="open-maps"]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const loc=b.dataset.location;if(!loc)return toast('No location saved.','bad');window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`,'_blank');}));
   document.querySelector('[data-action="send-estimate"]')?.addEventListener('click',e=>estimateShare(e.currentTarget.dataset.job));
   document.querySelector('[data-action="single-estimate"]')?.addEventListener('click',e=>{const j=jobById(e.currentTarget.dataset.job);j.estimate=estimateFromJob(j,currentShop());modal('Send One Estimate Option',`<p class="muted small">Choose the one option you want the customer to see. Production backend will create a secure, versioned authorization link.</p>${Object.entries(j.estimate).map(([k,o])=>`<button class="btn btn-wide ${k==='better'?'btn-primary':'btn-soft'}" data-action="send-one" data-job="${j.id}" data-option="${k}">${o.title} — ${money(o.price)}</button>`).join('<br><br>')}`);});
@@ -731,7 +758,6 @@ function bind(){
   document.querySelector('[data-action="clock-in"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser();s.timeEntries=Array.isArray(s.timeEntries)?s.timeEntries:[];if(!s.timeEntries.some(x=>x.userId===u.id&&!x.clockOut))s.timeEntries.push({id:uid('time'),userId:u.id,clockIn:nowISO(),clockOut:null});save();timeClock();toast('Clocked in.','good');});
   document.querySelector('[data-action="clock-out"]')?.addEventListener('click',()=>{const s=currentShop(),u=currentUser(),entry=(s.timeEntries||[]).find(x=>x.userId===u.id&&!x.clockOut);if(entry)entry.clockOut=nowISO();save();timeClock();toast('Clocked out.','good');});
   document.querySelectorAll('[data-action="not-connected"]').forEach(b=>b.onclick=()=>toast('This secure API is not connected in the static prototype.',''));
-  document.querySelector('[data-action="close-modal"]')?.addEventListener('click',closeModal);
   document.querySelector('[data-action="return-admin"]')?.addEventListener('click',()=>{const r=db.session?.platformReturn;if(!r)return;db.session={role:r.role,adminId:r.adminId};save();location.hash='#admin';platformAdmin();});
   document.querySelectorAll('[data-action="logout"]').forEach(b=>b.onclick=()=>login());
   document.querySelector('[data-action="toggle-menu"]')?.addEventListener('click',()=>{

@@ -56,7 +56,7 @@ function labelFor(d){
   return d.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric',year:'numeric'});
 }
 function timeLabel(d){return d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});}
-function valueFor(d){return `${d.toLocaleDateString()} at ${timeLabel(d)}`;}
+function valueFor(d){return d.toISOString();}
 
 function mount(form){
   const input=form.elements.availability;

@@ -47,7 +47,7 @@ test('the fallback disclosure is cache-busted into production',()=>{
 
 
 test('production job writes stay scoped to the selected shop',()=>{
-  assert.match(production,/save-schedule'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
+  assert.match(fs.readFileSync('integration-automation.js','utf8'),/update\([\s\S]*?eq\('shop_id',sid\)\.eq\('id',jobId\)/);
   assert.match(production,/save-findings'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
   assert.match(production,/complete-job'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);
   assert.match(production,/decline-job'[\s\S]*?eq\('id',jid\)\.eq\('shop_id',sid\)/);

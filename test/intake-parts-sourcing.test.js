@@ -69,7 +69,7 @@ test('a missing catalog yields no parts rather than a starter-only list', () => 
 
 test('converting an intake carries the AI workup onto the job', () => {
   assert.match(intakeQueue, /async function carryWorkupToJob/);
-  assert.match(intakeQueue, /await carryWorkupToJob\(id,data\)/);
+  assert.match(intakeQueue, /await carryWorkupToJob\(id,jobId\)/);
   assert.match(intakeQueue, /from\('jobs'\)\.update\(\{ai_workup:merged/);
 });
 

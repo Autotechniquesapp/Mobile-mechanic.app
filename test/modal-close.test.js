@@ -10,7 +10,7 @@ test('modal close button cannot submit a form', () => {
 });
 
 test('modal supports delegated close, backdrop tap, and Escape', () => {
-  assert.match(app, /function closeModal\(\)/);
+  assert.match(app, /function closeModal\(target\)/);
   assert.match(app, /e\.target===backdrop/);
   assert.match(app, /e\.key==='Escape'/);
 });

@@ -187,7 +187,7 @@ async function loadWorkspace(user, allowCreate=true){
     id:m.user_id,name:m.user_id===user.id?currentName:'Shop Team Member',email:m.user_id===user.id?(user.email||''):'',role:roleFromDb(m.role),active:m.status==='active'
   }));
   const s={
-    id:shop.shop_id,slug:shop.slug,name:shop.name,ownerName:currentName,phone:shop.business_phone||'',email:user.email||'',
+    id:shop.shop_id,slug:shop.slug,name:shop.name,timezone:shop.timezone,ownerName:currentName,phone:shop.business_phone||'',email:user.email||'',
     plan:planFromDb(shop.plan),trialStarted:shop.trial_started_at,trialEnds:shop.trial_expires_at,
     subscriptionStatus:shop.billing_status==='comped'?'active':shop.billing_status,comped:shop.billing_status==='comped',
     setupComplete:!!shop.setup_complete,logo:shop.logo_url||null,
@@ -205,6 +205,14 @@ async function loadWorkspace(user, allowCreate=true){
   writeCache(cache); document.documentElement.style.setProperty('--red',s.theme.accent);
   return s;
 }
+
+window.MobileMechanicReloadShopJobs=async function(shopId){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session?.user||currentShopId()!==shopId)throw new Error('Shop session changed.');
+  const shop=await loadWorkspace(session.user,false);
+  if(shop?.id!==shopId)throw new Error('Shop session changed.');
+  window.dispatchEvent(new Event('mobile-mechanic-jobs-updated'));
+};
 
 async function refreshWorkspace(route='#dashboard',activeJobId=null){
   const {data:{session}}=await sb.auth.getSession(); if(!session?.user)return;
@@ -256,8 +264,9 @@ async function submitShopIntake(form,d){
   let picked=null;try{picked=JSON.parse(localStorage.getItem('mobile_mechanic_new_job_calendar_slot')||'null');}catch{}
   if(picked?.shopId===sid&&Date.now()-Number(picked.createdAt)<10*60*1000&&picked.start){
     localStorage.removeItem('mobile_mechanic_new_job_calendar_slot');
-    localStorage.setItem('mobile_mechanic_pending_calendar_schedule',JSON.stringify({jobId:r.data.id,start:picked.start,createdAt:Date.now()}));
-    await refreshWorkspace('#calendar',r.data.id);
+    await window.MobileMechanicReloadShopJobs(sid);
+    window.MobileMechanicCalendar?.showNeedsTime();
+    window.MobileMechanicOpenSchedule?.(readCache().shops[sid].jobs.find(job=>job.id===r.data.id),{initialStart:picked.start});
   }else await refreshWorkspace('#jobs',r.data.id);
 }
 
@@ -304,14 +313,6 @@ document.addEventListener('click',async e=>{
       const {error}=await sb.from('shops').update({name:document.getElementById('setupShopName')?.value.trim()||undefined,business_phone:document.getElementById('setupPhone')?.value.trim()||null,setup_complete:true,terms_version:TERMS_VERSION,terms_accepted_at:new Date().toISOString()}).eq('shop_id',sid);if(error)throw error;
       await refreshWorkspace('#dashboard');
     }catch(err){showStatus(err.message||'Could not save setup.','bad');}
-    return;
-  }
-  if(action==='save-schedule'){
-    e.preventDefault();e.stopImmediatePropagation();const jid=el.dataset.job,sid=currentShopId();if(!jid||!sid)return;
-    const startVal=document.getElementById('scheduleStart')?.value;if(!startVal)return showStatus('Pick a start time.','bad');
-    const hours=Number(document.getElementById('scheduleHours')?.value||1),travel=Number(document.getElementById('scheduleTravel')?.value||0),buffer=Number(document.getElementById('scheduleBuffer')?.value||15);
-    const start=new Date(startVal),end=new Date(start.getTime()+(Math.max(.25,hours)*60+travel+buffer)*60000);
-    try{const details=window.MobileMechanicScheduleDetails.read();const {error}=await sb.from('jobs').update({...details,scheduled_start_at:start.toISOString(),scheduled_end_at:end.toISOString(),estimated_labor_hours:hours,travel_minutes:travel,buffer_minutes:buffer,status:'scheduled'}).eq('id',jid).eq('shop_id',sid);if(error)throw error;await refreshWorkspace('#calendar',jid);}catch(err){showStatus(err.message||'Could not save schedule.','bad');}
     return;
   }
   if(action==='toggle-addon'){

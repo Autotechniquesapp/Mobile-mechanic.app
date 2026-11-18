@@ -52,7 +52,7 @@ test('signed-in intake entry reuses normalized phone or email within the current
 
 test('public intake conversion aligns repeat-customer identity before the conversion RPC', () => {
   const alignAt=queue.indexOf('await alignRepeatCustomerIdentity(id)');
-  const convertAt=queue.indexOf("sb.rpc('convert_intake_to_job'",alignAt);
+  const convertAt=queue.indexOf("sb.rpc('convert_schedule_intake_once'",alignAt);
   assert.ok(alignAt>=0&&convertAt>alignAt);
   assert.match(queue, /from\('intake_submissions'\).*eq\('shop_id',sid\).*eq\('id',intakeId\)/);
   assert.match(queue, /from\('customers'\).*eq\('shop_id',sid\)/);

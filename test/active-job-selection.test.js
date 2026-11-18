@@ -18,5 +18,5 @@ test('workspace falls back to a valid current-shop job when the old active job i
 
 test('scheduled database status remains Scheduled after a production workspace reload',()=>{
   assert.match(production,/scheduled:'Scheduled'/);
-  assert.match(production,/status:'scheduled'/);
+  assert.match(fs.readFileSync('integration-automation.js','utf8'),/\?'scheduled':live.status/);
 });
