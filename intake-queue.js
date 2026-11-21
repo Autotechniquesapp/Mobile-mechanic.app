@@ -357,8 +357,10 @@ async function saveIntakeAppointment(jobId,startValue){
   const start=new Date(startValue);
   if(Number.isNaN(start.getTime()))throw new Error('Choose a valid appointment time.');
   const sid=shopId();
-  const {data:job,error:readError}=await sb.from('jobs').select('id,scheduled_start_at,estimated_labor_hours,travel_minutes,buffer_minutes').eq('id',jobId).eq('shop_id',sid).single();
+  const {data:jobs,error:readError}=await sb.rpc('get_my_shop_jobs',{p_shop_id:sid});
   if(readError)throw readError;
+  const job=jobs?.find(row=>row.id===jobId);
+  if(!job)throw new Error('This job is unavailable in the selected shop.');
   // A retry must not move an appointment already saved for this intake.
   if(job.scheduled_start_at)return job.scheduled_start_at;
   const minutes=Math.max(.25,Number(job.estimated_labor_hours||1))*60+Number(job.travel_minutes||0)+Number(job.buffer_minutes??15);
