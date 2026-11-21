@@ -5,9 +5,16 @@ const vm=require('node:vm');
 const {JSDOM}=require('jsdom');
 const intake=fs.readFileSync('intake-queue.js','utf8');
 const calendar=fs.readFileSync('calendar-live-actions.js','utf8');
-function appointmentHarness({existing=null,error=null,affected=[{id:'job'}]}={}){
+function appointmentHarness({existing=null,error=null,readError=null,visible=true,hours=1,affected=[{id:'job'}]}={}){
  const updates=[];
- const sb={from(table){assert.equal(table,'jobs');let writing=false;const q={select(){return q;},eq(){return q;},is(column,value){assert.equal(column,'scheduled_start_at');assert.equal(value,null);return q;},single:async()=>({data:{scheduled_start_at:existing,estimated_labor_hours:1,travel_minutes:10,buffer_minutes:15}}),update(patch){writing=true;updates.push(patch);return q;},then(resolve){return Promise.resolve({data:affected,error:writing?error:null}).then(resolve);}};return q;}};
+ const sb={
+  async rpc(name,params){
+   assert.equal(name,'get_my_shop_jobs');assert.equal(params.p_shop_id,'shop');
+   const row={id:'job',scheduled_start_at:existing,travel_minutes:10,buffer_minutes:15};
+   if(hours!==null)row.estimated_labor_hours=hours;
+   return {data:visible?[row]:[],error:readError};
+  },
+  from(table){assert.equal(table,'jobs');let writing=false;const q={select(fields){assert.equal(fields,'id');return q;},eq(){return q;},is(column,value){assert.equal(column,'scheduled_start_at');assert.equal(value,null);return q;},update(patch){writing=true;updates.push(patch);return q;},then(resolve){return Promise.resolve({data:affected,error:writing?error:null}).then(resolve);}};return q;}};
  const ctx={sb,shopId:()=> 'shop',Date};vm.createContext(ctx);
  vm.runInContext(intake.slice(intake.indexOf('async function saveIntakeAppointment'),intake.indexOf('async function convertIntakeToCalendar')),ctx);
  return {save:ctx.saveIntakeAppointment,updates};
@@ -18,6 +25,17 @@ test('first Add to Calendar saves the selected local time and duration to the li
  assert.equal(h.updates.length,1);assert.equal(h.updates[0].status,'scheduled');
  assert.equal(h.updates[0].scheduled_start_at,new Date(start).toISOString());
  assert.equal(Date.parse(h.updates[0].scheduled_end_at)-Date.parse(h.updates[0].scheduled_start_at),85*60000);
+});
+test('schedule uses visible labor hours and handles a role with hours omitted',async()=>{
+ for(const [hours,minutes] of [[2,145],[null,85]]){
+  const h=appointmentHarness({hours});await h.save('job','2026-11-16T13:30');
+  const patch=h.updates[0];assert.equal(Date.parse(patch.scheduled_end_at)-Date.parse(patch.scheduled_start_at),minutes*60000);
+ }
+});
+test('missing job or rejected shop read stops before the schedule write',async()=>{
+ for(const options of [{visible:false},{readError:new Error('Read denied')}]){
+  const h=appointmentHarness(options);await assert.rejects(h.save('job','2026-11-16T13:30'),/selected shop|Read denied/);assert.equal(h.updates.length,0);
+ }
 });
 test('retry preserves an existing appointment instead of moving or duplicating it',async()=>{
  const h=appointmentHarness({existing:'2026-11-16T20:30:00.000Z'});
