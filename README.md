@@ -2,6 +2,8 @@
 
 Mobile Mechanic AI is a multi-shop automotive workflow platform for mobile mechanics, repair shops, and fleet service operations.
 
+[Try Mobile Mechanic AI with your shop](https://mobile-mechanic.app/shops/) · [Sponsor the project](SPONSORSHIP.md)
+
 ## Current deployment
 
 - Repository: `Autotechniquesapp/Mobile-mechanic.app`

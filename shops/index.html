@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Try Mobile Mechanic AI with your shop</title>
+  <meta name="description" content="Run a repair from the first service request to the final invoice. Try Mobile Mechanic AI with your shop and tell us what would make your next job easier.">
+  <link rel="canonical" href="https://mobile-mechanic.app/shops/">
+  <meta property="og:title" content="Try Mobile Mechanic AI with your shop">
+  <meta property="og:description" content="Keep the customer's complaint, estimate, approval and invoice together. Bring your next repair and help shape the app.">
+  <meta property="og:url" content="https://mobile-mechanic.app/shops/">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="/app-icon.svg">
+  <style>
+    * { box-sizing: border-box }
+    body { margin: 0; background: #181b1e; color: #f9f6ed; font: 17px/1.55 system-ui,sans-serif }
+    header,main,footer { width: min(1080px,90%); margin: auto }
+    header,footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.3rem 0 }
+    header { border-bottom: 1px solid #494d50 }
+    a { color: inherit; text-underline-offset: .2em }
+    a:focus-visible,textarea:focus-visible,button:focus-visible { outline: 3px solid #ffac81; outline-offset: 4px }
+    .brand { font-weight: 800; text-decoration: none; display: inline-flex; align-items:center; gap: .6rem }
+    .brand img { width: 32px; height: 32px }
+    .hero { display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: clamp(2rem,6vw,5rem); padding: clamp(3rem,8vw,7rem) 0 }
+    h1,h2,h3,p { margin: 0 0 1rem }
+    h1 { font-size: clamp(3.1rem,7vw,5.8rem); letter-spacing: -.065em; line-height: .98; max-width: 12ch }
+    h2 { font-size: clamp(1.7rem,4vw,2.65rem); letter-spacing: -.045em; line-height: 1.08 }
+    .lead { max-width: 49ch; color: #dddcd6; margin: 1.4rem 0 }
+    .button { display: inline-block; border: 0; background: #bf3036; color: white; border-radius: 5px; padding: .8rem 1.25rem; font: inherit; font-weight: 750; text-decoration: none; cursor: pointer }
+    .button:hover { background: #a4232b }
+    .offer { font-size: .9rem; max-width: 42ch; color: #d5d4cd; margin: .9rem 0 0 }
+    .ticket { background: #f4f0e5; color: #1e2326; padding: clamp(1.4rem,3vw,2.4rem); border-top: 6px solid #c63e40; box-shadow: 7px 8px 0 #0c1013; }
+    .ticket small,dt { font: 700 .77rem/1.5 ui-monospace,monospace; letter-spacing: .055em; text-transform: uppercase }
+    .ticket h2 { margin: .65rem 0 1.6rem; font-size: 2rem }
+    dl { margin: 0 } dt { border-top: 1px dashed #9d9c94; padding-top: .7rem; color: #574e47 } dd { margin: .15rem 0 .8rem }
+    .details { border-top: 1px solid #505558; padding: 2rem 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem }
+    .details p { max-width: 50ch; color: #dddcd6 }
+    .details h3 { font-size: 1.1rem; margin-bottom: .3rem }
+    .feedback { padding: 2rem 0; border-top: 1px solid #505558 }
+    label,textarea { display: block } textarea { color: #17191a; background: #f4f0e5; font: inherit; width: min(100%,38rem); padding: .8rem; margin: .5rem 0 1rem; border-radius: 4px }
+    footer { border-top: 1px solid #505558; font-size: .9rem }
+    @media(max-width: 720px) { .hero,.details { grid-template-columns: 1fr } }
+  </style>
+</head>
+<body>
+  <header><a class="brand" href="/"><img src="/app-icon.svg" alt="">Mobile Mechanic AI</a><a href="/#login">Shop login</a></header>
+  <main>
+    <section class="hero">
+      <div><h1>Take your next repair from call to invoice.</h1>
+        <p class="lead">Send your customer one intake link. When you get to the vehicle, their complaint and vehicle details are already on the job. Add your findings, send an estimate for approval, and finish the invoice from your phone.</p>
+        <a class="button" href="/#signup">Create a shop account</a>
+        <p class="offer">Solo starts at $29.99/month. The first 100 eligible shops qualify for a 60-day trial, with no card required for the first 30 days.</p>
+      </div>
+      <aside class="ticket" aria-label="Example repair record"><small>Sample work order</small><h2>Honda Civic · No start</h2><dl>
+        <dt>Customer complaint</dt><dd>“The dash lights come on. I hear one click when I turn the key.”</dd>
+        <dt>Technician finding</dt><dd>Battery passes load test. Excessive voltage drop at the ground connection.</dd>
+        <dt>Approved repair</dt><dd>Clean and secure the ground connection. Retest starting circuit.</dd>
+        <dt>Invoice note</dt><dd>Voltage drop within spec after repair. Verified three successful starts.</dd>
+      </dl></aside>
+    </section>
+    <section class="details"><div><h2>Try it on one job.</h2><p>Pick a repair you already have booked. Send the intake link, record what you found and see how the estimate reads on the customer’s phone.</p></div>
+      <div><h3>Working solo?</h3><p>Keep the address, vehicle and repair notes together when you move between calls.</p><h3>Running a crew?</h3><p>Give the next technician the complaint, findings and approved work in the same job record. Shop plans cover up to five users and Pro/Fleet covers up to fifteen.</p></div>
+    </section>
+    <section class="feedback"><h2>What slowed you down?</h2><p>Tell us the step you took and what you expected to happen. You can also use Feedback inside your shop account.</p>
+      <form id="feedback"><label for="note">Your shop feedback</label><textarea id="note" rows="3" maxlength="1500" required></textarea><button class="button" type="submit">Open feedback email</button></form>
+      <p>Or email <a href="mailto:support@mobile-mechanic.app">support@mobile-mechanic.app</a> directly.</p>
+    </section>
+  </main>
+  <footer><a href="https://github.com/Autotechniquesapp/Mobile-mechanic.app/blob/main/SPONSORSHIP.md">Sponsor shop maps and AI intake workups</a><a href="/privacy.html">Privacy policy</a></footer>
+  <script>
+    document.getElementById('feedback').addEventListener('submit', function (event) {
+      event.preventDefault();
+      const message = document.getElementById('note').value.trim();
+      if (message) location.href = 'mailto:support@mobile-mechanic.app?subject=Shop%20feedback&body=' + encodeURIComponent(message);
+    });
+  </script>
+</body>
+</html>
