@@ -806,7 +806,13 @@ const qs=new URLSearchParams(location.search);
 const intakeSlug=pathIntakeSlug()||qs.get('intake');
 if(intakeSlug){
   const s=Object.values(db.shops).find(x=>x.slug===intakeSlug);
-  if(s) publicIntake(s); else publicMessage('Shop intake link not found','Ask the mechanic/shop to send a new intake link.');
+  if(s) publicIntake(s); else {
+    publicMessage('Shop intake link not found','Search for the shop that sent you or ask your mechanic for a fresh link.');
+    const link=document.createElement('a');
+    link.href='/?findShop=1';
+    link.textContent='Find my shop';
+    ROOT.querySelector('.customer-body').append(link);
+  }
 } else if(qs.get('estimate')){
   try{const data=JSON.parse(decodeURIComponent(escape(atob(qs.get('estimate')))));estimatePage(data);}catch{publicMessage('Estimate link not found','Ask the shop to send a new estimate link.');}
 } else {
