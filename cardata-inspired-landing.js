@@ -33,29 +33,16 @@ function heroMarkup(){
 
     <section class="mma-cardata-hero-grid">
       <div class="mma-cardata-hero-copy">
-        <div class="mma-kicker">BUILT FOR MOBILE MECHANICS & REPAIR SHOPS</div>
-        <h1>RUN THE JOB.<br><span>NOT THE PAPERWORK.</span></h1>
-        <p class="mma-hero-lead">Customer intake, jobs, diagnostics, estimates, approvals, scheduling, parts, and shop tools in one repair workflow built to save time in the bay and on the road.</p>
-        <div class="mma-hero-actions">
-          <button type="button" class="mma-primary-cta" data-mma-go="signup">CREATE SHOP ACCOUNT</button>
-          <button type="button" class="mma-secondary-cta" data-mma-scroll="features">SEE WHAT'S INSIDE</button>
-        </div>
-        <div class="mma-trust-row">
-          <span>✓ Built for independent shops</span>
-          <span>✓ Mobile-first</span>
-          <span>✓ Your shop owns its records</span>
-        </div>
+        <div class="mma-kicker">FOR MOBILE MECHANICS AND REPAIR SHOPS</div>
+        <h1>From the first call<br><span>to the final invoice.</span></h1>
+        <p class="mma-hero-lead">Mobile Mechanic AI keeps the customer’s complaint, vehicle, appointment, estimate and invoice together. Open the job on your phone, record what you found, and send it to the customer for approval.</p>
+        <div class="mma-hero-actions"><button type="button" class="mma-primary-cta" data-mma-go="signup">CREATE SHOP ACCOUNT</button><a class="mma-secondary-cta" href="/shops/">Try it on one repair</a></div>
       </div>
-      <aside class="mma-product-preview" aria-label="Mobile Mechanic AI workflow preview">
-        <div class="mma-preview-top"><span>SHOP WORKFLOW</span><b>LIVE</b></div>
-        <div class="mma-preview-vehicle"><small>CURRENT JOB</small><strong>2017 Toyota Camry</strong><span>Customer intake received</span></div>
-        <div class="mma-preview-stack">
-          <div><b>01</b><span><strong>Customer Intake</strong><small>Concern, vehicle, location</small></span><em>✓</em></div>
-          <div><b>02</b><span><strong>Diagnosis & Findings</strong><small>Codes, tests, technician notes</small></span><em>›</em></div>
-          <div><b>03</b><span><strong>Estimate & Approval</strong><small>Repair plan sent to customer</small></span><em>›</em></div>
-          <div><b>04</b><span><strong>Repair & Invoice</strong><small>Track work through completion</small></span><em>›</em></div>
-        </div>
-        <button type="button" class="mma-preview-login" data-mma-login>OPEN SHOP LOGIN</button>
+      <aside class="mma-product-preview" aria-labelledby="findShopHeading">
+        <h2 id="findShopHeading">Which shop sent you?</h2>
+        <p>Looking for your customer intake form? Enter the business name your mechanic gave you.</p>
+        <form id="shopFinder"><label for="shopQuery">Shop name</label><input id="shopQuery" name="shop" type="search" minlength="2" maxlength="100" required placeholder="e.g. AutoTechniques" style="display:block;width:100%;box-sizing:border-box;padding:12px;margin:8px 0;color:#14171a;background:white;border-radius:6px"><button class="mma-primary-cta" type="submit">Find my intake form</button></form>
+        <p role="status" id="shopStatus"></p><ul id="shopResults"></ul>
       </aside>
     </section>
 
@@ -122,6 +109,34 @@ function wire(home,overlay){
   home.querySelectorAll('[data-mma-scroll]').forEach(btn=>btn.addEventListener('click',()=>{
     home.querySelector(`[data-mma-section="${btn.dataset.mmaScroll}"]`)?.scrollIntoView({behavior:'smooth',block:'start'});
   }));
+  const finder=home.querySelector('#shopFinder');
+  const status=home.querySelector('#shopStatus');
+  const results=home.querySelector('#shopResults');
+  let searchVersion=0;
+  finder.addEventListener('input',()=>{ searchVersion++; results.replaceChildren(); status.textContent=''; });
+  finder.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const version=++searchVersion;
+    results.replaceChildren();
+    const term=finder.elements.shop.value.trim().replace(/[%_\\]/g,'');
+    if(term.length<2){status.textContent='Enter at least two letters of the shop name.';return;}
+    status.textContent='Finding shops…';
+    try {
+      const {data,error}=await window.MobileMechanicSupabase.from('shops').select('name,slug,service_area').ilike('name','%'+term+'%').order('name').limit(10);
+      if(version!==searchVersion)return;
+      if(error)throw error;
+      for(const shop of data||[]){
+        if(!shop.slug)continue;
+        const link=document.createElement('a');
+        link.href='/intake/'+encodeURIComponent(shop.slug);
+        link.textContent=shop.name+(shop.service_area?' — '+shop.service_area:'');
+        link.style.color='inherit';
+        const item=document.createElement('li');item.append(link);results.append(item);
+      }
+      status.textContent=results.children.length?'Choose your shop to open its intake form.':'No match. Try a shorter name or ask your mechanic to resend the link.';
+    } catch {if(version===searchVersion)status.textContent='Shop search is unavailable. Try again or ask your mechanic to resend the link.';}
+  });
+  if(new URLSearchParams(location.search).has('findShop')) finder.elements.shop.focus();
   overlay?.querySelector('.landing-close')?.addEventListener('click',()=>closeLogin(overlay));
   overlay?.addEventListener('click',e=>{if(e.target===overlay)closeLogin(overlay);});
 }
