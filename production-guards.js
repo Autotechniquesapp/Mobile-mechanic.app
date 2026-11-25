@@ -11,7 +11,7 @@ function ensureMarketingAssets(){
   }
   if(!document.querySelector('script[data-mma-cardata-script]')){
     const script=document.createElement('script');
-    script.src='cardata-inspired-landing.js?v=20260906-1';
+    script.src='cardata-inspired-landing.js?v=20260906-1&signupcopy=2';
     script.dataset.mmaCardataScript='1';
     document.head.appendChild(script);
   }

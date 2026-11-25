@@ -37,11 +37,11 @@ function heroMarkup(){
         <h1>RUN THE JOB.<br><span>NOT THE PAPERWORK.</span></h1>
         <p class="mma-hero-lead">Customer intake, jobs, diagnostics, estimates, approvals, scheduling, parts, and shop tools in one repair workflow built to save time in the bay and on the road.</p>
         <div class="mma-hero-actions">
-          <button type="button" class="mma-primary-cta" data-mma-go="signup">START 60-DAY FREE TRIAL</button>
+          <button type="button" class="mma-primary-cta" data-mma-go="signup">CREATE SHOP ACCOUNT</button>
           <button type="button" class="mma-secondary-cta" data-mma-scroll="features">SEE WHAT'S INSIDE</button>
         </div>
         <div class="mma-trust-row">
-          <span>✓ No card required for days 1–30</span>
+          <span>✓ Built for independent shops</span>
           <span>✓ Mobile-first</span>
           <span>✓ Your shop owns its records</span>
         </div>
@@ -85,10 +85,10 @@ function heroMarkup(){
 
     <section class="mma-marketing-section" id="mmaPricing" data-mma-section="pricing">
       <div class="mma-section-eyebrow">SIMPLE PRICING</div>
-      <h2>60 DAYS FREE. THEN PICK THE SHOP SIZE THAT FITS.</h2>
-      <p class="mma-section-lead">Days 1–30 require no subscription card. The trial stays free through day 60.</p>
+      <h2>CHOOSE THE PLAN THAT FITS YOUR SHOP.</h2>
+      <p class="mma-section-lead">Compare monthly plans for solo mechanics, repair teams, and fleet operations.</p>
       <div class="mma-price-grid">
-        ${plans.map(([name,price,suffix,seats,desc],i)=>`<article class="mma-price-card ${i===1?'featured':''}">${i===1?'<div class="mma-popular">MOST POPULAR</div>':''}<h3>${name}</h3><div class="mma-price"><strong>${price}</strong><span>${suffix}</span></div><b>${seats}</b><p>${desc}</p><button type="button" data-mma-go="signup">START FREE</button></article>`).join('')}
+        ${plans.map(([name,price,suffix,seats,desc],i)=>`<article class="mma-price-card ${i===1?'featured':''}">${i===1?'<div class="mma-popular">MOST POPULAR</div>':''}<h3>${name}</h3><div class="mma-price"><strong>${price}</strong><span>${suffix}</span></div><b>${seats}</b><p>${desc}</p><button type="button" data-mma-go="signup">GET STARTED</button></article>`).join('')}
       </div>
     </section>
 
