@@ -20,8 +20,10 @@ test('landing targets real shop landing and preserves existing auth overlay',()=
   assert.doesNotMatch(landing,/signInWithPassword|signUp\(/);
 });
 
-test('landing includes trial, features, pricing and signup actions',()=>{
-  assert.match(landing,/60-DAY FREE TRIAL/);
+test('public landing, login and signup have no fixed 60-day offer',()=>{
+  const publicAuth=app.slice(app.indexOf('function login(){'),app.indexOf('function signup(){'))+app.split('function signup(){')[1].split('\n}')[0];
+  assert.doesNotMatch(landing+publicAuth,/\b60[\s-]*days?\b|\bday\s+60\b/i);
+  assert.match(landing,/CREATE SHOP ACCOUNT/);
   assert.match(landing,/WHAT'S INSIDE/);
   assert.match(landing,/SIMPLE PRICING/);
   assert.match(landing,/data-mma-go="signup"/);

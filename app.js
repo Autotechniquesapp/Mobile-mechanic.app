@@ -179,19 +179,19 @@ function pageTitle(title,sub='',back='dashboard'){
 }
 
 function login(){
-  ROOT.innerHTML = `<section class="hercules-landing"><header><div class="hercules-brand"><span>${ic('wrench')}</span><b>Mobile Mechanic AI</b></div><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button></header><main><div class="hercules-mark">${ic('wrench')}</div><h1>The AI-Powered<br>Mobile Mechanic Platform</h1><p>Customer sends their info. AI preps you before arrival. You verify onsite by voice. The app handles the rest.</p><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button><div class="hercules-features"><div>${ic('brain')}<span>AI Pre-Workup</span></div><div>${ic('shield')}<span>Customer Intake</span></div><div>${ic('wrench')}<span>Voice Findings</span></div><div>${ic('clock')}<span>Smart Scheduling</span></div></div></main><footer>© 2026 Mobile Mechanic AI — Built for professional technicians</footer><div class="landing-login" aria-hidden="true"><div class="auth-card"><button class="landing-close" data-action="hide-login" aria-label="Close">×</button><div class="auth-logo"><div class="hercules-mark">${ic('wrench')}</div><h2>Sign in</h2><p>Access your Mobile Mechanic AI shop</p></div><div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div><button class="btn btn-primary btn-wide" data-action="login">Sign In</button><div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account — 60 Day Trial</button></div></div></section>`;
+  ROOT.innerHTML = `<section class="hercules-landing"><header><div class="hercules-brand"><span>${ic('wrench')}</span><b>Mobile Mechanic AI</b></div><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button></header><main><div class="hercules-mark">${ic('wrench')}</div><h1>The AI-Powered<br>Mobile Mechanic Platform</h1><p>Customer sends their info. AI preps you before arrival. You verify onsite by voice. The app handles the rest.</p><button class="btn btn-primary" data-action="show-login">${ic('send')} Sign In</button><div class="hercules-features"><div>${ic('brain')}<span>AI Pre-Workup</span></div><div>${ic('shield')}<span>Customer Intake</span></div><div>${ic('wrench')}<span>Voice Findings</span></div><div>${ic('clock')}<span>Smart Scheduling</span></div></div></main><footer>© 2026 Mobile Mechanic AI — Built for professional technicians</footer><div class="landing-login" aria-hidden="true"><div class="auth-card"><button class="landing-close" data-action="hide-login" aria-label="Close">×</button><div class="auth-logo"><div class="hercules-mark">${ic('wrench')}</div><h2>Sign in</h2><p>Access your Mobile Mechanic AI shop</p></div><div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="you@yourshop.com"></div><div class="field"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></div><button class="btn btn-primary btn-wide" data-action="login">Sign In</button><div class="auth-split">or</div><button class="btn btn-soft btn-wide" data-route="signup">Create Shop Account</button></div></div></section>`;
   bind();
 }
 
 function signup(){
-  ROOT.innerHTML = `<section class="auth-screen"><form class="auth-card" id="signupForm"><div class="page-title"><button type="button" class="back-btn" data-route="login">‹</button><div><h2>Create Shop Account</h2><p>Start the 60-day free trial. No charge today.</p></div></div>
+  ROOT.innerHTML = `<section class="auth-screen"><form class="auth-card" id="signupForm"><div class="page-title"><button type="button" class="back-btn" data-route="login">‹</button><div><h2>Create Shop Account</h2><p>Set up your shop and choose a monthly plan.</p></div></div>
   <div class="field"><label>Business / Shop Name</label><input name="shopName" required placeholder="Your shop name"></div>
   <div class="row2"><div class="field"><label>Owner Name</label><input name="ownerName" required></div><div class="field"><label>Phone</label><input name="phone" type="tel"></div></div>
   <div class="field"><label>Owner Login Email</label><input name="email" type="email" required autocomplete="username"></div>
   <div class="field"><label>Password</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div>
-  <div class="eyebrow">Choose plan after trial</div><div class="plan-cards">${Object.entries(plans).map(([k,p],idx)=>`<label class="plan-card"><input type="radio" name="plan" value="${k}" ${idx===1?'checked':''}><b>${p.name}</b><strong>${money(p.price)}<small>/mo</small></strong><span>${p.label}<br>Up to ${p.seats} user${p.seats>1?'s':''}</span></label>`).join('')}</div>
+  <div class="eyebrow">Choose your plan</div><div class="plan-cards">${Object.entries(plans).map(([k,p],idx)=>`<label class="plan-card"><input type="radio" name="plan" value="${k}" ${idx===1?'checked':''}><b>${p.name}</b><strong>${money(p.price)}<small>/mo</small></strong><span>${p.label}<br>Up to ${p.seats} user${p.seats>1?'s':''}</span></label>`).join('')}</div>
   <label class="list-item" style="align-items:center"><input name="terms" type="checkbox" required><div class="list-main"><b>Subscription & platform terms</b><p>I understand billing is recurring after the trial when activated, payments are generally non-refundable except where required by law, and AI is an assistive tool only.</p></div></label>
-  <button class="btn btn-primary btn-wide" type="submit" style="margin-top:12px">Create Shop & Start Trial</button></form></section>`;
+  <button class="btn btn-primary btn-wide" type="submit" style="margin-top:12px">Create Shop Account</button></form></section>`;
   bind();
 }
 
@@ -821,6 +821,5 @@ window.addEventListener('mobile-mechanic-jobs-updated',()=>{
 });
 
 })();
-
 
 
